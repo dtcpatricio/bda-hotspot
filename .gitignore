@@ -1,0 +1,29 @@
+
+## ignore the following directories
+build/
+hotspot/
+test/
+.jcheck/
+
+## ignore the following because we're not targetting for them
+src/os/*
+!src/os/linux
+src/os_cpu/*
+!src/os_cpu/linux_x86
+src/cpu/*
+!src/cpu/x86
+make/aix/
+make/solaris/
+make/windows/
+make/bsd/
+
+## also ignore some classes only used for the SA
+agent/src/os/*
+!agent/src/os/linux
+
+## ignore all logs file from possbile hs errors
+*.log
+*.txt
+
+## ignore all class files from possible javac compilations
+*.class
