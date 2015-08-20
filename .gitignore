@@ -12,6 +12,9 @@ src/os_cpu/*
 !src/os_cpu/linux_x86
 src/cpu/*
 !src/cpu/x86
+src/share/tools/*
+!src/share/tools/hsdis
+
 make/aix/
 make/solaris/
 make/windows/
