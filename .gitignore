@@ -17,9 +17,13 @@ make/solaris/
 make/windows/
 make/bsd/
 
-## also ignore some classes only used for the SA
-agent/src/os/*
-!agent/src/os/linux
+## also ignore some classes only used for the SA (for now include the whole agent dir)
+## agent/src/os/*
+## !agent/src/os/linux
+agent/
+
+## some dirs in run (created automatically) must also be renamed
+run/scratch/
 
 ## ignore all logs file from possbile hs errors
 *.log
