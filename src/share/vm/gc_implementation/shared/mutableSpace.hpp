@@ -71,7 +71,7 @@ class MutableSpace: public ImmutableSpace {
   HeapWord* top() const                    { return _top;    }
   virtual void set_top(HeapWord* value)    { _top = value;   }
   // For Big Data implementations. On other cases it is return like top()
-  virtual HeapWord* top_specific(BDACollectionType type) { return top(); }
+  virtual HeapWord* top_specific(BDARegion type) { return top(); }
 
   HeapWord** top_addr()                    { return &_top; }
   HeapWord** end_addr()                    { return &_end; }
@@ -82,7 +82,12 @@ class MutableSpace: public ImmutableSpace {
   size_t alignment()                       { return _alignment; }
 
   // Returns a subregion containing all objects in this space.
-  MemRegion used_region() { return MemRegion(bottom(), top()); }
+  virtual MemRegion used_region() { return MemRegion(bottom(), top()); }
+  // Returns a subregion containing all objects in the space.
+  // Used in the Big Data Aware mutable space
+  virtual MemRegion used_region(BDARegion type) {
+    return MemRegion(bottom(), top());
+  }
 
   static const bool SetupPages = true;
   static const bool DontSetupPages = false;
@@ -141,6 +146,9 @@ class MutableSpace: public ImmutableSpace {
   void oop_iterate(ExtendedOopClosure* cl);
   void oop_iterate_no_header(OopClosure* cl);
   void object_iterate(ObjectClosure* cl);
+
+  // Helper methods for scavenging (for the mutableSpace it returns _top)
+  virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) { return _top; }
 
   // Debugging
   virtual void print() const;

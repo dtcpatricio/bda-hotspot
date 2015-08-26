@@ -31,6 +31,7 @@ class MutableSpace;
 class ObjectStartArray;
 class PSPromotionManager;
 class GCTaskQueue;
+class BDACardTableHelper;
 
 class CardTableExtension : public CardTableModRefBS {
  private:
@@ -63,6 +64,7 @@ class CardTableExtension : public CardTableModRefBS {
   void scavenge_contents_parallel(ObjectStartArray* start_array,
                                   MutableSpace* sp,
                                   HeapWord* space_top,
+                                  //BDACardTableHelper* tops,
                                   PSPromotionManager* pm,
                                   uint stripe_number,
                                   uint stripe_total);

@@ -42,6 +42,8 @@
 #include "services/management.hpp"
 #include "utilities/taskqueue.hpp"
 
+#include "gc_implementation/shared/bdcMutableSpace.hpp"
+
 //
 // ScavengeRootsTask
 //
@@ -176,7 +178,8 @@ void OldToYoungRootsTask::do_it(GCTaskManager* manager, uint which) {
   assert(!_gen->object_space()->is_empty(),
     "Should not be called is there is no work");
   assert(_gen != NULL, "Sanity");
-  assert(_gen->object_space()->contains(_gen_top) || _gen_top == _gen->object_space()->top(), "Sanity");
+  //assert(_gen->object_space()->contains(_gen_top) || _gen_top == _gen->object_space()->top(), "Sanity");
+  assert(_gen->object_space()->contains(_tops->cur_top()) || _tops->cur_top() == _gen->object_space()->top(), "Sanity");
   assert(_stripe_number < ParallelGCThreads, "Sanity");
 
   {
@@ -186,12 +189,16 @@ void OldToYoungRootsTask::do_it(GCTaskManager* manager, uint which) {
     CardTableExtension* card_table = (CardTableExtension *)Universe::heap()->barrier_set();
     // FIX ME! Assert that card_table is the type we believe it to be.
 
-    card_table->scavenge_contents_parallel(_gen->start_array(),
-                                           _gen->object_space(),
-                                           _gen_top,
-                                           pm,
-                                           _stripe_number,
-                                           _stripe_total);
+    for(int i = 0; i < _tops->tops().length(); i++) {
+      card_table->scavenge_contents_parallel(_gen->start_array(),
+                                             //_gen->object_space(),
+                                             _tops->regions().at(i),
+                                             //_gen_top,
+                                             _tops->tops().at(i),
+                                             pm,
+                                             _stripe_number,
+                                             _stripe_total);
+    }
 
     // Do the real work
     pm->drain_stacks(false);

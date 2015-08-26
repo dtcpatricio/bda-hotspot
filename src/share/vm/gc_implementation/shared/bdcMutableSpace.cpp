@@ -5,6 +5,32 @@
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
+BDACardTableHelper::BDACardTableHelper(BDCMutableSpace* sp, int n,
+                                       ...) : _sp(sp), _cur_top(sp->top()) {
+  va_list tops;
+  va_start(tops, n);
+  HeapWord* p;
+  for(int i = 0; i < n; i++) {
+    p = va_arg(tops, HeapWord*);
+    _tops.append(p);
+  }
+  va_end(tops);
+
+  _regions.append(sp->collections()->at(0)->space());
+  _regions.append(sp->collections()->at(1)->space());
+}
+
+HeapWord*
+BDACardTableHelper::top_region_for_slice(HeapWord* slice_start) {
+  HeapWord* p = _tops.at(_tops.length() - 1);
+  for(int i = _tops.length() - 2; i >= 0; i--) {
+    // if another saved top is smaller than the previous and slice_start is smaller
+    // then update the saved top
+    p = _tops.at(i) < p && slice_start < _tops.at(i) ? _tops.at(i) : p;
+  }
+  return p;
+}
+
 BDCMutableSpace::BDCMutableSpace(size_t alignment) : MutableSpace(alignment) {
   _collections = new (ResourceObj::C_HEAP, mtGC) GrowableArray<CGRPSpace*>(0, true);
   _page_size = os::vm_page_size();
@@ -24,8 +50,8 @@ void BDCMutableSpace::initialize(MemRegion mr, bool clear_space, bool mangle_spa
 
   // initializing the array of collection types
   // maybe a prettier way of doing this...
-  collections()->append(new CGRPSpace(alignment(), coll_type_none));
-  collections()->append(new CGRPSpace(alignment(), coll_type_hashmap));
+  collections()->append(new CGRPSpace(alignment(), region_other));
+  collections()->append(new CGRPSpace(alignment(), region_hashmap));
 
   set_bottom(bottom);
   set_end(end);
@@ -96,7 +122,7 @@ BDCMutableSpace::free_in_words() const {
 size_t
 BDCMutableSpace::capacity_in_words(Thread *thr) const {
   guarantee(thr != NULL, "No thread");
-  BDACollectionType ctype = thr->curr_alloc_coll_type();
+  BDARegion ctype = thr->alloc_region();
   int i = collections()->find(&ctype, CGRPSpace::equals);
   if( i == -1 )
     i = 0;
@@ -107,7 +133,7 @@ BDCMutableSpace::capacity_in_words(Thread *thr) const {
 size_t
 BDCMutableSpace::tlab_capacity(Thread *thr) const {
   guarantee(thr != NULL, "No thread");
-  BDACollectionType ctype = thr->curr_alloc_coll_type();
+  BDARegion ctype = thr->alloc_region();
   int i = collections()->find(&ctype, CGRPSpace::equals);
   if( i == -1 )
     i = 0;
@@ -118,7 +144,7 @@ BDCMutableSpace::tlab_capacity(Thread *thr) const {
 size_t
 BDCMutableSpace::tlab_used(Thread *thr) const {
   guarantee(thr != NULL, "No thread");
-  BDACollectionType ctype = thr->curr_alloc_coll_type();
+  BDARegion ctype = thr->alloc_region();
   int i = collections()->find(&ctype, CGRPSpace::equals);
   if( i == -1 )
     i = 0;
@@ -129,7 +155,7 @@ BDCMutableSpace::tlab_used(Thread *thr) const {
 size_t
 BDCMutableSpace::unsafe_max_tlab_alloc(Thread *thr) const {
   guarantee(thr != NULL, "No thread");
-  BDACollectionType ctype = thr->curr_alloc_coll_type();
+  BDARegion ctype = thr->alloc_region();
   int i = collections()->find(&ctype, CGRPSpace::equals);
   if( i == -1 )
     i = 0;
@@ -139,7 +165,7 @@ BDCMutableSpace::unsafe_max_tlab_alloc(Thread *thr) const {
 
 HeapWord* BDCMutableSpace::allocate(size_t size) {
   // Thread* thr = Thread::current();
-  // CollectionType type2aloc = thr->curr_alloc_coll_type();
+  // CollectionType type2aloc = thr->alloc_region();
   // // should we sanitize here the type2aloc in case it has wrong values
 
   // int i = 0;//= collections()->find(&type2aloc, CGRPSpace::equals);
@@ -169,7 +195,7 @@ HeapWord* BDCMutableSpace::allocate(size_t size) {
 
 HeapWord* BDCMutableSpace::cas_allocate(size_t size) {
   Thread* thr = Thread::current();
-  BDACollectionType type2aloc = thr->curr_alloc_coll_type();
+  BDARegion type2aloc = thr->alloc_region();
 
   int i = collections()->find(&type2aloc, CGRPSpace::equals);
 
@@ -177,24 +203,36 @@ HeapWord* BDCMutableSpace::cas_allocate(size_t size) {
   if (i == -1)
     i = 0;
 
-  CGRPSpace *cs = collections()->at(i);
-  MutableSpace *ms = cs->space();
-  HeapWord *obj;
+  CGRPSpace* cs = collections()->at(i);
+  MutableSpace* ms = cs->space();
+  HeapWord* obj = ms->cas_allocate(size);
 
-  do {
-    HeapWord *cur_top = top(), *next_top = top() + size;
-    if((next_top == cur_top + size) && Atomic::cmpxchg_ptr(next_top, top_addr(), cur_top) == cur_top) {
-      obj = ms->cas_allocate(size);
-      if(obj == NULL)
-        return NULL;
-      else if(obj < top() - size) {
-        ms->set_top(top());
-        continue;
+  if(obj != NULL) {
+    HeapWord* region_top, *cur_top;
+    while((cur_top = top()) < (region_top = ms->top())) {
+      if( Atomic::cmpxchg_ptr(region_top, top_addr(), cur_top) == cur_top ) {
+        break;
       }
-      assert(obj <= top(), "Incorrect allocation");
-      break;
     }
-  } while(true);
+  } else {
+    return NULL;
+  }
+
+  assert(obj <= ms->top() && obj + size <= top(), "Incorrect push of the space's top");
+
+   //  if( Atomic::cmpxchg_ptr(next_top, top_addr(), cur_top) == cur_top ) {
+
+  //     obj = ms->cas_allocate(size);
+  //     if(obj == NULL)
+  //       return NULL;
+  //     else if(obj < top() - size) {
+  //       ms->set_top(top());
+  //       continue;
+  //     }
+  //     assert(obj <= top(), "Incorrect allocation");
+  //     break;
+  //   }
+  // } while(true);
 
   if(obj != NULL) {
     size_t remainder = pointer_delta(ms->end(), obj + size);
@@ -234,37 +272,37 @@ bool BDCMutableSpace::update_top() {
 
 void
 BDCMutableSpace::set_top(HeapWord* value) {
-  // bool found_top = false;
-  // for (int i = 0; i < collections()->length(); ++i) {
-  //   CGRPSpace *cs = collections()->at(i);
-  //   HeapWord *top = MAX2((HeapWord*)round_down((intptr_t)cs->top(), page_size()),
-  //                        cs->bottom());
+  bool found_top = false;
+  for (int i = 0; i < collections()->length(); ++i) {
+    MutableSpace *ms = collections()->at(i)->space();
+    HeapWord *top = MAX2((HeapWord*)round_down((intptr_t)ms->top(), page_size()),
+                         ms->bottom());
 
-  //   if(cs->contains(value)) {
-  //     // We try to push the value to the next region, in case the space
-  //     // left is smaller than min_fill_size. A similar interpretation is
-  //     // made on mutableNUMASpace.cpp
+    if(ms->contains(value)) {
+      // We try to push the value to the next region, in case the space
+      // left is smaller than min_fill_size. A similar interpretation is
+      // made on mutableNUMASpace.cpp
 
-  //     if(i < collections()->length() - 1) {
-  //       size_t remainder = pointer_delta(cs->end(), value);
-  //       const size_t min_fill_size = CollectedHeap::min_fill_size();
-  //       if(remainder < min_fill_size && remainder > 0) {
-  //         CollectedHeap::fill_with_object(value, min_fill_size);
-  //         value += min_fill_size;
-  //         assert(!cs->contains(value), "Value should be in the next region");
-  //         continue;
-  //       }
-  //     }
-  //     cs->set_top(value);
-  //     found_top = true;
-  //   } else {
-  //     if(found_top) {
-  //       cs->set_top(cs->bottom());
-  //     } else {
-  //       cs->set_top(cs->end());
-  //     }
-  //   }
-  // }
+      if(i < collections()->length() - 1) {
+        size_t remainder = pointer_delta(ms->end(), value);
+        const size_t min_fill_size = CollectedHeap::min_fill_size();
+        if(remainder < min_fill_size && remainder > 0) {
+          CollectedHeap::fill_with_object(value, min_fill_size);
+          value += min_fill_size;
+          assert(!ms->contains(value), "Value should be in the next region");
+          continue;
+        }
+      }
+      ms->set_top(value);
+      found_top = true;
+    } else {
+      if(found_top) {
+        ms->set_top(ms->bottom());
+      } else {
+        ms->set_top(ms->end());
+      }
+    }
+  }
   MutableSpace::set_top(value);
 }
 

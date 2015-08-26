@@ -25,14 +25,14 @@ class BDCPromotionLAB : public CHeapObj<mtGC> {
 protected:
 
   class PLABRegion : public CHeapObj<mtGC> {
-    BDACollectionType _colltype;
+    BDARegion _colltype;
 
     HeapWord *_top;
     HeapWord *_bottom;
     HeapWord *_end;
 
   public:
-    PLABRegion(BDACollectionType ct) : _colltype(ct) { }
+    PLABRegion(BDARegion ct) : _colltype(ct) { }
     ~PLABRegion() { }
 
     void initialize(MemRegion mr) {
@@ -45,7 +45,7 @@ protected:
     HeapWord* top() const { return _top; }
     HeapWord* end() const { return _end; }
     HeapWord* bottom() const { return _bottom; }
-    BDACollectionType type() const { return _colltype; }
+    BDARegion type() const { return _colltype; }
 
     // Setters
     void set_top(HeapWord* value) { _top = value; }
@@ -54,7 +54,7 @@ protected:
 
     // Helper methods
     static bool equals(void* region_type, PLABRegion* r) {
-      return *(BDACollectionType*)region_type == r->type();
+      return *(BDARegion*)region_type == r->type();
     }
 
     bool contains(HeapWord *p) { return p >= _bottom && p < _end; }
@@ -104,7 +104,7 @@ public:
   bool unallocate_object(HeapWord* obj, size_t obj_size);
 
   // Return a subregion containing all objects in this space
-  MemRegion used_region(BDACollectionType type); // collection type version
+  MemRegion used_region(BDARegion type); // collection type version
   MemRegion used_region() { return MemRegion(bottom(), top()); }
 
   bool contains(const void* p) const { return p >= _bottom && p < _end; }
@@ -122,9 +122,9 @@ public:
   size_t used() const                { return byte_size(bottom(), top()); }
   size_t free() const                { return byte_size(top(),    end()); }
 
-  size_t capacity(BDACollectionType type) const;
-  size_t used(BDACollectionType type) const;
-  size_t free(BDACollectionType type) const;
+  size_t capacity(BDARegion type) const;
+  size_t used(BDARegion type) const;
+  size_t free(BDARegion type) const;
 };
 
 class BDCYoungPromotionLAB : public BDCPromotionLAB {

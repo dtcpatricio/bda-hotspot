@@ -56,6 +56,10 @@
 #include "services/memoryService.hpp"
 #include "utilities/stack.inline.hpp"
 
+// Big Data Aware alloc includes
+#include "gc_implementation/shared/bdaGlobals.hpp"
+#include "gc_implementation/shared/bdcMutableSpace.hpp"
+
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
 HeapWord*                  PSScavenge::_to_space_top_before_gc = NULL;
@@ -380,6 +384,10 @@ bool PSScavenge::invoke_no_policy() {
     // values to the card_table, to prevent it from
     // straying into the promotion labs.
     HeapWord* old_top = old_gen->object_space()->top();
+    BDACardTableHelper* saved_tops = new BDACardTableHelper(
+      (BDCMutableSpace*)old_gen->object_space(), 2,
+      old_gen->object_space()->top_specific(region_other),
+      old_gen->object_space()->top_specific(region_hashmap));
 
     // Release all previously held resources
     gc_task_manager()->release_all_resources();
@@ -407,7 +415,8 @@ bool PSScavenge::invoke_no_policy() {
         // in the old gen.
         uint stripe_total = active_workers;
         for(uint i=0; i < stripe_total; i++) {
-          q->enqueue(new OldToYoungRootsTask(old_gen, old_top, i, stripe_total));
+          //q->enqueue(new OldToYoungRootsTask(old_gen, old_top, i, stripe_total));
+          q->enqueue(new OldToYoungRootsTask(old_gen, saved_tops, i, stripe_total));
         }
       }
 

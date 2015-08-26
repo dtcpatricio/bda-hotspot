@@ -163,6 +163,37 @@ class ObjectStartArray : public CHeapObj<mtGC> {
     return true;
   }
 
+  // Big Data Aware alloc version of the object start function
+  // It is optimized for finding the first object that crosses
+  // into a given block, the one containing addr. If the addr <= low_bound
+  // we cannot go any further down, to prevent visiting unallocated portions
+  // that belong to other regions.
+  HeapWord* object_start(HeapWord* addr, HeapWord* low_bound) const {
+    assert(_covered_region.contains(addr), "Must be in covered region");
+    jbyte* block = block_for_addr(addr);
+    HeapWord* scroll_forward;
+    // This code prevents the scan of objects below a specified region
+    // to avoid visiting invalid nodes
+    if(addr <= low_bound)
+      scroll_forward = addr;
+    else {
+      scroll_forward = offset_addr_for_block(block--);
+    }
+
+    while (scroll_forward > addr) {
+      scroll_forward = offset_addr_for_block(block--);
+    }
+
+    HeapWord* next = scroll_forward;
+    while (next <= addr) {
+      scroll_forward = next;
+      next += oop(next)->size();
+    }
+    assert(scroll_forward <= addr, "wrong order for current and arg");
+    assert(addr <= next, "wrong order for arg and next");
+    return scroll_forward;
+  }
+
   // Return true if an object starts in the range of heap addresses.
   // If an object starts at an address corresponding to
   // "start", the method will return true.

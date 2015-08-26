@@ -42,6 +42,7 @@ class MutableSpace;
 class PSOldGen;
 class Thread;
 class VMThread;
+class BDACardTableHelper;
 
 //
 // ScavengeRootsTask
@@ -161,17 +162,21 @@ class StealTask : public GCTask {
 class OldToYoungRootsTask : public GCTask {
  private:
   PSOldGen* _gen;
-  HeapWord* _gen_top;
+  //HeapWord* _gen_top;
+  BDACardTableHelper* _tops;
+
   uint _stripe_number;
   uint _stripe_total;
 
  public:
   OldToYoungRootsTask(PSOldGen *gen,
-                      HeapWord* gen_top,
+                      //HeapWord* gen_top,
+                      BDACardTableHelper* tops,
                       uint stripe_number,
                       uint stripe_total) :
     _gen(gen),
-    _gen_top(gen_top),
+    //_gen_top(gen_top),
+    _tops(tops),
     _stripe_number(stripe_number),
     _stripe_total(stripe_total) { }
 

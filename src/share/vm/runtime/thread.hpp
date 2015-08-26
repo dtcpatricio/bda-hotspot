@@ -548,7 +548,7 @@ protected:
   int              _lgrp_id;
 
   // Support for big data collections
-  BDACollectionType _curr_alloc_coll_type;
+  BDARegion _alloc_region;
 
  public:
   // Stack overflow support
@@ -573,8 +573,8 @@ protected:
   // Getter and setter for big data collections
   // This value must be set before any alocation
   // to the values specified in the BDACollectionType enum
-  BDACollectionType curr_alloc_coll_type() const { return _curr_alloc_coll_type; }
-  void set_cur_alloc_coll_type(BDACollectionType aloc_type) { _curr_alloc_coll_type = aloc_type; }
+  BDARegion alloc_region() const { return _alloc_region; }
+  void set_alloc_region(BDARegion region) { _alloc_region = region; }
 
   // Printing
   void print_on(outputStream* st) const;

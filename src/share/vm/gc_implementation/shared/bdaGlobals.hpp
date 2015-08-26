@@ -4,10 +4,9 @@
 // It starts with an enum that tries to define the kinds of collections it
 // supports.
 
-enum BDACollectionType {
-  coll_type_none = 0x1,
-  coll_type_hashmap = 0x2,
-  coll_type_hashset = 0x4
+enum BDARegion {
+  region_other = 0x1,
+  region_hashmap = 0x2
 };
 
 #endif // SHARE_VM_GC_IMPLEMENTATION_SHARED_BDAGLOBALS_HPP

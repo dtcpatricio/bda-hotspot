@@ -145,9 +145,9 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       if (new_obj == NULL) {
         // Decide for the thread where to put the plabs or the object
         if(to_coll_lab) {
-          thr->set_cur_alloc_coll_type(coll_type_hashmap);
+          thr->set_alloc_region(region_hashmap);
         } else {
-          thr->set_cur_alloc_coll_type(coll_type_none);
+          thr->set_alloc_region(region_other);
         }
 
         if (!_old_gen_is_full) {
@@ -157,9 +157,6 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
             new_obj = (oop)old_gen()->cas_allocate(new_obj_size);
           } else {
             // Flush and fill
-            _old_lab.flush();
-            _coll_old_lab.flush();
-
             HeapWord* lab_base = old_gen()->cas_allocate(OldPLABSize);
             if(lab_base != NULL) {
 #ifdef ASSERT
@@ -170,10 +167,12 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
               }
 #endif
               if(to_coll_lab) {
+                _coll_old_lab.flush();
                 _coll_old_lab.initialize(MemRegion(lab_base, OldPLABSize));
                 // Now try the collections old plab again
                 new_obj = (oop) _coll_old_lab.allocate(new_obj_size);
               } else {
+                _old_lab.flush();
                 _old_lab.initialize(MemRegion(lab_base, OldPLABSize));
                 // Or try the old lab allocation again.
                 new_obj = (oop) _old_lab.allocate(new_obj_size);

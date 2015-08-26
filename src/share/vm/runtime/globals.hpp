@@ -1454,10 +1454,10 @@ class CommandLineFlags {
   product(uintx, YoungPLABSize, 4096,                                       \
           "Size of young gen promotion LAB's (in HeapWords)")               \
                                                                             \
-  product(uintx, OldPLABSize, 4096,                                         \
+  product(uintx, OldPLABSize, 1024,                                         \
           "Size of old gen promotion LAB's (in HeapWords)")                 \
                                                                             \
-  product(uintx, BDAMinOldPLABSize, 4096,                                   \
+  product(uintx, BDAMinOldPLABSize, 1024,                                   \
           "Minimum size for the old gen promotion LAB (in HeapWords)")      \
                                                                             \
   product(uintx, GCTaskTimeStampEntries, 200,                               \

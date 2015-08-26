@@ -193,11 +193,13 @@ void PSPromotionManager::reset() {
   _young_lab.initialize(MemRegion(lab_base, (size_t)0));
   _young_gen_is_full = false;
 
-  lab_base = old_gen()->object_space()->top_specific(coll_type_none);
+  lab_base = old_gen()->object_space()->top_specific(region_other);
+  Thread::current()->set_alloc_region(region_other);
   _old_lab.initialize(MemRegion(lab_base, (size_t)0));
   _old_gen_is_full = false;
 
-  lab_base = old_gen()->object_space()->top_specific(coll_type_hashmap);
+  lab_base = old_gen()->object_space()->top_specific(region_hashmap);
+  Thread::current()->set_alloc_region(region_hashmap);
   _coll_old_lab.initialize(MemRegion(lab_base, (size_t)0));
 
   _promotion_failed_info.reset();

@@ -11,6 +11,27 @@
 class Thread;
 class CollectedHeap;
 class SpaceDecorator;
+class BDCMutableSpace;
+
+// The BDACardTableHelper
+class BDACardTableHelper : public CHeapObj<mtGC> {
+
+private:
+  BDCMutableSpace* _sp;
+  GrowableArray<MutableSpace*> _regions;
+  GrowableArray<HeapWord*> _tops;
+  HeapWord* _cur_top;
+
+public:
+
+  BDACardTableHelper(BDCMutableSpace* sp, int n, ...);
+  ~BDACardTableHelper();
+
+  HeapWord* top_region_for_slice(HeapWord* slice_start);
+  HeapWord* cur_top() const { return _cur_top; }
+  GrowableArray<MutableSpace*> regions() const { return _regions; }
+  GrowableArray<HeapWord*> tops() const { return _tops; }
+};
 
 // The BDCMutableSpace class is a general object that encapsulates multiple
 // CGRPSpaces. It is implemented in a similar fashion as mutableNUMASpace.
@@ -27,30 +48,27 @@ class BDCMutableSpace : public MutableSpace {
       collection_offset              = 0x1
     };
 
-    BDACollectionType _coll_type;
+    BDARegion _coll_type;
     MutableSpace* _space;
 
   public:
-    CGRPSpace(size_t alignment, BDACollectionType coll_type) : _coll_type(coll_type) {
+    CGRPSpace(size_t alignment, BDARegion coll_type) : _coll_type(coll_type) {
       _space = new MutableSpace(alignment);
     }
     ~CGRPSpace() {
-      // We have nothing to delete, though we used to have _space.
-      // However, now we cannot make it a pointer to the MutableSpace
-      // since that region must live.
+      delete _space;
     }
 
     static bool equals(void* group_type, CGRPSpace* s) {
-      return *(BDACollectionType*)group_type == s->coll_type();
+      return *(BDARegion*)group_type == s->coll_type();
     }
 
-    BDACollectionType coll_type() const { return _coll_type; }
+    BDARegion coll_type() const { return _coll_type; }
     MutableSpace* space() const { return _space; }
   };
 
 private:
   GrowableArray<CGRPSpace*>* _collections;
-  Monitor *_lock;
   size_t _page_size;
 
 protected:
@@ -84,9 +102,14 @@ protected:
   // tops of the whole CGRPspaces
   bool update_top();
 
-  HeapWord *top_specific(BDACollectionType type) {
+  virtual HeapWord *top_specific(BDARegion type) {
     int i = _collections->find(&type, CGRPSpace::equals);
     return _collections->at(i)->space()->top();
+  }
+
+  virtual MemRegion used_region(BDARegion type) {
+    int i = _collections->find(&type, CGRPSpace::equals);
+    return _collections->at(i)->space()->used_region();
   }
 
   // Methods for mangling
@@ -106,6 +129,21 @@ protected:
 
   virtual HeapWord* allocate(size_t size);
   virtual HeapWord* cas_allocate(size_t size);
+
+  // Helper methods for scavenging
+  virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) {
+    int index = grp_index_contains_obj(stripe_start);
+    assert(index > -1, "There's no region containing the stripe");
+    return _collections->at(index)->space()->top();
+  }
+
+  int grp_index_contains_obj(const void* p) const {
+    for (int i = 0; i < _collections->length(); ++i) {
+      if(_collections->at(i)->space()->contains((HeapWord*)p))
+        return i;
+    }
+    return -1;
+  }
 
   virtual void      clear(bool mangle_space);
   virtual void      set_top(HeapWord* value);

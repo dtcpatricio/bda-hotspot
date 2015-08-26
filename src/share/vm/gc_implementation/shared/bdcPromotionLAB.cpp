@@ -10,9 +10,8 @@ BDCPromotionLAB::BDCPromotionLAB() : _top(NULL), _bottom(NULL), _end(NULL) {
   _collections = new (ResourceObj::C_HEAP, mtGC) GrowableArray<PLABRegion*>(0, true);
   _page_size = os::vm_page_size();
 
-  _collections->append(new PLABRegion(coll_type_none));
-  _collections->append(new PLABRegion(coll_type_hashmap));
-  _collections->append(new PLABRegion(coll_type_hashset));
+  _collections->append(new PLABRegion(region_other));
+  _collections->append(new PLABRegion(region_hashmap));
 }
 
 void BDCPromotionLAB::initialize(MemRegion lab) {
@@ -138,7 +137,7 @@ BDCPromotionLAB::unallocate_object(HeapWord* obj, size_t obj_size) {
 }
 
 MemRegion
-BDCPromotionLAB::used_region(BDACollectionType type) {
+BDCPromotionLAB::used_region(BDARegion type) {
   int i = collections()->find(&type, PLABRegion::equals);
 
   if (i == -1)
@@ -149,7 +148,7 @@ BDCPromotionLAB::used_region(BDACollectionType type) {
 }
 
 size_t
-BDCPromotionLAB::capacity(BDACollectionType type) const {
+BDCPromotionLAB::capacity(BDARegion type) const {
   int i = collections()->find(&type, PLABRegion::equals);
 
   if(i == -1)
@@ -160,7 +159,7 @@ BDCPromotionLAB::capacity(BDACollectionType type) const {
 }
 
 size_t
-BDCPromotionLAB::used(BDACollectionType type) const {
+BDCPromotionLAB::used(BDARegion type) const {
   int i = collections()->find(&type, PLABRegion::equals);
 
   // TODO : Throw error!
@@ -172,7 +171,7 @@ BDCPromotionLAB::used(BDACollectionType type) const {
 }
 
 size_t
-BDCPromotionLAB::free(BDACollectionType type) const {
+BDCPromotionLAB::free(BDARegion type) const {
   int i = collections()->find(&type, PLABRegion::equals);
 
   // TODO : Throw error!
@@ -218,7 +217,7 @@ HeapWord*
 BDCOldPromotionLAB::allocate(size_t size) {
 
   Thread* thread = Thread::current();
-  BDACollectionType type = thread->curr_alloc_coll_type();
+  BDARegion type = thread->alloc_region();
 
   int i = collections()->find(&type, PLABRegion::equals);
 

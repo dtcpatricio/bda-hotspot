@@ -32,6 +32,8 @@
 #include "oops/oop.psgc.inline.hpp"
 #include "runtime/prefetch.inline.hpp"
 
+#include "gc_implementation/shared/bdcMutableSpace.hpp"
+
 // Checks an individual oop for missing precise marks. Mark
 // may be either dirty or newgen.
 class CheckForUnmarkedOops : public OopClosure {
@@ -132,15 +134,20 @@ class CheckForPreciseMarks : public OopClosure {
 void CardTableExtension::scavenge_contents_parallel(ObjectStartArray* start_array,
                                                     MutableSpace* sp,
                                                     HeapWord* space_top,
+                                                    // BDACardtablehelper* tops
                                                     PSPromotionManager* pm,
                                                     uint stripe_number,
                                                     uint stripe_total) {
   int ssize = 128; // Naked constant!  Work unit = 64k.
   int dirty_card_count = 0;
+  // A quick fix due to the fact that some regions can be empty at the time
+  if(sp->bottom() == sp->top())
+    return;
 
   // It is a waste to get here if empty.
   assert(sp->bottom() < sp->top(), "Should not be called if empty");
   oop* sp_top = (oop*)space_top;
+  // oop* sp_top = (oop*)tops->cur_top();
   jbyte* start_card = byte_for(sp->bottom());
   jbyte* end_card   = byte_for(sp_top - 1) + 1;
   oop* last_scanned = NULL; // Prevent scanning objects more than once
@@ -165,6 +172,8 @@ void CardTableExtension::scavenge_contents_parallel(ObjectStartArray* start_arra
     // Note! ending cards are exclusive!
     HeapWord* slice_start = addr_for(worker_start_card);
     HeapWord* slice_end = MIN2((HeapWord*) sp_top, addr_for(worker_end_card));
+    // HeapWord* slice_end = MIN2(sptops->top_region_for_slice(slice_start),
+    //                            addr_for(worker_end_card));
 
 #ifdef ASSERT
     if (GCWorkerDelayMillis > 0) {
@@ -180,8 +189,9 @@ void CardTableExtension::scavenge_contents_parallel(ObjectStartArray* start_arra
     if (!start_array->object_starts_in_range(slice_start, slice_end)) {
       continue;
     }
+
     // Update our beginning addr
-    HeapWord* first_object = start_array->object_start(slice_start);
+    HeapWord* first_object = start_array->object_start(slice_start, sp->bottom());
     debug_only(oop* first_object_within_slice = (oop*) first_object;)
     if (first_object < slice_start) {
       last_scanned = (oop*)(first_object + oop(first_object)->size());

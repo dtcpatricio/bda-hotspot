@@ -75,7 +75,6 @@ class OSThread: public CHeapObj<mtThread> {
  public:
   void set_state(ThreadState state)                { _state = state; }
   ThreadState get_state()                          { return _state; }
-
   OSThread(OSThreadStartFunc start_proc, void* start_parm);
   ~OSThread();
 
