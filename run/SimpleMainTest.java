@@ -1,10 +1,8 @@
-import java.util.HashMap;
-
 public class SimpleMainTest {
-    private static HashMap<Integer,String> map;
+    private static MyHashMap<Integer,String> map;
 
     public static void main(String[] args) {
-        map = new HashMap<Integer, String>(40);
+        map = new MyHashMap<Integer, String>(100);
         System.out.println("Putting new value in HashMap");
         map.put(1, "Alfredo");
         System.out.println("Getting value " + map.get(1));

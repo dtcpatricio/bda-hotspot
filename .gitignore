@@ -34,3 +34,8 @@ run/scratch/
 
 ## ignore all class files from possible javac compilations
 *.class
+
+## finally ignore the Global Tags' files
+GTAGS
+GRTAGS
+GPATH

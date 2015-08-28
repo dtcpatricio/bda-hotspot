@@ -113,8 +113,8 @@ protected:
   }
 
   // Methods for mangling
-  virtual void set_top_for_allocations(HeapWord *v) PRODUCT_RETURN;
-  virtual void set_top_for_allocations() PRODUCT_RETURN;
+  virtual void set_top_for_allocations(HeapWord *v);
+  virtual void set_top_for_allocations();
 
   // Size computations in heapwords.
   virtual size_t used_in_words() const;

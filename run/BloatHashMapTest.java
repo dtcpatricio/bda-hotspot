@@ -2,7 +2,6 @@
  * Fills a big hashmap with tons of entries, and then tries to compute
  * new hash values for it
  */
-import java.util.HashMap;
 import java.util.Random;
 import java.util.Base64;
 
@@ -15,23 +14,23 @@ public class BloatHashMapTest {
     public static void main(String[] args) throws Exception {
       System.out.println("--------------- BloatHashMapTest STARTED ---------------");
 
-      HashMap<Long, String> map = new HashMap<Long, String>(max);
-      HashMap<Long, String> map1 = new HashMap<Long, String>(max / 2);
-      HashMap<Long, String> map2 = new HashMap<Long, String>(max / 4);
+      MyHashMap<Long, String> map = new MyHashMap<Long, String>(max);
+      MyHashMap<Long, String> map1 = new MyHashMap<Long, String>(max / 2);
+      MyHashMap<Long, String> map2 = new MyHashMap<Long, String>(max / 4);
 
       fillHashMapWithRandom(map);
       fillHashMapWithRandom(map1);
       fillHashMapWithRandom(map2);
 
       for(int i = 0; i < max / 2; i++) {
-        HashMap<Long, String> young_map = new HashMap<Long, String>(i*2);
+        MyHashMap<Long, String> young_map = new MyHashMap<Long, String>(i*2);
         fillHashMapWithRandom(young_map);
       }
 
       System.out.println("--------------- BloatHashMapTest DONE ---------------");
     }
 
-  private static void fillHashMapWithRandom(HashMap<Long, String> map) {
+  private static void fillHashMapWithRandom(MyHashMap<Long, String> map) {
         if(map == null)
             return;
 
@@ -45,7 +44,6 @@ public class BloatHashMapTest {
             String value = encoder.encodeToString(stringBytes);
 
             map.put(key, value);
-//            System.out.println("Added (" + key + " " + value + ") K/V pair");
         }
     }
 }
