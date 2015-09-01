@@ -64,6 +64,7 @@ class oopDesc {
     Klass*      _klass;
     narrowKlass _compressed_klass;
   } _metadata;
+  volatile regionMark _region;
 
   // Fast access to barrier set.  Must be initialized.
   static BarrierSet* _bs;
@@ -80,6 +81,12 @@ class oopDesc {
   // Used only to re-initialize the mark word (e.g., of promoted
   // objects during a GC) -- requires a valid klass pointer
   void init_mark();
+
+  // Big Data alloc support
+  regionMark  region() const      { return _region; }
+  regionMark* region_addr() const { return (regionMark*)&_region; }
+  void set_region(volatile regionMark r) { _region = r; }
+  // ---- End of Big Data alloc support ----
 
   Klass* klass() const;
   Klass* klass_or_null() const volatile;

@@ -15,7 +15,7 @@ do
             ;;
         -expdacapo)
             DACAPO_ARGS="-jar $2 $3"
-            JVM_ARGS="-XX:+UnlockExperimentalVMOptions -XX:+UseBDC"
+            JVM_ARGS="-XX:-UseCompressedOops -XX:-UseCompressedClassPointers"
             shift
             ;;
         *)

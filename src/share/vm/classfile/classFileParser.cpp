@@ -3232,8 +3232,8 @@ void ClassFileParser::layout_fields(Handle class_loader,
   next_static_byte_offset     = next_static_short_offset +
                                 ((fac->count[STATIC_SHORT]) * BytesPerShort);
 
-  int nonstatic_fields_start  = instanceOopDesc::base_offset_in_bytes() +
-                                nonstatic_field_size * heapOopSize;
+  int nonstatic_fields_start  = instanceOopDesc::base_offset_in_bytes()
+    + nonstatic_field_size * heapOopSize;
 
   next_nonstatic_field_offset = nonstatic_fields_start;
 
@@ -3653,7 +3653,8 @@ void ClassFileParser::layout_fields(Handle class_loader,
   int instance_size             = align_object_size(instance_end / wordSize);
 
   assert(instance_size == align_object_size(align_size_up(
-         (instanceOopDesc::base_offset_in_bytes() + nonstatic_field_size*heapOopSize),
+         (instanceOopDesc::base_offset_in_bytes() +
+          nonstatic_field_size*heapOopSize),
           wordSize) / wordSize), "consistent layout helper value");
 
   // Invariant: nonstatic_field end/start should only change if there are
