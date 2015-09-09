@@ -158,7 +158,8 @@ PSPromotionManager::PSPromotionManager() {
 
   // We set the old lab's start array.
   _old_lab.set_start_array(old_gen()->start_array());
-  _coll_old_lab.set_start_array(old_gen()->start_array());
+  _hashmap_old_lab.set_start_array(old_gen()->start_array());
+  _hashtable_old_lab.set_start_array(old_gen()->start_array());
 
   uint queue_size;
   claimed_stack_depth()->initialize();
@@ -200,7 +201,11 @@ void PSPromotionManager::reset() {
 
   lab_base = old_gen()->object_space()->top_specific(region_hashmap);
   Thread::current()->set_alloc_region(region_hashmap);
-  _coll_old_lab.initialize(MemRegion(lab_base, (size_t)0));
+  _hashmap_old_lab.initialize(MemRegion(lab_base, (size_t)0));
+
+  lab_base = old_gen()->object_space()->top_specific(region_hashtable);
+  Thread::current()->set_alloc_region(region_hashtable);
+  _hashtable_old_lab.initialize(MemRegion(lab_base, (size_t)0));
 
   _promotion_failed_info.reset();
 
@@ -257,8 +262,14 @@ void PSPromotionManager::flush_labs() {
   if (!_old_lab.is_flushed())
     _old_lab.flush();
 
-  if (!_coll_old_lab.is_flushed())
-    _coll_old_lab.flush();
+  assert(!_hashmap_old_lab.is_flushed(), "Sanity");
+  if (!_hashmap_old_lab.is_flushed())
+    _hashmap_old_lab.flush();
+
+  assert(!_hashtable_old_lab.is_flushed(), "Sanity");
+  if (!_hashtable_old_lab.is_flushed())
+    _hashtable_old_lab.flush();
+
 
   // Let PSScavenge know if we overflowed
   if (_young_gen_is_full) {

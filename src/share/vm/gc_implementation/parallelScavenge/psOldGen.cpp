@@ -127,6 +127,11 @@ void PSOldGen::initialize_work(const char* perf_data_name, int level) {
   }
 
   //
+  // Klass Regions Map
+  //
+  _region_map = new KlassRegionMap(200);
+
+  //
   // ObjectSpace stuff
   //
 

@@ -31,6 +31,8 @@
 #include "gc_implementation/parallelScavenge/psScavenge.hpp"
 #include "oops/oop.psgc.inline.hpp"
 
+#include "gc_implementation/shared/bdaGlobals.hpp"
+
 inline PSPromotionManager* PSPromotionManager::manager_array(int index) {
   assert(_manager_array != NULL, "access of NULL manager_array");
   assert(index >= 0 && index <= (int)ParallelGCThreads, "out of range manager_array access");
@@ -123,19 +125,16 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       }
 #endif  // #ifndef PRODUCT
 
+      // Try to find the objects destination region
+      // by using the klass pointer
       Thread *thr = Thread::current();
-      bool to_coll_lab = false;
-      {
-        ResourceMark rm(thr);
-        const char* name = o->klass()->signature_name();
-        if(strstr(name, "HashMap")) {
-          to_coll_lab = true;
-        }
-      }
+      BDARegion target = old_gen()->region_map()->region_for_klass(o->klass());
 
       // If plab is already allocated, go through it directly
-      if(to_coll_lab) {
-        new_obj = (oop) _coll_old_lab.allocate(new_obj_size);
+      if (mask_bits(target, region_hashmap)) {
+        new_obj = (oop) _hashmap_old_lab.allocate(new_obj_size);
+      } else if (mask_bits(target, region_hashtable)) {
+        new_obj = (oop) _hashtable_old_lab.allocate(new_obj_size);
       } else {
         new_obj = (oop) _old_lab.allocate(new_obj_size);
       }
@@ -144,8 +143,10 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
 
       if (new_obj == NULL) {
         // Decide for the thread where to put the plabs or the object
-        if(to_coll_lab) {
+        if(mask_bits(target, region_hashmap)) {
           thr->set_alloc_region(region_hashmap);
+        } else if (mask_bits(target, region_hashtable)) {
+          thr->set_alloc_region(region_hashtable);
         } else {
           thr->set_alloc_region(region_other);
         }
@@ -166,11 +167,16 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
                 os::sleep(Thread::current(), GCWorkerDelayMillis, false);
               }
 #endif
-              if(to_coll_lab) {
-                _coll_old_lab.flush();
-                _coll_old_lab.initialize(MemRegion(lab_base, OldPLABSize));
+              if(mask_bits(target, region_hashmap)) {
+                _hashmap_old_lab.flush();
+                _hashmap_old_lab.initialize(MemRegion(lab_base, OldPLABSize));
                 // Now try the collections old plab again
-                new_obj = (oop) _coll_old_lab.allocate(new_obj_size);
+                new_obj = (oop) _hashmap_old_lab.allocate(new_obj_size);
+              } else if(mask_bits(target, region_hashtable)) {
+                _hashtable_old_lab.flush();
+                _hashtable_old_lab.initialize(MemRegion(lab_base, OldPLABSize));
+                // Now try the collections old plab again
+                new_obj = (oop) _hashtable_old_lab.allocate(new_obj_size);
               } else {
                 _old_lab.flush();
                 _old_lab.initialize(MemRegion(lab_base, OldPLABSize));

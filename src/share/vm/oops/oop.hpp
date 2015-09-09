@@ -60,11 +60,11 @@ class oopDesc {
   friend class VMStructs;
  private:
   volatile markOop  _mark;
+  //volatile regionMark _region;
   union _metadata {
     Klass*      _klass;
     narrowKlass _compressed_klass;
   } _metadata;
-  volatile regionMark _region;
 
   // Fast access to barrier set.  Must be initialized.
   static BarrierSet* _bs;
@@ -83,9 +83,9 @@ class oopDesc {
   void init_mark();
 
   // Big Data alloc support
-  regionMark  region() const      { return _region; }
-  regionMark* region_addr() const { return (regionMark*)&_region; }
-  void set_region(volatile regionMark r) { _region = r; }
+  // regionMark  region() const      { return _region; }
+  // regionMark* region_addr() const { return (regionMark*)&_region; }
+  // void set_region(volatile regionMark r) { _region = r; }
   // ---- End of Big Data alloc support ----
 
   Klass* klass() const;

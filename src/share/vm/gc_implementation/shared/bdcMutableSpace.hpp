@@ -17,20 +17,17 @@ class BDCMutableSpace;
 class BDACardTableHelper : public CHeapObj<mtGC> {
 
 private:
-  BDCMutableSpace* _sp;
-  GrowableArray<MutableSpace*> _regions;
   GrowableArray<HeapWord*> _tops;
-  HeapWord* _cur_top;
+  GrowableArray<HeapWord*> _bottoms;
 
 public:
 
-  BDACardTableHelper(BDCMutableSpace* sp, int n, ...);
+  BDACardTableHelper(BDCMutableSpace* sp);
   ~BDACardTableHelper();
 
   HeapWord* top_region_for_slice(HeapWord* slice_start);
-  HeapWord* cur_top() const { return _cur_top; }
-  GrowableArray<MutableSpace*> regions() const { return _regions; }
   GrowableArray<HeapWord*> tops() const { return _tops; }
+  GrowableArray<HeapWord*> bottoms() const { return _bottoms; }
 };
 
 // The BDCMutableSpace class is a general object that encapsulates multiple
@@ -73,8 +70,17 @@ private:
 
 protected:
   void select_limits(MemRegion mr, HeapWord **start, HeapWord **tail);
+  // To update the regions when resize takes place
+  void update_layout(MemRegion mr);
+  // Expands the region i onto the next and tries to move the limits
+  void expand_region_to_neighbour(int i, size_t sz);
+  HeapWord* expand_overflown_neighbour(int i, size_t sz);
+  void      increase_region_noclear(int n, size_t sz);
+  void shrink_region_clear(int n, size_t sz);
+  void merge_regions(int growee, int eater);
+  void shrink_and_adapt(int grp);
 
- public:
+public:
 
   BDCMutableSpace(size_t alignment);
   virtual ~BDCMutableSpace();
@@ -119,6 +125,7 @@ protected:
   // Size computations in heapwords.
   virtual size_t used_in_words() const;
   virtual size_t free_in_words() const;
+  virtual size_t free_in_words(int grp) const;
 
   // Size computations for tlabs
   using MutableSpace::capacity_in_words;
@@ -148,6 +155,11 @@ protected:
   virtual void      clear(bool mangle_space);
   virtual void      set_top(HeapWord* value);
   virtual void      set_end(HeapWord* value) { _end = value; }
+
+  // Debugging virtuals
+  virtual void print_on(outputStream* st) const;
+  virtual void print_short_on(outputStream* st) const;
+  virtual void verify();
 };
 
 #endif // SHARE_VM_GC_IMPLEMENTATION_SHARED_BDCMUTABLESPACE_HPP

@@ -82,9 +82,8 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
 
   PSYoungPromotionLAB                 _young_lab;
   PSOldPromotionLAB                   _old_lab;
-  PSOldPromotionLAB                   _coll_old_lab;
-  // BDCYoungPromotionLAB                _young_lab;
-  //BDCOldPromotionLAB                  _old_lab;
+  PSOldPromotionLAB                   _hashmap_old_lab;
+  PSOldPromotionLAB                   _hashtable_old_lab;
   bool                                _young_gen_is_full;
   bool                                _old_gen_is_full;
 

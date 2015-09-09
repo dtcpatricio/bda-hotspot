@@ -6,7 +6,8 @@
 
 enum BDARegion {
   region_other = 0x1,
-  region_hashmap = 0x2
+  region_hashmap = 0x2,
+  region_hashtable = 0x4
 };
 
 #endif // SHARE_VM_GC_IMPLEMENTATION_SHARED_BDAGLOBALS_HPP

@@ -737,3 +737,24 @@ void TestKlass_test() {
 }
 
 #endif
+
+/////////////// Big Data Allocators support functions /////////////////
+BDARegion
+Klass::is_subtype_for_bda() {
+  // After initializing supers and the class name, we can add information
+  // about the class. This code marks a klass as a container, element of
+  // a container or other for the Big Data allocator regions
+  ResourceMark rm(Thread::current());
+  for(int k = 0; k <= (int)this->super_depth(); ++k) {
+    if ( k == _primary_super_limit )
+      return region_other;
+    if(this->primary_super_of_depth(k) != NULL &&
+       strstr(this->primary_super_of_depth(k)->signature_name(), "java/util/HashMap")) {
+      return region_hashmap;
+    } else if(this->primary_super_of_depth(k) != NULL &&
+              strstr(this->primary_super_of_depth(k)->signature_name(), "java/util/Hashtable")) {
+      return region_hashtable;
+    }
+  }
+  return region_other;
+}

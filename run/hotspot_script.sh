@@ -7,6 +7,7 @@ do
     case $key in
         -dacapo)
             DACAPO_ARGS="-jar $2 $3"
+		JVM_ARGS="-XX:+PrintGCDetails -XX:+PrintGCTimeStamps"
             shift
             ;;
         -experimental)
@@ -18,8 +19,14 @@ do
             JVM_ARGS="-XX:-UseCompressedOops -XX:-UseCompressedClassPointers"
             shift
             ;;
+	-nocomp)
+		RUN_PROG=$2
+		JVM_ARGS="-XX:-UseCompressedOops -XX:-UseCompressedClassPointers"
+		shift
+		;;
         *)
             RUN_PROG=$1
+		JVM_ARGS="-XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+TraceParallelOldGCSummaryPhase"
             shift
             ;;
     esac
