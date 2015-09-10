@@ -5,6 +5,7 @@
 // supports.
 
 enum BDARegion {
+  no_region = 0x0,
   region_other = 0x1,
   region_hashmap = 0x2,
   region_hashtable = 0x4

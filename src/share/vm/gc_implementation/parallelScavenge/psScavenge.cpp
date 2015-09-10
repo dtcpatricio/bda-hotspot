@@ -385,9 +385,7 @@ bool PSScavenge::invoke_no_policy() {
     // straying into the promotion labs.
     HeapWord* old_top = old_gen->object_space()->top();
     BDACardTableHelper* saved_tops = new BDACardTableHelper(
-      (BDCMutableSpace*)old_gen->object_space(), 2,
-      old_gen->object_space()->top_specific(region_other),
-      old_gen->object_space()->top_specific(region_hashmap));
+      (BDCMutableSpace*)old_gen->object_space());
 
     // Release all previously held resources
     gc_task_manager()->release_all_resources();

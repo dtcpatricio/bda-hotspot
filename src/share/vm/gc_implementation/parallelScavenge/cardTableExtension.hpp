@@ -62,9 +62,9 @@ class CardTableExtension : public CardTableModRefBS {
 
   // Scavenge support
   void scavenge_contents_parallel(ObjectStartArray* start_array,
-                                  MutableSpace* sp,
+                                  //MutableSpace* sp,
+                                  HeapWord* space_bottom,
                                   HeapWord* space_top,
-                                  //BDACardTableHelper* tops,
                                   PSPromotionManager* pm,
                                   uint stripe_number,
                                   uint stripe_total);

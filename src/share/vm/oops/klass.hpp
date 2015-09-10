@@ -41,6 +41,9 @@
 #include "gc_implementation/parNew/parOopClosures.hpp"
 #endif // INCLUDE_ALL_GCS
 
+// Big Data alloc support
+#include "gc_implementation/shared/bdaGlobals.hpp"
+
 //
 // A Klass provides:
 //  1: language level class object (method dictionary etc.)
@@ -715,6 +718,10 @@ protected:
   // barriers used by klass_oop_store
   void klass_update_barrier_set(oop v);
   void klass_update_barrier_set_pre(oop* p, oop v);
+
+public:
+  // Big Data allocators support
+  BDARegion is_subtype_for_bda();
 };
 
 #endif // SHARE_VM_OOPS_KLASS_HPP

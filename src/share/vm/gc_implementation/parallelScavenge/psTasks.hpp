@@ -163,7 +163,7 @@ class OldToYoungRootsTask : public GCTask {
  private:
   PSOldGen* _gen;
   //HeapWord* _gen_top;
-  BDACardTableHelper* _tops;
+  BDACardTableHelper* _helper;
 
   uint _stripe_number;
   uint _stripe_total;
@@ -171,12 +171,12 @@ class OldToYoungRootsTask : public GCTask {
  public:
   OldToYoungRootsTask(PSOldGen *gen,
                       //HeapWord* gen_top,
-                      BDACardTableHelper* tops,
+                      BDACardTableHelper* helper,
                       uint stripe_number,
                       uint stripe_total) :
     _gen(gen),
     //_gen_top(gen_top),
-    _tops(tops),
+    _helper(helper),
     _stripe_number(stripe_number),
     _stripe_total(stripe_total) { }
 
