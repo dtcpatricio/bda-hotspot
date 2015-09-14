@@ -11,12 +11,12 @@ do
             shift
             ;;
         -experimental)
-            JVM_ARGS="-XX:+UnlockExperimentalVMOptions -XX:+UseBDC"
+            JVM_ARGS="-XX:+UnlockExperimentalVMOptions -XX:+UseBDA"
             shift
             ;;
         -expdacapo)
             DACAPO_ARGS="-jar $2 $3"
-            JVM_ARGS="-XX:-UseCompressedOops -XX:-UseCompressedClassPointers"
+            JVM_ARGS="-XX:+UnlockExperimentalVMOptions -XX:+UseBDA"
             shift
             ;;
 	-nocomp)
@@ -26,7 +26,8 @@ do
 		;;
         *)
             RUN_PROG=$1
-		JVM_ARGS="-XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+TraceParallelOldGCSummaryPhase"
+		JVM_ARGS="-XX:+UnlockExperimentalVMOptions -XX:+UseBDA"
+		##JVM_ARGS="-XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+TraceParallelOldGCSummaryPhase"
             shift
             ;;
     esac
@@ -49,8 +50,5 @@ ALT_JAVA_HOME=`cd /usr/lib/jvm/java-8-openjdk && pwd`
 
 export JAVA_ARGS
 export ALT_JAVA_HOME
-
-## Set larger PLABs
-## $JVM_ARGS += -XX:+OldPLABSize=2048
 
 exec $SCRIPT_DIR/hotspot -gud $JVM_ARGS

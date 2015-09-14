@@ -33,9 +33,21 @@ public:
 // The BDCMutableSpace class is a general object that encapsulates multiple
 // CGRPSpaces. It is implemented in a similar fashion as mutableNUMASpace.
 
-class BDCMutableSpace : public MutableSpace {
+class BDCMutableSpace : public MutableSpace
+{
   friend class VMStructs;
 
+public:
+  // Constant sizes in HeapWords, unless stated otherwise
+  static const size_t Log2MinRegionSize;
+  static const size_t MinRegionSize;
+  static const size_t MinRegionSizeBytes;
+
+  static const size_t MinRegionSizeOffsetMask;
+  static const size_t MinRegionAddrOffsetMask;
+  static const size_t MinRegionAddrMask;
+
+private:
   // This class defines the addressable space of the BDCMutableSpace
   // (and that of a PLAB)for a particular collection type, or none at all.
   class CGRPSpace : public CHeapObj<mtGC> {
@@ -72,13 +84,27 @@ protected:
   void select_limits(MemRegion mr, HeapWord **start, HeapWord **tail);
   // To update the regions when resize takes place
   void update_layout(MemRegion mr);
-  // Expands the region i onto the next and tries to move the limits
-  void expand_region_to_neighbour(int i, size_t sz);
   HeapWord* expand_overflown_neighbour(int i, size_t sz);
-  void      increase_region_noclear(int n, size_t sz);
-  void shrink_region_clear(int n, size_t sz);
+
+  // Expanding funtions
+  void expand_region_to_neighbour(int i, size_t sz);
+  bool try_fitting_on_neighbour(int moved_id);
+  void initialize_regions_evenly(int from_id, int to_id,
+                                 HeapWord* start_limit,
+                                 HeapWord* end_limit,
+                                 size_t space_size);
   void merge_regions(int growee, int eater);
+  void move_space_resize(MutableSpace* spc, HeapWord* to_ptr, size_t sz);
   void shrink_and_adapt(int grp);
+
+  // Increases of regions
+  void increase_space_noclear(MutableSpace* spc, size_t sz);
+  void increase_space_set_top(MutableSpace* spc, size_t sz, HeapWord* new_top);
+  void grow_through_neighbour(MutableSpace* growee, MutableSpace* eaten, size_t sz);
+
+  // Shrinks of regions
+  void shrink_space_clear(MutableSpace* spc, size_t sz);
+  void shrink_space_noclear(MutableSpace* spc, size_t sz);
 
 public:
 
@@ -88,6 +114,10 @@ public:
   void set_page_size(size_t page_size) { _page_size = page_size; }
   size_t page_size() const { return _page_size; }
   GrowableArray<CGRPSpace*>* collections() const { return _collections; }
+  MutableSpace* region_for(BDARegion region) const {
+    int i = _collections->find(&region, CGRPSpace::equals);
+    return _collections->at(i)->space();
+  }
 
   virtual void      initialize(MemRegion mr,
                                bool clear_space,

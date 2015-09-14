@@ -255,7 +255,7 @@ void CardTableExtension::scavenge_contents_parallel(ObjectStartArray* start_arra
       jbyte* following_clean_card = current_card;
 
       if (first_unclean_card < worker_end_card) {
-        oop* p = (oop*) start_array->object_start(addr_for(first_unclean_card));
+        oop* p = (oop*) start_array->object_start(addr_for(first_unclean_card), space_bottom);
         assert((HeapWord*)p <= addr_for(first_unclean_card), "checking");
         // "p" should always be >= "last_scanned" because newly GC dirtied
         // cards are no longer scanned again (see comment at end

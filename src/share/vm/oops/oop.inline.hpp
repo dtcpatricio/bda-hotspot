@@ -88,7 +88,7 @@ inline Klass* oopDesc::klass_or_null() const volatile {
 
 inline int oopDesc::klass_gap_offset_in_bytes() {
   assert(UseCompressedClassPointers, "only applicable to compressed klass pointers");
-  return oopDesc::klass_offset_in_bytes() + sizeof(narrowKlass) + sizeof(regionMark);
+  return oopDesc::klass_offset_in_bytes() + sizeof(narrowKlass);
 }
 
 inline Klass** oopDesc::klass_addr() {

@@ -59,6 +59,8 @@
 #include "utilities/events.hpp"
 #include "utilities/stack.inline.hpp"
 
+#include "gc_implementation/shared/bdcMutableSpace.hpp"
+
 #include <math.h>
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
@@ -347,7 +349,7 @@ print_initial_summary_data(ParallelCompactData& summary_data,
 void
 print_initial_summary_data(ParallelCompactData& summary_data,
                            SpaceInfo* space_info) {
-  unsigned int id = PSParallelCompact::old_space_id;
+  unsigned int id = PSParallelCompact::old_space_other_id;
   const MutableSpace* space;
   do {
     space = space_info[id].space();
@@ -462,7 +464,16 @@ void ParallelCompactData::clear_range(size_t beg_region, size_t end_region) {
   assert(end_region <= _region_count, "end_region out of range");
   assert(RegionSize % BlockSize == 0, "RegionSize not a multiple of BlockSize");
 
-  const size_t region_cnt = end_region - beg_region;
+  // const size_t region_cnt = end_region - beg_region;
+  size_t region_cnt = end_region - beg_region;
+  // This code is to prevent the error in the assertion
+  // before the compaction, because it happens that the region in
+  // beg_region would preserve its old value when there was no live
+  // data in the space. We leave the UseBDA because this issue may be
+  // our implementation's fault. For now, the const is removed.
+  if(UseBDA && region_cnt == 0)
+    region_cnt += 1;
+
   memset(_region_data + beg_region, 0, region_cnt * sizeof(RegionData));
 
   const size_t beg_block = beg_region * BlocksPerRegion;
@@ -673,6 +684,14 @@ bool ParallelCompactData::summarize(SplitInfo& split_info,
   const size_t end_region = addr_to_region_idx(region_align_up(source_end));
 
   HeapWord *dest_addr = target_beg;
+
+  // A patch of code to deal with empty regions
+  if(source_beg >= source_end) {
+    _region_data[cur_region].set_destination(dest_addr);
+    *target_next = dest_addr;
+    return true;
+  }
+
   while (cur_region < end_region) {
     // The destination must be set even if the region has no data.
     _region_data[cur_region].set_destination(dest_addr);
@@ -899,12 +918,20 @@ void PSParallelCompact::initialize_space_info()
   ParallelScavengeHeap* heap = gc_heap();
   PSYoungGen* young_gen = heap->young_gen();
 
+  BDCMutableSpace* old_space = (BDCMutableSpace*)heap->old_gen()->object_space();
   _space_info[old_space_id].set_space(heap->old_gen()->object_space());
+  _space_info[old_space_other_id].set_space(old_space->region_for(region_other));
+  _space_info[old_space_hashmap_id].set_space(old_space->region_for(region_hashmap));
+  _space_info[old_space_hashtable_id].set_space(old_space->region_for(region_hashtable));
   _space_info[eden_space_id].set_space(young_gen->eden_space());
   _space_info[from_space_id].set_space(young_gen->from_space());
   _space_info[to_space_id].set_space(young_gen->to_space());
 
+  // Set the object_start_array for all the segments
   _space_info[old_space_id].set_start_array(heap->old_gen()->start_array());
+  _space_info[old_space_other_id].set_start_array(heap->old_gen()->start_array());
+  _space_info[old_space_hashmap_id].set_start_array(heap->old_gen()->start_array());
+  _space_info[old_space_hashtable_id].set_start_array(heap->old_gen()->start_array());
 }
 
 void PSParallelCompact::initialize_dead_wood_limiter()
@@ -1023,7 +1050,7 @@ void PSParallelCompact::post_compact()
 {
   GCTraceTime tm("post compact", print_phases(), true, &_gc_timer, _gc_tracer.gc_id());
 
-  for (unsigned int id = old_space_id; id < last_space_id; ++id) {
+  for (unsigned int id = old_space_other_id; id < last_space_id; ++id) {
     // Clear the marking bitmap, summary data and split info.
     clear_data_covering_space(SpaceId(id));
     // Update top().  Must be done after clearing the bitmap and summary data.
@@ -1666,7 +1693,8 @@ PSParallelCompact::provoke_split(bool & max_compaction)
 
 void PSParallelCompact::summarize_spaces_quick()
 {
-  for (unsigned int i = 0; i < last_space_id; ++i) {
+  // Do not compute the summary data for the whole old_space
+  for (unsigned int i = old_space_other_id; i < last_space_id; ++i) {
     const MutableSpace* space = _space_info[i].space();
     HeapWord** nta = _space_info[i].new_top_addr();
     bool result = _summary_data.summarize(_space_info[i].split_info(),
@@ -1766,8 +1794,9 @@ PSParallelCompact::summarize_space(SpaceId id, bool maximum_compaction)
 {
   assert(id < last_space_id, "id out of range");
   assert(_space_info[id].dense_prefix() == _space_info[id].space()->bottom() ||
-         ParallelOldGCSplitALot && id == old_space_id,
-         "should have been reset in summarize_spaces_quick()");
+         ParallelOldGCSplitALot && (id == old_space_other_id ||
+                                    id == old_space_hashmap_id ||
+                                    id == old_space_hashtable_id), "should have been reset in summarize_spaces_quick()");
 
   const MutableSpace* space = _space_info[id].space();
   if (_space_info[id].new_top() != space->bottom()) {
@@ -1875,11 +1904,12 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
 
   // The amount of live data that will end up in old space (assuming it fits).
   size_t old_space_total_live = 0;
-  for (unsigned int id = old_space_id; id < last_space_id; ++id) {
+  for (unsigned int id = old_space_other_id; id < last_space_id; ++id) {
     old_space_total_live += pointer_delta(_space_info[id].new_top(),
                                           _space_info[id].space()->bottom());
   }
 
+  // We compute through the whole old_space since it is a sum of the regions
   MutableSpace* const old_space = _space_info[old_space_id].space();
   const size_t old_capacity = old_space->capacity_in_words();
   if (old_space_total_live > old_capacity) {
@@ -1893,14 +1923,18 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
 #endif // #ifndef PRODUCT
 
   // Old generations.
-  summarize_space(old_space_id, maximum_compaction);
+  summarize_space(old_space_other_id, maximum_compaction);
+  summarize_space(old_space_hashmap_id, maximum_compaction);
+  summarize_space(old_space_hashtable_id, maximum_compaction);
 
   // Summarize the remaining spaces in the young gen.  The initial target space
   // is the old gen.  If a space does not fit entirely into the target, then the
   // remainder is compacted into the space itself and that space becomes the new
   // target.
-  SpaceId dst_space_id = old_space_id;
-  HeapWord* dst_space_end = old_space->end();
+  // SpaceId dst_space_id = old_space_id;
+  // HeapWord* dst_space_end = old_space->end();
+  SpaceId dst_space_id = old_space_other_id;
+  HeapWord* dst_space_end = _space_info[dst_space_id].space()->end();
   HeapWord** new_top_addr = _space_info[dst_space_id].new_top_addr();
   for (unsigned int id = eden_space_id; id < last_space_id; ++id) {
     const MutableSpace* space = _space_info[id].space();
@@ -2247,7 +2281,10 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
 
   _gc_timer.register_gc_end();
 
-  _gc_tracer.report_dense_prefix(dense_prefix(old_space_id));
+  //_gc_tracer.report_dense_prefix(dense_prefix(old_space_id));
+  _gc_tracer.report_dense_prefix(dense_prefix(old_space_other_id));
+  _gc_tracer.report_dense_prefix(dense_prefix(old_space_hashmap_id));
+  _gc_tracer.report_dense_prefix(dense_prefix(old_space_hashtable_id));
   _gc_tracer.report_gc_end(_gc_timer.gc_end(), _gc_timer.time_partitions());
 
   return true;
@@ -2519,7 +2556,7 @@ void PSParallelCompact::enqueue_region_draining_tasks(GCTaskQueue* q,
   which = 0;
   // id + 1 is used to test termination so unsigned  can
   // be used with an old_space_id == 0.
-  for (unsigned int id = to_space_id; id + 1 > old_space_id; --id) {
+  for (unsigned int id = to_space_id; id + 1 > old_space_other_id; --id) {
     SpaceInfo* const space_info = _space_info + id;
     MutableSpace* const space = space_info->space();
     HeapWord* const new_top = space_info->new_top();
@@ -2570,7 +2607,7 @@ void PSParallelCompact::enqueue_dense_prefix_tasks(GCTaskQueue* q,
   // will work on opening the gaps and the remaining gc threads
   // will work on the dense prefix.
   unsigned int space_id;
-  for (space_id = old_space_id; space_id < last_space_id; ++ space_id) {
+  for (space_id = old_space_other_id; space_id < last_space_id; ++ space_id) {
     HeapWord* const dense_prefix_end = _space_info[space_id].dense_prefix();
     const MutableSpace* const space = _space_info[space_id].space();
 
@@ -2664,7 +2701,7 @@ void PSParallelCompact::write_block_fill_histogram(outputStream* const out)
   typedef ParallelCompactData::RegionData rd_t;
   ParallelCompactData& sd = summary_data();
 
-  for (unsigned int id = old_space_id; id < last_space_id; ++id) {
+  for (unsigned int id = old_space_other_id; id < last_space_id; ++id) {
     MutableSpace* const spc = _space_info[id].space();
     if (spc->bottom() != spc->top()) {
       const rd_t* const beg = sd.addr_to_region_ptr(spc->bottom());
@@ -2714,7 +2751,7 @@ void PSParallelCompact::compact() {
 
 #ifdef  ASSERT
     // Verify that all regions have been processed before the deferred updates.
-    for (unsigned int id = old_space_id; id < last_space_id; ++id) {
+    for (unsigned int id = old_space_other_id; id < last_space_id; ++id) {
       verify_complete(SpaceId(id));
     }
 #endif
@@ -2724,7 +2761,7 @@ void PSParallelCompact::compact() {
     // Update the deferred objects, if any.  Any compaction manager can be used.
     GCTraceTime tm_du("deferred updates", print_phases(), true, &_gc_timer, _gc_tracer.gc_id());
     ParCompactionManager* cm = ParCompactionManager::manager_array(0);
-    for (unsigned int id = old_space_id; id < last_space_id; ++id) {
+    for (unsigned int id = old_space_other_id; id < last_space_id; ++id) {
       update_deferred_objects(cm, SpaceId(id));
     }
   }
@@ -2842,7 +2879,7 @@ PSParallelCompact::update_and_deadwood_in_dense_prefix(ParCompactionManager* cm,
 PSParallelCompact::SpaceId PSParallelCompact::space_id(HeapWord* addr) {
   assert(Universe::heap()->is_in_reserved(addr), "addr not in the heap");
 
-  for (unsigned int id = old_space_id; id < last_space_id; ++id) {
+  for (unsigned int id = old_space_other_id; id < last_space_id; ++id) {
     if (_space_info[id].space()->contains(addr)) {
       return SpaceId(id);
     }

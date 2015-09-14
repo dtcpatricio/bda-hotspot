@@ -134,8 +134,11 @@ void PSOldGen::initialize_work(const char* perf_data_name, int level) {
   //
   // ObjectSpace stuff
   //
-
-  _object_space = new BDCMutableSpace(virtual_space()->alignment());
+  if(UseBDA) {
+    _object_space = new BDCMutableSpace(virtual_space()->alignment());
+  } else {
+    _object_space = new MutableSpace(virtual_space()->alignment());
+  }
 
   if (_object_space == NULL)
     vm_exit_during_initialization("Could not allocate an old gen space");
@@ -232,7 +235,26 @@ void PSOldGen::expand(size_t bytes) {
   if (bytes == 0) {
     return;
   }
+
+  size_t segment_sz;
+  if(UseBDA) {
+    BDCMutableSpace* gen = (BDCMutableSpace*)_object_space;
+    BDARegion region = Thread::current()->alloc_region();
+    segment_sz = gen->region_for(region)->capacity_in_words();
+  }
+
   MutexLocker x(ExpandHeap_lock);
+
+  if(UseBDA) {
+    // MEMFENCE here before checking if the expansion has been done by another thread
+    OrderAccess::storeload();
+    BDCMutableSpace* gen = (BDCMutableSpace*)_object_space;
+    BDARegion region = Thread::current()->alloc_region();
+    if(gen->region_for(region)->capacity_in_words() != segment_sz) {
+      return;
+    }
+  }
+
   const size_t alignment = virtual_space()->alignment();
   size_t aligned_bytes  = align_size_up(bytes, alignment);
   size_t aligned_expand_bytes = align_size_up(MinHeapDeltaBytes, alignment);
@@ -276,6 +298,7 @@ bool PSOldGen::expand_by(size_t bytes) {
   if (bytes == 0) {
     return true;  // That's what virtual_space()->expand_by(0) would return
   }
+
   bool result = virtual_space()->expand_by(bytes);
   if (result) {
     if (ZapUnusedHeapArea) {

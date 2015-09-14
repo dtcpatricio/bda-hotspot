@@ -5,6 +5,15 @@
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
+// Definition of sizes - conformant with the PSParallelCompact class
+const size_t BDCMutableSpace::Log2MinRegionSize = 16; // 64K HeapWords
+const size_t BDCMutableSpace::MinRegionSize = (size_t)1 << Log2MinRegionSize;
+const size_t BDCMutableSpace::MinRegionSizeBytes = MinRegionSize << LogHeapWordSize;
+
+const size_t BDCMutableSpace::MinRegionSizeOffsetMask = MinRegionSize - 1;
+const size_t BDCMutableSpace::MinRegionAddrOffsetMask = MinRegionSizeBytes - 1;
+const size_t BDCMutableSpace::MinRegionAddrMask       = ~MinRegionAddrOffsetMask;
+
 BDACardTableHelper::BDACardTableHelper(BDCMutableSpace* sp) {
   for(int i = 0; i < sp->collections()->length(); ++i) {
     MutableSpace* ms = sp->collections()->at(i)->space();
@@ -60,35 +69,36 @@ void BDCMutableSpace::initialize(MemRegion mr, bool clear_space, bool mangle_spa
   set_end(end);
 
   size_t space_size = pointer_delta(end, bottom);
-  int len = collections()->length();
-  size_t chunk = align_size_down((intptr_t)space_size / len, _page_size);
+  initialize_regions_evenly(collections()->length() - 1, 0, bottom, end, space_size);
+  // int len = collections()->length();
+  // size_t chunk = align_size_down((intptr_t)space_size / len, _page_size);
 
-  HeapWord *start, *tail;
-  for(int i = len - 1; i > 0; --i) {
-    select_limits(MemRegion(end - chunk, chunk), &start, &tail);
+  // HeapWord *start, *tail;
+  // for(int i = len - 1; i > 0; --i) {
+  //   select_limits(MemRegion(end - chunk, chunk), &start, &tail);
 
-    assert(pointer_delta(tail, start) % page_size() == 0, "Chunk size is not page aligned");
-    collections()->at(i)->space()->initialize(MemRegion(start, tail),
-                                              clear_space,
-                                              mangle_space);
-    end = start;
-  }
+  //   assert(pointer_delta(tail, start) % page_size() == 0, "Chunk size is not page aligned");
+  //   collections()->at(i)->space()->initialize(MemRegion(start, tail),
+  //                                             clear_space,
+  //                                             mangle_space);
+  //   end = start;
+  // }
 
-  select_limits(MemRegion(bottom, end), &start, &tail);
+  // select_limits(MemRegion(bottom, end), &start, &tail);
 
-  // just in case it is not properly aligned
-  if(start > bottom) {
-    size_t delta = pointer_delta(start, bottom);
-    const size_t min_fill_size = CollectedHeap::min_fill_size();
-    if(delta > min_fill_size) {
-      CollectedHeap::fill_with_object(bottom, delta);
-    }
-  }
+  // // just in case it is not properly aligned
+  // if(start > bottom) {
+  //   size_t delta = pointer_delta(start, bottom);
+  //   const size_t min_fill_size = CollectedHeap::min_fill_size();
+  //   if(delta > min_fill_size) {
+  //     CollectedHeap::fill_with_object(bottom, delta);
+  //   }
+  // }
 
-  assert(pointer_delta(tail, start) % page_size() == 0, "First region is not page aligned");
-  collections()->at(0)->space()->initialize(MemRegion(start, tail),
-                                            clear_space,
-                                            mangle_space);
+  // assert(pointer_delta(tail, start) % page_size() == 0, "First region is not page aligned");
+  // collections()->at(0)->space()->initialize(MemRegion(start, tail),
+  //                                           clear_space,
+  //                                           mangle_space);
 
   // always clear space for new allocations
   clear(mangle_space);
@@ -107,7 +117,8 @@ BDCMutableSpace::update_layout(MemRegion new_mr) {
     // First we expand the last region, only then we update the layout
     // This allow the following algorithm to check the borders without
     // repeating operations.
-    increase_region_noclear(collections()->length() - 1, expand_size);
+    MutableSpace* last_space = collections()->at(collections()->length() - 1)->space();
+    increase_space_noclear(last_space, expand_size);
     // Now we expand the region that got exhausted to the neighbours
     expand_region_to_neighbour(i, expand_size);
   }
@@ -117,33 +128,116 @@ BDCMutableSpace::update_layout(MemRegion new_mr) {
   }
 
   // Assert before leaving and set the whole space pointers
-  // skip for now.... TODO: Fix the order of the regions
-  // int last = collections()->length() - 1;
-  // assert(collections()->at(0)->space()->bottom() == new_mr.start() &&
-  //        collections()->at(last)->space()->end() == new_mr.end(), "just checking");
+  // TODO: Fix the order of the regions
+  int j = 0;
+  for(; j < collections()->length(); ++j) {
+    assert(collections()->at(j)->space()->capacity_in_words() >= MinRegionSize,
+           "segment is too short");
+  }
+  assert(collections()->at(0)->space()->bottom() == new_mr.start() &&
+         collections()->at(j - 1)->space()->end() == new_mr.end(), "just checking");
 
   set_bottom(new_mr.start());
   set_end(new_mr.end());
 }
 
 void
-BDCMutableSpace::increase_region_noclear(int n, size_t sz) {
-  MutableSpace* space = collections()->at(n)->space();
-  space->initialize(MemRegion(space->bottom(), space->end() + sz),
+BDCMutableSpace::increase_space_noclear(MutableSpace* spc, size_t sz)
+{
+  spc->initialize(MemRegion(spc->bottom(), spc->end() + sz),
                     SpaceDecorator::DontClear,
                     SpaceDecorator::DontMangle);
 }
 
-void BDCMutableSpace::shrink_region_clear(int n, size_t sz) {
-  MutableSpace* space = collections()->at(n)->space();
-  space->initialize(MemRegion(space->bottom() + sz, space->end()),
+void
+BDCMutableSpace::increase_space_set_top(MutableSpace* spc,
+                                         size_t sz,
+                                         HeapWord* new_top)
+{
+  spc->initialize(MemRegion(spc->bottom(),
+                            spc->end() + sz),
+                    SpaceDecorator::DontClear,
+                    SpaceDecorator::DontMangle);
+  spc->set_top(new_top);
+}
+
+void
+BDCMutableSpace::shrink_space_clear(MutableSpace* spc,
+                                    size_t new_size) {
+  spc->initialize(MemRegion(spc->bottom() + new_size, spc->end()),
                     SpaceDecorator::Clear,
                     SpaceDecorator::Mangle);
 }
 
+void
+BDCMutableSpace::shrink_space_noclear(MutableSpace* spc,
+                                      size_t new_size)
+{
+  spc->initialize(MemRegion(spc->bottom() + new_size, spc->end()),
+                  SpaceDecorator::DontClear,
+                  SpaceDecorator::DontMangle);
+}
+
+
+// void
+// BDCMutableSpace::shrink_region_set_top(int n, size_t sz, HeapWord* new_top)
+// {
+//   MutableSpace* space = collections()->at(n)->space();
+//   space->initialize(MemRegion(space->bottom() + sz, space->end()),
+//                     SpaceDecorator::DontClear,
+//                     SpaceDecorator::DontMangle);
+//   space->set_top(new_top);
+// }
 
 void
-BDCMutableSpace::expand_region_to_neighbour(int i, size_t expand_size) {
+BDCMutableSpace::move_space_resize(MutableSpace* spc,
+                                   HeapWord* to_ptr,
+                                   size_t new_size)
+{
+  assert((intptr_t)(to_ptr + new_size) % page_size() == 0, "bottom not page aligned");
+  spc->initialize(MemRegion(to_ptr, new_size),
+                  SpaceDecorator::DontClear,
+                  SpaceDecorator::DontMangle);
+}
+
+void
+BDCMutableSpace::initialize_regions_evenly(int from_id, int to_id,
+                                           HeapWord* start_limit,
+                                           HeapWord* end_limit,
+                                           size_t space_size)
+{
+  int len = (from_id - to_id) + 1;
+  size_t chunk = align_size_down((intptr_t)space_size / len, MinRegionSizeBytes);
+
+  HeapWord *start, *tail;
+  for(int i = from_id; i > to_id; --i) {
+    select_limits(MemRegion(end_limit - chunk, chunk), &start, &tail);
+
+    assert(pointer_delta(tail, start) % page_size() == 0, "Chunk size is not page aligned");
+    collections()->at(i)->space()->initialize(MemRegion(start, tail),
+                                              SpaceDecorator::Clear,
+                                              SpaceDecorator::Mangle);
+    end_limit = start;
+  }
+
+  select_limits(MemRegion(start_limit, end_limit), &start, &tail);
+  // just in case it is not properly aligned, zap that region
+  if(start > start_limit) {
+    size_t delta = pointer_delta(start, start_limit);
+    const size_t min_fill_size = CollectedHeap::min_fill_size();
+    if(delta > min_fill_size) {
+      CollectedHeap::fill_with_object(start_limit, delta);
+    }
+  }
+
+  collections()->at(to_id)->space()->initialize(MemRegion(start, tail),
+                                                SpaceDecorator::Clear,
+                                                SpaceDecorator::Mangle);
+}
+
+void
+BDCMutableSpace::expand_region_to_neighbour(int i, size_t expand_size)
+{
   if(i == collections()->length() - 1) {
     // it was already pushed
     return;
@@ -152,54 +246,172 @@ BDCMutableSpace::expand_region_to_neighbour(int i, size_t expand_size) {
   // This is the space that must grow
   MutableSpace* space = collections()->at(i)->space();
 
-  // Sometimes this is called with no reason
+  // Sometimes this is called for no strong reason
+  // and we can avoid expanding so that it triggers an OldGC
   if(pointer_delta(space->end(), space->top()) >= expand_size)
     return;
 
-  // This is to fill any leftovers of space
-  // size_t remainder = pointer_delta(space->end(), space->top());
-  // if(remainder > CollectedHeap::min_fill_size()) {
-  //   CollectedHeap::fill_with_object(space->top(), remainder);
-  // }
+  // This is to fill any leftovers of space. Don't zap!!!
+  size_t remainder = pointer_delta(space->end(), space->top());
+  if(remainder > CollectedHeap::min_fill_size()) {
+    CollectedHeap::fill_with_object(space->top(), remainder, false);
+  }
 
-  // We grow into the neighbouring space, if possible
+  // We grow into the neighbouring space, if possible...
   MutableSpace* neighbour_space = collections()->at(i+1)->space();
   HeapWord* neighbour_top = neighbour_space->top();
   HeapWord* neighbour_end = neighbour_space->end();
   HeapWord* neighbour_bottom = neighbour_space->bottom();
 
-  if(pointer_delta(neighbour_end, neighbour_top) >= expand_size) {
-    merge_regions(i, i+1);
-    shrink_and_adapt(i+1);
+  // ... always leaving a MinRegionSize to cope with the compactor later on
+  // see PSParallelCompact::summarize_spaces_quick()
+  if(pointer_delta(neighbour_end, neighbour_top) >= expand_size + MinRegionSize) {
+    grow_through_neighbour(space, neighbour_space, expand_size);
     return;
+  } else if(pointer_delta(neighbour_end, neighbour_top) >= expand_size) {
+    // neighbour has enough space, but it should not be compacted for less than
+    // then MinRegionSize value between its bottom and end values.
+    // Therefore, we push expanding region end forward and then fit the
+    // neighbours.
+    increase_space_set_top(space, pointer_delta(neighbour_end, neighbour_bottom),
+                            neighbour_top);
+    if(!try_fitting_on_neighbour(i + 1)) {
+      // Nothing to do then trigger a collection
+      return;
+    }
   } else {
-    // neighbour does not have enough space, thus we grow into its neighbours
-    // this k value is sure to be in bounds since the above is always true
+    // Neighbour does not have enough space, thus we grow into its neighbours.
+    // The neighbour chosen must have enough space for MinRegionSize on each
+    // region in between and the expand_size.
+    // This j value is sure to be in bounds since the above is always true
     // for the last-1 region
     int j = i + 2;
+    bool found = false;
     for(; j < collections()->length(); ++j) {
-      if(collections()->at(j)->space()->free_in_words() >= expand_size)
-        break;
+      if(collections()->at(j)->space()->free_in_words() >= expand_size + (j - i) * MinRegionSize)
+        found = true;
+      break;
     }
-    MutableSpace* space_to_shrink = collections()->at(j)->space();
-    HeapWord* new_top = space_to_shrink->top();
-    HeapWord* next_end = (HeapWord*)round_to((intptr_t)new_top + expand_size, page_size());
 
-    space->initialize(MemRegion(space->bottom(), next_end),
-                      SpaceDecorator::DontClear,
-                      SpaceDecorator::DontMangle);
-    space->set_top(new_top);
+    // There's no space so trigger a collection
+    if(!found)
+      return;
 
-    space_to_shrink->initialize(MemRegion(next_end, space_to_shrink->end()),
-                                SpaceDecorator::Clear,
-                                SpaceDecorator::Mangle);
+    // There is space, so expand the space and shrink all neighbours evenly
+    MutableSpace* to_space = collections()->at(j)->space();
+    HeapWord* new_end = (HeapWord*)round_to((intptr_t)to_space->top() + expand_size,
+                                            MinRegionSizeBytes);
+    increase_space_set_top(space, pointer_delta(new_end, space->end()), to_space->top());
 
-    for(int k = j - 1; k > i; --k) {
-      collections()->at(k)->space()->initialize(MemRegion(next_end, (size_t)0),
-                                                SpaceDecorator::Clear,
-                                                SpaceDecorator::Mangle);
+
+    size_t available_space_size = pointer_delta(to_space->end(), space->end());
+    initialize_regions_evenly(j, i + 1, space->end(), to_space->end(),
+                              available_space_size);
+  }
+}
+
+bool
+BDCMutableSpace::try_fitting_on_neighbour(int moved_id)
+{
+  // First check the regions that may contain enough space for both
+  int to_id = -1;
+  for(int j = moved_id + 1; j < collections()->length(); ++j)  {
+    if(collections()->at(j)->space()->capacity_in_words() >= 2 * MinRegionSize) {
+      to_id = j;
+      break;
     }
   }
+  if(to_id == -1)
+    return false;
+
+  // Now we can try fit the moved space on the to-space, taking into account
+  // the old occupations that they had.
+  MutableSpace* moved_space = collections()->at(moved_id)->space();
+  MutableSpace* to_space = collections()->at(to_id)->space();
+
+  const double moved_occupancy_ratio =
+    (double)moved_space->used_in_words() / moved_space->capacity_in_words();
+  // TODO: Do we account to the expasion done earlier, if to_space is the last???
+  const double to_occupancy_ratio =
+    (double)to_space->used_in_words() / to_space->capacity_in_words();
+  const double moved_free_ratio = 1 - moved_occupancy_ratio;
+  const double to_free_ratio = 1 - to_occupancy_ratio;
+
+  const size_t to_space_capacity = to_space->capacity_in_words();
+
+  // the spaces that each region will end up occupying
+  size_t new_moved_space_sz = 0;
+  size_t new_to_space_sz = 0;
+
+  // This means that at least it fits on the neighbour with its old occupancy
+  // and that it can use a portion of the neighbour's space.
+  if (moved_occupancy_ratio + to_occupancy_ratio <= 1) {
+    if (moved_occupancy_ratio >= to_occupancy_ratio) {
+      new_moved_space_sz = MAX2((size_t)(moved_occupancy_ratio * to_space_capacity),
+                                   MinRegionSize);
+    } else {
+      new_moved_space_sz = MAX2((size_t)(to_free_ratio * to_space_capacity),
+                                       MinRegionSize);
+
+    }
+  } else {
+    //const double diff = moved_free_ratio - to_free_ration;
+    // means that one of the regions is at least > 0.5 occupied
+
+    // ..and that is the to-space
+    if(moved_free_ratio >= to_free_ratio) {
+      new_moved_space_sz = MAX2((size_t)(to_free_ratio * to_space_capacity),
+                                MinRegionSize);
+    } else {
+      new_moved_space_sz = MAX2((size_t)(moved_occupancy_ratio * to_space_capacity),
+                                MinRegionSize);
+    }
+  }
+
+  HeapWord* aligned_limit =
+    (HeapWord*)round_to((intptr_t)(to_space->bottom() + new_moved_space_sz),
+                        MinRegionSizeBytes);
+  new_to_space_sz = pointer_delta(to_space->end(), aligned_limit);
+  if(new_to_space_sz < MinRegionSize)
+    return false;
+
+  // just checking
+  assert(new_moved_space_sz >= MinRegionSize &&
+         new_to_space_sz >= MinRegionSize, "size too short");
+
+  // This is already aligned
+  move_space_resize(moved_space, to_space->bottom(),
+                    pointer_delta(aligned_limit, to_space->bottom()));
+  if (moved_space->contains(to_space->top())) {
+    moved_space->set_top(to_space->top());
+    shrink_space_clear(to_space, moved_space->capacity_in_words());
+  } else {
+    moved_space->set_top(moved_space->end());
+    shrink_space_noclear(to_space, moved_space->capacity_in_words());
+  }
+
+  assert(to_space->capacity_in_words() == new_to_space_sz, "checking sizing");
+  return true;
+}
+
+void
+BDCMutableSpace::grow_through_neighbour(MutableSpace* growee,
+                                        MutableSpace* eaten,
+                                        size_t expand_size)
+{
+  growee->initialize(MemRegion(growee->bottom(),
+                               (HeapWord*)round_to((intptr_t)eaten->top() + expand_size,
+                                                   MinRegionSizeBytes)),
+                     SpaceDecorator::DontClear,
+                     SpaceDecorator::DontMangle);
+  growee->set_top(eaten->top());
+
+  // Mangle to prevent following possible objects and to raise errors
+  // fast in case something is wrong.
+  eaten->initialize(MemRegion(growee->end(),
+                              eaten->end()),
+                    SpaceDecorator::Clear,
+                    SpaceDecorator::Mangle);
 }
 
 void
@@ -355,8 +567,8 @@ BDCMutableSpace::select_limits(MemRegion mr, HeapWord **start, HeapWord **tail) 
   HeapWord *old_start = mr.start();
   HeapWord *old_end = mr.end();
 
-  *start = (HeapWord*)round_to((intptr_t)old_start, page_size());
-  *tail = (HeapWord*)round_down((intptr_t)old_end, page_size());
+  *start = (HeapWord*)round_to((intptr_t)old_start, MinRegionSizeBytes);
+  *tail = (HeapWord*)round_down((intptr_t)old_end, MinRegionSizeBytes);
 }
 
 size_t
@@ -484,20 +696,6 @@ HeapWord* BDCMutableSpace::cas_allocate(size_t size) {
 
   assert(obj <= ms->top() && obj + size <= top(), "Incorrect push of the space's top");
 
-   //  if( Atomic::cmpxchg_ptr(next_top, top_addr(), cur_top) == cur_top ) {
-
-  //     obj = ms->cas_allocate(size);
-  //     if(obj == NULL)
-  //       return NULL;
-  //     else if(obj < top() - size) {
-  //       ms->set_top(top());
-  //       continue;
-  //     }
-  //     assert(obj <= top(), "Incorrect allocation");
-  //     break;
-  //   }
-  // } while(true);
-
   if(obj != NULL) {
     size_t remainder = pointer_delta(ms->end(), obj + size);
     if (remainder < CollectedHeap::min_fill_size() && remainder > 0) {
@@ -544,12 +742,12 @@ BDCMutableSpace::set_top(HeapWord* value) {
     if(ms->contains(value)) {
       // The pushing of the top from the summarize phase can create
       // a hole of invalid heap area. See ParallelCompactData::summarize
-      // if(ms->top() < value) {
-      //   const size_t delta = pointer_delta(value, ms->top());
-      //   if(delta > CollectedHeap::min_fill_size()) {
-      //     CollectedHeap::fill_with_object(ms->top(), delta);
-      //   }
-      // }
+      if(ms->top() < value) {
+        const size_t delta = pointer_delta(value, ms->top());
+        if(delta > CollectedHeap::min_fill_size()) {
+          CollectedHeap::fill_with_object(ms->top(), delta, false);
+        }
+      }
       ms->set_top(value);
     }
   }
