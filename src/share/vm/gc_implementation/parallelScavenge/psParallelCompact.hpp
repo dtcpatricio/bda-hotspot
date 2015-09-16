@@ -236,6 +236,12 @@ public:
   class RegionData
   {
   public:
+    // The count of hashmap related objects found in the region
+    int hashmap_count() const { return _hashmap_ctr; }
+
+    // The count of hashtable related objects found in the region
+    int hashtable_count() const { return _hashtable_ctr; }
+
     // Destination address of the region.
     HeapWord* destination() const { return _destination; }
 
@@ -329,6 +335,10 @@ public:
     inline void decrement_destination_count();
     inline bool claim();
 
+    // These are also atomic
+    inline void incr_hashmap_counter();
+    inline void incr_hashtable_counter();
+
   private:
     // The type used to represent object sizes within a region.
     typedef uint region_sz_t;
@@ -349,6 +359,8 @@ public:
     region_sz_t          _partial_obj_size;
     region_sz_t volatile _dc_and_los;
     bool                 _blocks_filled;
+    int                  _hashmap_ctr;
+    int                  _hashtable_ctr;
 
 #ifdef ASSERT
     size_t               _blocks_filled_count;   // Number of block table fills.
@@ -412,6 +424,17 @@ public:
                  HeapWord** source_next,
                  HeapWord* target_beg, HeapWord* target_end,
                  HeapWord** target_next);
+
+  // Support for bda. It deals with 3 regions only, at the time.
+  bool summarize_parse_region(SplitInfo& split_info,
+                              HeapWord* source_beg, HeapWord* source_end,
+                              HeapWord** source_next,
+                              HeapWord* target0_beg, HeapWord* target0_end,
+                              HeapWord** target0_next,
+                              HeapWord* target1_beg, HeapWord* target1_end,
+                              HeapWord** target1_next,
+                              HeapWord* target2_beg, HeapWord* target2_end,
+                              HeapWord** target2_next);
 
   void clear();
   void clear_range(size_t beg_region, size_t end_region);
@@ -577,6 +600,20 @@ inline void ParallelCompactData::RegionData::add_live_obj(size_t words)
 {
   assert(words <= (size_t)los_mask - live_obj_size(), "overflow");
   Atomic::add((int) words, (volatile int*) &_dc_and_los);
+}
+
+inline void
+ParallelCompactData::RegionData::incr_hashmap_counter()
+{
+  assert(_hashmap_ctr >= 0, "value cannot be less than 0");
+  Atomic::inc((volatile int*)&_hashmap_ctr);
+}
+
+inline void
+ParallelCompactData::RegionData::incr_hashtable_counter()
+{
+  assert(_hashtable_ctr >= 0, "value cannot be less than 0");
+  Atomic::inc((volatile int*)&_hashtable_ctr);
 }
 
 inline void ParallelCompactData::RegionData::set_highest_ref(HeapWord* addr)

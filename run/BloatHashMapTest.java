@@ -9,7 +9,7 @@ public class BloatHashMapTest {
 
     // We'll have to try with Integer.MAX_VALUE, but with a bigger heap
     // to prevent OutOfMemory errors.
-    private static int max = 2000;
+    private static int max = 100000;
 
     public static void main(String[] args) throws Exception {
       System.out.println("--------------- BloatHashMapTest STARTED ---------------");

@@ -7,7 +7,7 @@ do
     case $key in
         -dacapo)
             DACAPO_ARGS="-jar $2 $3"
-		JVM_ARGS="-XX:+PrintGCDetails -XX:+PrintGCTimeStamps"
+		##JVM_ARGS="-XX:+PrintGCDetails -XX:+PrintGCTimeStamps"
             shift
             ;;
         -experimental)
