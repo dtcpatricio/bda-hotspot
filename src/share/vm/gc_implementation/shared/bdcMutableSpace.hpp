@@ -105,6 +105,7 @@ protected:
   // Shrinks of regions
   void shrink_space_clear(MutableSpace* spc, size_t sz);
   void shrink_space_noclear(MutableSpace* spc, size_t sz);
+  void shrink_space_end_noclear(MutableSpace *spc, size_t sz);
 
 public:
 

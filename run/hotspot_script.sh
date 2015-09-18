@@ -14,9 +14,9 @@ do
             JVM_ARGS="-XX:+UnlockExperimentalVMOptions -XX:+UseBDA"
             shift
             ;;
-        -expdacapo)
+        -bdadacapo)
             DACAPO_ARGS="-jar $2 $3"
-            JVM_ARGS="-XX:+UnlockExperimentalVMOptions -XX:+UseBDA"
+            JVM_ARGS="-XX:+UseBDA -Xmx900m"
             shift
             ;;
 	-nocomp)

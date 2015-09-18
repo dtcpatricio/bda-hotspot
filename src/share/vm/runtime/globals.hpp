@@ -3948,7 +3948,7 @@ class CommandLineFlags {
   product(bool, UseLockedTracing, false,                                    \
           "Use locked-tracing when doing event-based tracing")              \
                                                                             \
-  experimental(bool, UseBDA, false,                                         \
+  product(bool, UseBDA, false,                                         \
                "Use Big-data collections spaces")                           \
 
 /*

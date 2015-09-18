@@ -703,11 +703,11 @@ bool ParallelCompactData::summarize(SplitInfo& split_info,
   HeapWord *dest_addr = target_beg;
 
   // A patch of code to deal with empty regions
-  if(source_beg >= source_end) {
-    _region_data[cur_region].set_destination(dest_addr);
-    *target_next = dest_addr;
-    return true;
-  }
+  // if(source_beg >= source_end) {
+  //   _region_data[cur_region].set_destination(dest_addr);
+  //   *target_next = dest_addr;
+  //   return true;
+  // }
 
   while (cur_region < end_region) {
     // The destination must be set even if the region has no data.
@@ -813,42 +813,45 @@ ParallelCompactData::summarize_parse_region(
 
   HeapWord *dest0 = target0_beg, *dest1 = target1_beg, *dest2 = target2_beg;
   while (cur_region < end_region) {
-    // Get the start of the first object that starts in the region
-    // HeapWord* start_addr = _region_data[cur_region].partial_obj_size() == 0 ?
-    //   region_to_addr(cur_region) :
-    //   region_to_addr(cur_region) + _region_data[cur_region].partial_obj_size();
+    HeapWord *target_end, **target_next;
+    if(_region_data[cur_region].partial_obj_size() > 0) {
+      PSParallelCompact::SpaceId previous_id =
+        PSParallelCompact::space_id(_region_data[cur_region - 1].destination());
+      if(previous_id == PSParallelCompact::old_space_other_id) {
+        target_end = target0_end;
+        target_next = target0_next;
+        dest_addr = &dest0;
+      }
+      else if(previous_id == PSParallelCompact::old_space_hashmap_id) {
+        target_end = target1_end;
+        target_next = target1_next;
+        dest_addr = &dest1;
+      }
+      else {
+        target_end = target2_end;
+        target_next = target2_next;
+        dest_addr = &dest2;
+      }
+    } else {
+      int hashmap_ctr = _region_data[cur_region].hashmap_count();
+      int hashtable_ctr = _region_data[cur_region].hashtable_count();
 
-    // HeapWord* region_start = region_to_addr(cur_region);
-    // oop obj = (oop)start_addr;
-    // int hashmap_ctr = 0, hashtable_ctr = 0;
-    // while((HeapWord*)obj < region_start + _region_data[cur_region].data_size()) {
-    //   BDARegion r = obj->klass()->is_subtype_for_bda();
-    //   if(r == region_hashmap)
-    //     hashmap_ctr += 1;
-    //   else if (r == region_hashtable)
-    //     hashtable_ctr += 1;
+      // Initialize the pointers needed for this cycle according to the
+      // statistics above
+      target_end = hashtable_ctr > 0 && hashtable_ctr > hashmap_ctr ?
+        target2_end :
+        hashmap_ctr > 0 && hashmap_ctr > hashtable_ctr ?
+        target1_end :
+        target0_end;
 
-    //   HeapWord* next = (HeapWord*)obj + obj->size();
-    //   obj = (oop)next;
-    // }
-    int hashmap_ctr = _region_data[cur_region].hashmap_count();
-    int hashtable_ctr = _region_data[cur_region].hashtable_count();
+      target_next = target_end == target0_end ? target0_next :
+        target_end == target1_end ? target1_next :
+        target2_next;
 
-    // Initialize the pointers needed for this cycle according to the
-    // statistics calculated above
-    HeapWord* target_end = hashtable_ctr > 0 && hashtable_ctr > hashmap_ctr ?
-      target2_end :
-      hashmap_ctr > 0 && hashmap_ctr > hashtable_ctr ?
-      target1_end :
-      target0_end;
-
-    HeapWord** target_next = target_end == target0_end ? target0_next :
-      target_end == target1_end ? target1_next :
-      target2_next;
-
-    dest_addr = target_end == target0_end ? &dest0 :
-      target_end == target1_end ? &dest1 :
-      &dest2;
+      dest_addr = target_end == target0_end ? &dest0 :
+        target_end == target1_end ? &dest1 :
+        &dest2;
+    }
 
     // The destination can now be set
     _region_data[cur_region].set_destination(*dest_addr);
@@ -860,6 +863,18 @@ ParallelCompactData::summarize_parse_region(
       // target space and the rest is copied elsewhere.
       if (*dest_addr + words > target_end) {
         assert(source_next != NULL, "source_next is NULL when splitting");
+        // Ugly ugly way... we could change the summarize, but I guess this
+        // will do for now
+        if(target_next == target0_next) {
+          *target1_next = dest1;
+          *target2_next = dest2;
+        } else if(target_next == target1_next) {
+          *target0_next = dest0;
+          *target2_next = dest2;
+        } else {
+          *target0_next = dest0;
+          *target1_next = dest1;
+        }
         *source_next = summarize_split_space(cur_region, split_info, *dest_addr,
                                              target_end, target_next);
         return false;
@@ -1215,6 +1230,11 @@ void PSParallelCompact::post_compact()
     // Update top().  Must be done after clearing the bitmap and summary data.
     _space_info[id].publish_new_top();
   }
+  HeapWord* max = MAX3(_space_info[old_space_other_id].new_top(),
+                       _space_info[old_space_hashmap_id].new_top(),
+                       _space_info[old_space_hashtable_id].new_top());
+  _space_info[old_space_id].set_new_top(max);
+  _space_info[old_space_id].publish_new_top();
 
   MutableSpace* const eden_space = _space_info[eden_space_id].space();
   MutableSpace* const from_space = _space_info[from_space_id].space();
@@ -3305,12 +3325,18 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
       const RegionData* const top_cp = sd.addr_to_region_ptr(top_aligned_up);
 
       for (const RegionData* src_cp = bottom_cp; src_cp < top_cp; ++src_cp) {
+        if (src_cp->live_obj_size() > 0 && src_cp->destination() != destination) {
+          // This jumps the scanned region because some may have their
+          // destination set to other old-space segments
+          continue;
+        }
         if (src_cp->live_obj_size() > 0) {
           // Found it.
           assert(src_cp->destination() == destination,
                  "first live obj in the space must match the destination");
-          assert(src_cp->partial_obj_size() == 0,
-                 "a space cannot begin with a partial obj");
+          // This assert must be removed for now
+          // assert(src_cp->partial_obj_size() == 0,
+          //        "a space cannot begin with a partial obj");
 
           src_space_id = SpaceId(space_id);
           src_space_top = space->top();
@@ -3584,8 +3610,8 @@ MoveAndUpdateClosure::do_addr(HeapWord* addr, size_t words) {
   assert(bitmap()->obj_size(addr) == words, "bad size");
 
   _source = addr;
-  assert(PSParallelCompact::summary_data().calc_new_pointer(source()) ==
-         destination(), "wrong destination");
+  // assert(PSParallelCompact::summary_data().calc_new_pointer(source()) ==
+  //        destination(), "wrong destination");
 
   if (words > words_remaining()) {
     return ParMarkBitMap::would_overflow;

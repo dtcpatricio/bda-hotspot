@@ -119,12 +119,19 @@ BDCMutableSpace::update_layout(MemRegion new_mr) {
     // repeating operations.
     MutableSpace* last_space = collections()->at(collections()->length() - 1)->space();
     increase_space_noclear(last_space, expand_size);
-    // Now we expand the region that got exhausted to the neighbours
+    // Now we expand the region that exhausted its space to the neighbours
     expand_region_to_neighbour(i, expand_size);
   }
   // this is a shrink
   else {
     size_t shrink_size = pointer_delta(end(), new_mr.end());
+    // Naive implementation...
+    int last = collections()->length() - 1;
+    if(collections()->at(last)->space()->free_in_bytes() > shrink_size) {
+      shrink_space_end_noclear(collections()->at(last)->space(), shrink_size);
+    } else {
+      // raise the assertion fault below
+    }
   }
 
   // Assert before leaving and set the whole space pointers
@@ -174,6 +181,15 @@ BDCMutableSpace::shrink_space_noclear(MutableSpace* spc,
                                       size_t new_size)
 {
   spc->initialize(MemRegion(spc->bottom() + new_size, spc->end()),
+                  SpaceDecorator::DontClear,
+                  SpaceDecorator::DontMangle);
+}
+
+void
+BDCMutableSpace::shrink_space_end_noclear(MutableSpace* spc,
+                                      size_t shrink_size)
+{
+  spc->initialize(MemRegion(spc->bottom(), spc->end() - shrink_size),
                   SpaceDecorator::DontClear,
                   SpaceDecorator::DontMangle);
 }
@@ -247,7 +263,7 @@ BDCMutableSpace::expand_region_to_neighbour(int i, size_t expand_size)
   MutableSpace* space = collections()->at(i)->space();
 
   // Sometimes this is called for no strong reason
-  // and we can avoid expanding so that it triggers an OldGC
+  // and we can avoid expanding to trigger an OldGC soon
   if(pointer_delta(space->end(), space->top()) >= expand_size)
     return;
 
@@ -272,10 +288,13 @@ BDCMutableSpace::expand_region_to_neighbour(int i, size_t expand_size)
     // neighbour has enough space, but it should not be compacted for less than
     // then MinRegionSize value between its bottom and end values.
     // Therefore, we push expanding region end forward and then fit the
-    // neighbours.
-    increase_space_set_top(space, pointer_delta(neighbour_end, neighbour_bottom),
-                            neighbour_top);
-    if(!try_fitting_on_neighbour(i + 1)) {
+    // neighbours. But first we try to fit the neighbour in its neighbour,
+    // before increasing the space or there'd be problems in reversing the op
+    // in case the function return false.
+    if(try_fitting_on_neighbour(i + 1)) {
+      increase_space_set_top(space, pointer_delta(neighbour_end, neighbour_bottom),
+                             neighbour_top);
+    } else {
       // Nothing to do then trigger a collection
       return;
     }
