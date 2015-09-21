@@ -102,6 +102,8 @@ class PSOldGen : public CHeapObj<mtGC> {
 
   void shrink(size_t bytes);
 
+  bool adjust_object_space();
+
   void post_resize();
 
  public:

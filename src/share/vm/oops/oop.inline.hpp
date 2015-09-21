@@ -57,6 +57,9 @@
 #ifdef TARGET_ARCH_ppc
 # include "bytes_ppc.hpp"
 #endif
+#ifdef BIGDATA_HEADER
+# include "oops/regionMark.hpp"
+#endif
 
 // Implementation of all inlined member functions defined in oop.hpp
 // We need a separate file to avoid circular references
@@ -107,6 +110,10 @@ inline void oopDesc::set_klass(Klass* k) {
   // since klasses are promoted no store check is needed
   assert(Universe::is_bootstrapping() || k != NULL, "must be a real Klass*");
   assert(Universe::is_bootstrapping() || k->is_klass(), "not a Klass*");
+#ifdef BIGDATA_HEADER
+  BDARegion r = k->is_subtype_for_bda();
+  set_region(regionMarkDesc::encode_pointer_as_region(r, 0x0));
+#endif
   if (UseCompressedClassPointers) {
     *compressed_klass_addr() = Klass::encode_klass_not_null(k);
   } else {

@@ -139,6 +139,10 @@ public:
   // tops of the whole CGRPspaces
   bool update_top();
 
+  // This method adjusts the regions to give precedence to the one with the most
+  // occupancy rate, which indicates it to be the needy one
+  bool adjust_layout(bool force);
+
   virtual HeapWord *top_specific(BDARegion type) {
     int i = _collections->find(&type, CGRPSpace::equals);
     return _collections->at(i)->space()->top();
@@ -191,6 +195,9 @@ public:
   virtual void print_on(outputStream* st) const;
   virtual void print_short_on(outputStream* st) const;
   virtual void verify();
+
+  // Debugging non-virtual
+  void print_current_space_layout(bool descriptive, bool only_collections);
 };
 
 #endif // SHARE_VM_GC_IMPLEMENTATION_SHARED_BDCMUTABLESPACE_HPP

@@ -60,7 +60,9 @@ class oopDesc {
   friend class VMStructs;
  private:
   volatile markOop  _mark;
-  //volatile regionMark _region;
+#ifdef BIGDATA_HEADER
+  volatile regionMark _region;
+#endif
   union _metadata {
     Klass*      _klass;
     narrowKlass _compressed_klass;
@@ -82,11 +84,15 @@ class oopDesc {
   // objects during a GC) -- requires a valid klass pointer
   void init_mark();
 
+
   // Big Data alloc support
-  // regionMark  region() const      { return _region; }
-  // regionMark* region_addr() const { return (regionMark*)&_region; }
-  // void set_region(volatile regionMark r) { _region = r; }
+#ifdef BIGDATA_HEADER
+  regionMark  region() const      { return _region; }
+  regionMark* region_addr() const { return (regionMark*)&_region; }
+  void set_region(volatile regionMark r) { _region = r; }
+#endif
   // ---- End of Big Data alloc support ----
+
 
   Klass* klass() const;
   Klass* klass_or_null() const volatile;

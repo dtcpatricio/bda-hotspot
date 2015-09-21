@@ -11,4 +11,25 @@ enum BDARegion {
   region_hashtable = 0x4
 };
 
+inline const char* toString(BDARegion r)
+{
+  switch(r)
+  {
+  case no_region:
+    return "[No Region Assigned]";
+
+  case region_other:
+    return "[OTHER]";
+
+  case region_hashmap:
+    return "[HASHMAP]";
+
+  case region_hashtable:
+    return "[HASHTABLE]";
+
+  default:
+    return "[NO REGION]";
+  }
+}
+
 #endif // SHARE_VM_GC_IMPLEMENTATION_SHARED_BDAGLOBALS_HPP

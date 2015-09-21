@@ -117,6 +117,9 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       }
     }
 
+    // This is needed here for the unallocate test below
+    Thread *thr = Thread::current();
+
     // Otherwise try allocating obj tenured
     if (new_obj == NULL) {
 #ifndef PRODUCT
@@ -125,11 +128,11 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       }
 #endif  // #ifndef PRODUCT
 
+
       // Try to find the objects destination region
       // by using the klass pointer
-      Thread *thr = Thread::current();
+#if defined(BIGDATA_HASH_MARK)
       BDARegion target = old_gen()->region_map()->region_for_klass(o->klass());
-
       // If plab is already allocated, go through it directly
       if (mask_bits(target, region_hashmap)) {
         new_obj = (oop) _hashmap_old_lab.allocate(new_obj_size);
@@ -138,18 +141,23 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       } else {
         new_obj = (oop) _old_lab.allocate(new_obj_size);
       }
+#elif defined(BIGDATA_HEADER)
+      if (o->region()->is_hashmap_oop())
+        new_obj = (oop) _hashmap_old_lab.allocate(new_obj_size);
+      else if (o->region()->is_hashtable_oop())
+        new_obj = (oop) _hashtable_old_lab.allocate(new_obj_size);
+      else
+        new_obj = (oop) _old_lab.allocate(new_obj_size);
+#endif
 
       new_obj_is_tenured = true;
 
       if (new_obj == NULL) {
-        // Decide for the thread where to put the plabs or the object
-        if(mask_bits(target, region_hashmap)) {
-          thr->set_alloc_region(region_hashmap);
-        } else if (mask_bits(target, region_hashtable)) {
-          thr->set_alloc_region(region_hashtable);
-        } else {
-          thr->set_alloc_region(region_other);
-        }
+#if defined(BIGDATA_HASH_MARK)
+        thr->set_alloc_region(target);
+#elif defined(BIGDATA_HEADER)
+        thr->set_alloc_region(o->region()->decode_pointer_as_region());
+#endif
 
         if (!_old_gen_is_full) {
           // Do we allocate directly, or flush and refill?
@@ -167,12 +175,12 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
                 os::sleep(Thread::current(), GCWorkerDelayMillis, false);
               }
 #endif
-              if(mask_bits(target, region_hashmap)) {
+              if(thr->alloc_region() == region_hashmap) {
                 _hashmap_old_lab.flush();
                 _hashmap_old_lab.initialize(MemRegion(lab_base, OldPLABSize));
                 // Now try the collections old plab again
                 new_obj = (oop) _hashmap_old_lab.allocate(new_obj_size);
-              } else if(mask_bits(target, region_hashtable)) {
+              } else if(thr->alloc_region() == region_hashtable) {
                 _hashtable_old_lab.flush();
                 _hashtable_old_lab.initialize(MemRegion(lab_base, OldPLABSize));
                 // Now try the collections old plab again
@@ -241,8 +249,18 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       // deallocate it, so we have to test.  If the deallocation fails,
       // overwrite with a filler object.
       if (new_obj_is_tenured) {
-        if (!_old_lab.unallocate_object((HeapWord*) new_obj, new_obj_size)) {
-          CollectedHeap::fill_with_object((HeapWord*) new_obj, new_obj_size);
+        if (thr->alloc_region() == region_hashmap) {
+          if(!_hashmap_old_lab.unallocate_object((HeapWord*)new_obj, new_obj_size)) {
+            CollectedHeap::fill_with_object((HeapWord*)new_obj, new_obj_size);
+          }
+        } else if(thr->alloc_region() == region_hashtable) {
+          if(!_hashtable_old_lab.unallocate_object((HeapWord*)new_obj, new_obj_size)) {
+            CollectedHeap::fill_with_object((HeapWord*)new_obj, new_obj_size);
+          }
+        } else {
+          if (!_old_lab.unallocate_object((HeapWord*) new_obj, new_obj_size)) {
+            CollectedHeap::fill_with_object((HeapWord*) new_obj, new_obj_size);
+          }
         }
       } else if (!_young_lab.unallocate_object((HeapWord*) new_obj, new_obj_size)) {
         CollectedHeap::fill_with_object((HeapWord*) new_obj, new_obj_size);

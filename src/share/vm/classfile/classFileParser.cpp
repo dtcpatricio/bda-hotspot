@@ -4142,14 +4142,14 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     // After initializing supers and the class name, we can add information
     // about the class. This code marks a klass as a container, element of
     // a container or other for the Big Data allocator regions
-    for(int k = 0; k < (int)this_klass->super_depth(); ++k) {
-      if(this_klass->primary_super_of_depth(k) != NULL &&
-         strstr(this_klass->primary_super_of_depth(k)->signature_name(), "java/util/HashMap")) {
-        tty->print_cr("Initializing class %s with ...", this_klass->signature_name());
-        tty->print_cr("HashMap subclass of it: %s",
-                      this_klass->primary_super_of_depth(k)->signature_name());
-      }
-    }
+    // for(int k = 0; k < (int)this_klass->super_depth(); ++k) {
+    //   if(this_klass->primary_super_of_depth(k) != NULL &&
+    //      strstr(this_klass->primary_super_of_depth(k)->signature_name(), "java/util/HashMap")) {
+    //     tty->print_cr("Initializing class %s with ...", this_klass->signature_name());
+    //     tty->print_cr("HashMap subclass of it: %s",
+    //                   this_klass->primary_super_of_depth(k)->signature_name());
+    //   }
+    // }
 
     // Initialize itable offset tables
     klassItable::setup_itable_offset_table(this_klass);

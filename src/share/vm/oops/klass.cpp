@@ -739,6 +739,8 @@ void TestKlass_test() {
 #endif
 
 /////////////// Big Data Allocators support functions /////////////////
+
+#if defined(BIGDATA_HASH_MARK) || defined(BIGDATA_HEADER)
 BDARegion
 Klass::is_subtype_for_bda() {
   // After initializing supers and the class name, we can add information
@@ -758,3 +760,4 @@ Klass::is_subtype_for_bda() {
   }
   return region_other;
 }
+#endif

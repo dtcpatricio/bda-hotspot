@@ -129,7 +129,9 @@ void PSOldGen::initialize_work(const char* perf_data_name, int level) {
   //
   // Klass Regions Map
   //
+#ifdef BIGDATA_HASH_MARK
   _region_map = new KlassRegionMap(200);
+#endif
 
   //
   // ObjectSpace stuff
@@ -236,24 +238,24 @@ void PSOldGen::expand(size_t bytes) {
     return;
   }
 
-  size_t segment_sz;
-  if(UseBDA) {
-    BDCMutableSpace* gen = (BDCMutableSpace*)_object_space;
-    BDARegion region = Thread::current()->alloc_region();
-    segment_sz = gen->region_for(region)->capacity_in_words();
-  }
+  // size_t segment_sz;
+  // if(UseBDA) {
+  //   BDCMutableSpace* gen = (BDCMutableSpace*)_object_space;
+  //   BDARegion region = Thread::current()->alloc_region();
+  //   segment_sz = gen->region_for(region)->capacity_in_words();
+  // }
 
   MutexLocker x(ExpandHeap_lock);
 
-  if(UseBDA) {
-    // MEMFENCE here before checking if the expansion has been done by another thread
-    OrderAccess::storeload();
-    BDCMutableSpace* gen = (BDCMutableSpace*)_object_space;
-    BDARegion region = Thread::current()->alloc_region();
-    if(gen->region_for(region)->capacity_in_words() != segment_sz) {
-      return;
-    }
-  }
+  // if(UseBDA) {
+  //   // MEMFENCE here before checking if the expansion has been done by another thread
+  //   OrderAccess::storeload();
+  //   BDCMutableSpace* gen = (BDCMutableSpace*)_object_space;
+  //   BDARegion region = Thread::current()->alloc_region();
+  //   if(gen->region_for(region)->capacity_in_words() != segment_sz) {
+  //     return;
+  //   }
+  // }
 
   const size_t alignment = virtual_space()->alignment();
   size_t aligned_bytes  = align_size_up(bytes, alignment);
@@ -415,6 +417,14 @@ void PSOldGen::resize(size_t desired_free_space) {
                   heap->total_collections(),
                   size_before, virtual_space()->committed_size());
   }
+}
+
+// Big-Data aware code. It adjusts the object space regions in order
+// to adapt the free space for the needy.
+// NOTE! This code should only be called by one thread and never during
+// parallel GC phases.
+bool PSOldGen::adjust_object_space() {
+  return ((BDCMutableSpace*)object_space())->adjust_layout(true);
 }
 
 // NOTE! We need to be careful about resizing. During a GC, multiple

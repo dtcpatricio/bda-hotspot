@@ -2,10 +2,11 @@
 #define SHARE_VM_OOPS_REGIONMARK_HPP
 
 #include "oops/oop.hpp"
+#include "gc_implementation/shared/bdaGlobals.hpp"
 
 // This class implements a word that contains information to where the object (oop)
 // is allocated in the Big Data allocators (bdcMutableSpace regions).
-// It is implemented as a markOopDesc and, in the future, it could be integrated
+// It is implemented just as a markOopDesc and, in the future, it could be integrated
 // into it through the unused bits (see markOop.hpp).
 
 class regionMarkDesc : public oopDesc {
@@ -18,7 +19,7 @@ public:
   // Constants used for shifting the word to figure out the region
   // to where it allocs
   enum {
-    region_bits = 2
+    region_bits = 4
   };
 
   enum {
@@ -27,17 +28,19 @@ public:
 
   enum {
     region_mask          = right_n_bits(region_bits),
-    region_mask_in_place = region_mark << region_shift
-  }
+    region_mask_in_place = region_mask << region_shift
+  };
 
+  // not in use, currently
   enum {
     container_value = 1,
     element_value = 2,
     other_value = 3
   };
 
-  regionMark clear_region_bits() { return (value() & ~region_mask_in_place); }
+  regionMark clear_region_bits() { return regionMark(value() & ~region_mask_in_place); }
 
+  // Not in use, currently ----------------
   bool is_container_oop() const {
     return mask_bits(value(), right_n_bits(region_bits)) == container_value;
   }
@@ -46,20 +49,45 @@ public:
     return mask_bits(value(), right_n_bits(region_bits)) == element_value;
   }
 
-  bool is_other_oop() const {
-    return mask_bits(value(), right_n_bits(region_bits)) == other_value;
-  }
-
-  void set_container() {
+  regionMark set_container() {
     return regionMark((value() & ~region_mask_in_place) | container_value);
   }
 
-  void set_element() {
+  regionMark set_element() {
     return regionMark((value() & ~region_mask_in_place) | element_value);
   }
+  // ---------------------------------------
 
-  void set_other() {
-    return regionMark((value() & ~region_mask_in_place) | other_value);
+  bool is_noregion_oop() const {
+    return mask_bits(value(), right_n_bits(region_bits)) == no_region;
+  }
+
+  regionMark set_noregion() const {
+    return regionMark((value() & ~region_mask_in_place) | no_region);
+  }
+
+  bool is_other_oop() const {
+    return mask_bits(value(), right_n_bits(region_bits)) == region_other;
+  }
+
+  regionMark set_other() {
+    return regionMark((value() & ~region_mask_in_place) | region_other);
+  }
+
+  bool is_hashmap_oop() const {
+    return mask_bits(value(), right_n_bits(region_bits)) == region_hashmap;
+  }
+
+  regionMark set_hashmap() {
+    return regionMark((value() & ~region_mask_in_place) | region_hashmap);
+  }
+
+  bool is_hashtable_oop() const {
+    return mask_bits(value(), right_n_bits(region_bits)) == region_hashtable;
+  }
+
+  regionMark set_hashtable() {
+    return regionMark((value() & ~region_mask_in_place) | region_hashtable);
   }
 
   // inline statics in order to construct this
@@ -69,8 +97,27 @@ public:
 
   inline static regionMark encode_pointer_as_other(void* p) { return regionMark(p)->set_other(); }
 
+  inline static regionMark encode_pointer_as_hashmap(void* p) { return regionMark(p)->set_hashmap(); }
+
+  inline static regionMark encode_pointer_as_hashtable(void* p) { return regionMark(p)->set_hashtable(); }
+
+  inline static regionMark encode_pointer_as_noregion(void* p) { return regionMark(p)->set_noregion(); }
+
+  inline static regionMark encode_pointer_as_region(BDARegion r, void* p) {
+    if(r == region_other)
+      return encode_pointer_as_other(p);
+    else if(r == region_hashmap)
+      return encode_pointer_as_hashmap(p);
+    else if(r == region_hashtable)
+      return encode_pointer_as_hashtable(p);
+    else
+      return encode_pointer_as_noregion(p);
+  }
+
   // general inlines
-  inline void* decode_pointer() { return clear_region_bits(); } // it can recover the addres of an object
-}
+  inline void* decode_pointer() { return clear_region_bits(); } // it can recover the address of an object
+
+  inline BDARegion decode_pointer_as_region() { return (BDARegion)value(); }
+};
 
 #endif // SHARE_VM_OOPS_REGIONMARK_HPP

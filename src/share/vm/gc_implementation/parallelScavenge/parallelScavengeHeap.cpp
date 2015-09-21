@@ -534,6 +534,11 @@ void ParallelScavengeHeap::collect(GCCause::Cause cause) {
   VMThread::execute(&op);
 }
 
+bool ParallelScavengeHeap::adjust_object_space() {
+  // Delegate to the old gen
+  old_gen()->adjust_object_space();
+}
+
 void ParallelScavengeHeap::oop_iterate(ExtendedOopClosure* cl) {
   Unimplemented();
 }

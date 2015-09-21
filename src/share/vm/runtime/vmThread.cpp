@@ -415,7 +415,6 @@ void VMThread::evaluate_operation(VM_Operation* op) {
 
 void VMThread::loop() {
   assert(_cur_vm_operation == NULL, "no current one should be executing");
-  int i = 1;
 
   while(true) {
     VM_Operation* safepoint_ops = NULL;
@@ -429,9 +428,6 @@ void VMThread::loop() {
       // Look for new operation
       assert(_cur_vm_operation == NULL, "no current one should be executing");
       _cur_vm_operation = _vm_queue->remove_next();
-
-      // DUARTE :: counter for cycles in the loop
-      printf("VM Cycle count: %d\n", i++);
 
       // Stall time tracking code
       if (PrintVMQWaitTime && _cur_vm_operation != NULL &&

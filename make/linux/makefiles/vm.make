@@ -73,6 +73,14 @@ else
   endif
 endif
 
+ifeq ($(ENABLE_BDA_HEADER_MARK),1)
+  SYSDEFS += -DBIGDATA_HEADER
+else
+  ifeq ($(ENABLE_BDA_HASH_MARK),1)
+    SYSDEFS += -DBIGDATA_HASH_MARK
+  endif
+endif
+
 # HOTSPOT_RELEASE_VERSION and HOTSPOT_BUILD_VERSION are defined
 # in $(GAMMADIR)/make/defs.make
 ifeq ($(HOTSPOT_BUILD_VERSION),)

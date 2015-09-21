@@ -1,6 +1,7 @@
 #include "gc_implementation/shared/bdcMutableSpace.hpp"
 #include "gc_implementation/shared/spaceDecorator.hpp"
 #include "gc_interface/collectedHeap.hpp"
+#include "memory/resourceArea.hpp"
 #include "runtime/thread.hpp"
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
@@ -69,41 +70,89 @@ void BDCMutableSpace::initialize(MemRegion mr, bool clear_space, bool mangle_spa
   set_end(end);
 
   size_t space_size = pointer_delta(end, bottom);
-  initialize_regions_evenly(collections()->length() - 1, 0, bottom, end, space_size);
-  // int len = collections()->length();
-  // size_t chunk = align_size_down((intptr_t)space_size / len, _page_size);
-
-  // HeapWord *start, *tail;
-  // for(int i = len - 1; i > 0; --i) {
-  //   select_limits(MemRegion(end - chunk, chunk), &start, &tail);
-
-  //   assert(pointer_delta(tail, start) % page_size() == 0, "Chunk size is not page aligned");
-  //   collections()->at(i)->space()->initialize(MemRegion(start, tail),
-  //                                             clear_space,
-  //                                             mangle_space);
-  //   end = start;
-  // }
-
-  // select_limits(MemRegion(bottom, end), &start, &tail);
-
-  // // just in case it is not properly aligned
-  // if(start > bottom) {
-  //   size_t delta = pointer_delta(start, bottom);
-  //   const size_t min_fill_size = CollectedHeap::min_fill_size();
-  //   if(delta > min_fill_size) {
-  //     CollectedHeap::fill_with_object(bottom, delta);
-  //   }
-  // }
-
-  // assert(pointer_delta(tail, start) % page_size() == 0, "First region is not page aligned");
-  // collections()->at(0)->space()->initialize(MemRegion(start, tail),
-  //                                           clear_space,
-  //                                           mangle_space);
+  initialize_regions_evenly(0, collections()->length() - 1, bottom, end, space_size);
 
   // always clear space for new allocations
   clear(mangle_space);
 }
 
+bool
+BDCMutableSpace::adjust_layout(bool force)
+{
+  // We must force the layout to change and give space to the maximum occupying
+  // region
+  if(force) {
+    const float multiplier = 10.5;
+    const float diff_threshold = 0.7;
+    // Scan the regions to find the needy one
+    int i = -1;
+    double max = 0.0;
+    for(int j = 0; j < collections()->length(); ++j) {
+      MutableSpace* spc = collections()->at(j)->space();
+      double occupancy_ratio =
+        (double)spc->used_in_words() / spc->capacity_in_words();
+      double free_ratio = 1 - occupancy_ratio;
+      if(occupancy_ratio - free_ratio > max) {
+        i = j;
+        max = occupancy_ratio - free_ratio;
+      }
+    }
+    // Do nothing if all were max occupied
+    if(i == -1)
+      return false;
+
+    MutableSpace* expand_spc = collections()->at(i)->space();
+    double occ_ratio0 =
+      (double)expand_spc->used_in_words() / expand_spc->capacity_in_words();
+    double free_ratio0 = 1 - occ_ratio0;
+    const size_t free_space0_sz = expand_spc->free_in_words();
+    size_t expand_size = size_t(occ_ratio0 * multiplier * MinRegionSize);
+    // Scan the regions to find the first one that has enough space for the
+    // needy one.
+    int k = -1;
+    double free_ratio1 = 0.0;
+    size_t free_space1_sz = 0;
+    for(int j = i + 1; j < collections()->length(); ++j) {
+      MutableSpace* spc = collections()->at(j)->space();
+      free_ratio1 =
+        (double)spc->free_in_words() / spc->capacity_in_words();
+      free_space1_sz = spc->free_in_words();
+      if(free_ratio1 - free_ratio0 > diff_threshold) {
+        if((free_space1_sz / 2 > expand_size) &&
+           (free_space1_sz / 2 > MinRegionSize)) {
+          expand_size = free_space1_sz / 2;
+          k = j;
+          break;
+        }
+      } else {
+        if((free_space1_sz > expand_size) &&
+           (pointer_delta(spc->end(), spc->top() + expand_size) >= (j - i) * MinRegionSize)) {
+          k = j;
+          break;
+        }
+      }
+    }
+    // Do nothing if the neighbouring regions have no space to share
+    if(k == -1)
+      return false;
+
+    MutableSpace* to_spc = collections()->at(k)->space();
+    HeapWord* new_end =
+      (HeapWord*)round_to((intptr_t)(to_spc->top() + expand_size),
+                          MinRegionSizeBytes);
+    increase_space_set_top(expand_spc, pointer_delta(new_end, expand_spc->end()),
+                           to_spc->top());
+
+    size_t available_space_size = pointer_delta(to_spc->end(), expand_spc->end());
+    initialize_regions_evenly(i + 1, k, expand_spc->end(), to_spc->end(),
+                              available_space_size);
+
+    return true;
+  } else {
+    // Not yet implemented
+    return false;
+  }
+}
 
 void
 BDCMutableSpace::update_layout(MemRegion new_mr) {
@@ -118,9 +167,12 @@ BDCMutableSpace::update_layout(MemRegion new_mr) {
     // This allow the following algorithm to check the borders without
     // repeating operations.
     MutableSpace* last_space = collections()->at(collections()->length() - 1)->space();
-    increase_space_noclear(last_space, expand_size);
+    last_space->initialize(MemRegion(last_space->bottom(), new_mr.end()),
+                           SpaceDecorator::DontClear,
+                           SpaceDecorator::DontMangle);
+    //increase_space_noclear(last_space, expand_size);
     // Now we expand the region that exhausted its space to the neighbours
-    expand_region_to_neighbour(i, expand_size);
+    //expand_region_to_neighbour(i, expand_size);
   }
   // this is a shrink
   else {
@@ -222,33 +274,29 @@ BDCMutableSpace::initialize_regions_evenly(int from_id, int to_id,
                                            HeapWord* end_limit,
                                            size_t space_size)
 {
-  int len = (from_id - to_id) + 1;
-  size_t chunk = align_size_down((intptr_t)space_size / len, MinRegionSizeBytes);
+  assert(space_size % MinRegionSize == 0, "space_size not region aligned");
 
-  HeapWord *start, *tail;
-  for(int i = from_id; i > to_id; --i) {
-    select_limits(MemRegion(end_limit - chunk, chunk), &start, &tail);
+  const int len = (to_id - from_id) + 1;
+  const int blocks_n = space_size / MinRegionSize;
+  const int blocks_per_spc = (int)ceil((float)blocks_n / len);
+  size_t chunk = blocks_per_spc * MinRegionSize;
+  //size_t chunk = align_size_down((intptr_t)space_size / len, MinRegionSizeBytes);
 
-    assert(pointer_delta(tail, start) % page_size() == 0, "Chunk size is not page aligned");
+  int blocks_left = blocks_n;
+  HeapWord *start = start_limit, *tail = start_limit + chunk;
+  for(int i = from_id; i <= to_id; ++i) {
+    blocks_left -= blocks_per_spc;
+    if(blocks_left < 0)
+      chunk -= -blocks_left * MinRegionSize;
+
+    assert(pointer_delta(tail, start) % page_size() == 0, "chunk size not page aligned");
     collections()->at(i)->space()->initialize(MemRegion(start, tail),
                                               SpaceDecorator::Clear,
                                               SpaceDecorator::Mangle);
-    end_limit = start;
+    start = tail;
+    tail = start + chunk;
   }
-
-  select_limits(MemRegion(start_limit, end_limit), &start, &tail);
-  // just in case it is not properly aligned, zap that region
-  if(start > start_limit) {
-    size_t delta = pointer_delta(start, start_limit);
-    const size_t min_fill_size = CollectedHeap::min_fill_size();
-    if(delta > min_fill_size) {
-      CollectedHeap::fill_with_object(start_limit, delta);
-    }
-  }
-
-  collections()->at(to_id)->space()->initialize(MemRegion(start, tail),
-                                                SpaceDecorator::Clear,
-                                                SpaceDecorator::Mangle);
+  assert(blocks_left <= 0, "some blocks are left for use");
 }
 
 void
@@ -318,7 +366,7 @@ BDCMutableSpace::expand_region_to_neighbour(int i, size_t expand_size)
 
     // There is space, so expand the space and shrink all neighbours evenly
     MutableSpace* to_space = collections()->at(j)->space();
-    HeapWord* new_end = (HeapWord*)round_to((intptr_t)to_space->top() + expand_size,
+    HeapWord* new_end = (HeapWord*)round_to((intptr_t)(to_space->top() + expand_size),
                                             MinRegionSizeBytes);
     increase_space_set_top(space, pointer_delta(new_end, space->end()), to_space->top());
 
@@ -419,7 +467,7 @@ BDCMutableSpace::grow_through_neighbour(MutableSpace* growee,
                                         size_t expand_size)
 {
   growee->initialize(MemRegion(growee->bottom(),
-                               (HeapWord*)round_to((intptr_t)eaten->top() + expand_size,
+                               (HeapWord*)round_to((intptr_t)(eaten->top() + expand_size),
                                                    MinRegionSizeBytes)),
                      SpaceDecorator::DontClear,
                      SpaceDecorator::DontMangle);
@@ -755,18 +803,16 @@ void
 BDCMutableSpace::set_top(HeapWord* value) {
   for (int i = 0; i < collections()->length(); ++i) {
     MutableSpace *ms = collections()->at(i)->space();
-    HeapWord *top = MAX2((HeapWord*)round_down((intptr_t)ms->top(), page_size()),
-                         ms->bottom());
 
     if(ms->contains(value)) {
       // The pushing of the top from the summarize phase can create
       // a hole of invalid heap area. See ParallelCompactData::summarize
-      if(ms->top() < value) {
-        const size_t delta = pointer_delta(value, ms->top());
-        if(delta > CollectedHeap::min_fill_size()) {
-          CollectedHeap::fill_with_object(ms->top(), delta, false);
-        }
-      }
+      // if(ms->top() < value) {
+      //   const size_t delta = pointer_delta(value, ms->top());
+      //   if(delta > CollectedHeap::min_fill_size()) {
+      //     CollectedHeap::fill_with_object(ms->top(), delta, false);
+      //   }
+      // }
       ms->set_top(value);
     }
   }
@@ -793,7 +839,8 @@ BDCMutableSpace::print_on(outputStream* st) const {
   }
 }
 
-void BDCMutableSpace::print_short_on(outputStream* st) const {
+void
+BDCMutableSpace::print_short_on(outputStream* st) const {
   MutableSpace::print_short_on(st);
   st->print(" ()");
   for(int i = 0; i < collections()->length(); ++i) {
@@ -804,6 +851,55 @@ void BDCMutableSpace::print_short_on(outputStream* st) const {
     }
   }
   st->print(") ");
+}
+
+void
+BDCMutableSpace::print_current_space_layout(bool descriptive,
+                                            bool only_collections)
+{
+  ResourceMark rm(Thread::current());
+
+  if(descriptive) {
+    int j = only_collections ? 1 : 0;
+    for(; j < collections()->length(); ++j) {
+      CGRPSpace* grp = collections()->at(j);
+      MutableSpace* spc = grp->space();
+      BDARegion region = grp->coll_type();
+      tty->print_cr("Region for objects %s :: From 0x%x to 0x%x top 0x%x",
+                    toString(region),
+                    spc->bottom(),
+                    spc->end(),
+                    spc->top());
+      tty->print_cr("\t Fillings (words): Capacity %d :: Used space %d :: Free space %d",
+                    spc->capacity_in_words(),
+                    spc->used_in_words(),
+                    spc->free_in_words());
+      tty->print_cr("\t Space layout:");
+      oop next_obj = (oop)spc->bottom();
+      while((HeapWord*)next_obj < spc->top()) {
+        Klass* klassPtr = next_obj->klass();
+        tty->print_cr("address: %x , klass: %s",
+                      next_obj,
+                      klassPtr->external_name());
+        next_obj = (oop)((HeapWord*)next_obj + next_obj->size());
+      }
+    }
+  } else {
+    for(int j = 0; j < collections()->length(); ++j) {
+      CGRPSpace* grp = collections()->at(j);
+      MutableSpace* spc = grp->space();
+      BDARegion region = grp->coll_type();
+      tty->print_cr("Region for objects %s :: From 0x%x to 0x%x top 0x%x",
+                    toString(region),
+                    spc->bottom(),
+                    spc->end(),
+                    spc->top());
+      tty->print_cr("\t Fillings (words): Capacity %d :: Used space %d :: Free space %d",
+                    spc->capacity_in_words(),
+                    spc->used_in_words(),
+                    spc->free_in_words());
+    }
+  }
 }
 
 void

@@ -504,9 +504,14 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   DEBUG_ONLY(Atomic::inc_ptr(&add_obj_count);)
   DEBUG_ONLY(Atomic::add_ptr(len, &add_obj_size);)
 
-    // There must be a better way of doing this...
-  Klass* klass = ((oop)addr)->klass();
-  BDARegion r = klass->is_subtype_for_bda();
+    Klass* klass = ((oop)addr)->klass();
+  BDARegion r;
+#if defined(BIGDATA_HASH_MARK)
+  // There must be a better way of doing this...
+  r = heap->old_gen->region_map()->region_for_klass(klass);
+#elif defined(BIGDATA_HEADER)
+  r = ((oop)addr)->region()->decode_pointer_as_region();
+#endif
   if(r == region_hashmap)
     _region_data[beg_region].incr_hashmap_counter();
   else if(r == region_hashtable)
@@ -805,11 +810,11 @@ ParallelCompactData::summarize_parse_region(
   // Placeholder value for the empty regions
   HeapWord **dest_addr = &target0_beg;
   // A patch of code to deal with empty regions
-  if(source_beg >= source_end) {
-    _region_data[cur_region].set_destination(*dest_addr);
-    *target0_next = *dest_addr;
-    return true;
-  }
+  // if(source_beg >= source_end) {
+  //   _region_data[cur_region].set_destination(*dest_addr);
+  //   *target0_next = *dest_addr;
+  //   return true;
+  // }
 
   HeapWord *dest0 = target0_beg, *dest1 = target1_beg, *dest2 = target2_beg;
   while (cur_region < end_region) {
@@ -2130,6 +2135,7 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
   HeapWord* dst2_space_end = _space_info[dst2_space_id].space()->end();
   HeapWord** new_top2_addr = _space_info[dst2_space_id].new_top_addr();
 
+  bool split_occured = false;
   for (unsigned int id = eden_space_id; id < last_space_id; ++id) {
     const MutableSpace* space = _space_info[id].space();
     const size_t live = pointer_delta(_space_info[id].new_top(),
@@ -2145,70 +2151,94 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
     if(pointer_delta(dst2_space_end, *new_top2_addr) < available)
       available = pointer_delta(dst2_space_end, *new_top2_addr);
 
+    // if(split_occured) {
+    //   available = pointer_delta(dst_space_end, *new_top_addr);
+    // }
     NOT_PRODUCT(summary_phase_msg(dst_space_id, *new_top_addr, dst_space_end,
                                   SpaceId(id), space->bottom(), space->top());)
-    if (live > 0 && live <= available) {
-      // All the live data will fit.
-      // bool done = _summary_data.summarize(_space_info[id].split_info(),
-      //                                     space->bottom(), space->top(),
-      //                                     NULL,
-      //                                     *new_top_addr, dst_space_end,
-      //                                     new_top_addr);
-      bool done = _summary_data.summarize_parse_region(_space_info[id].split_info(),
-                                                       space->bottom(), space->top(),
-                                                       NULL,
-                                                       *new_top0_addr, dst0_space_end,
-                                                       new_top0_addr,
-                                                       *new_top1_addr, dst1_space_end,
-                                                       new_top1_addr,
-                                                       *new_top2_addr, dst2_space_end,
-                                                       new_top2_addr);
-      assert(done, "space must fit into old gen");
+      // if (live > 0 && live <= available) {
+      //   // All the live data will fit.
+      //   // bool done = _summary_data.summarize(_space_info[id].split_info(),
+      //   //                                     space->bottom(), space->top(),
+      //   //                                     NULL,
+      //   //                                     *new_top_addr, dst_space_end,
+      //   //                                     new_top_addr);
+      //   bool done = _summary_data.summarize_parse_region(_space_info[id].split_info(),
+      //                                                    space->bottom(), space->top(),
+      //                                                    NULL,
+      //                                                    *new_top0_addr, dst0_space_end,
+      //                                                    new_top0_addr,
+      //                                                    *new_top1_addr, dst1_space_end,
+      //                                                    new_top1_addr,
+      //                                                    *new_top2_addr, dst2_space_end,
+      //                                                    new_top2_addr);
+      //   assert(done, "space must fit into old gen");
 
-      // Reset the new_top value for the space.
-      _space_info[id].set_new_top(space->bottom());
-    } else if (live > 0) {
-      // Attempt to fit part of the source space into the target space.
-      HeapWord* next_src_addr = NULL;
-      // bool done = _summary_data.summarize(_space_info[id].split_info(),
-      //                                     space->bottom(), space->top(),
-      //                                     &next_src_addr,
-      //                                     *new_top_addr, dst_space_end,
-      //                                     new_top_addr);
-      // assert(!done, "space should not fit into old gen");
-      // assert(next_src_addr != NULL, "sanity");
-      bool done = _summary_data.summarize_parse_region(_space_info[id].split_info(),
-                                                       space->bottom(), space->top(),
-                                                       &next_src_addr,
-                                                       *new_top0_addr, dst0_space_end,
-                                                       new_top0_addr,
-                                                       *new_top1_addr, dst1_space_end,
-                                                       new_top1_addr,
-                                                       *new_top2_addr, dst2_space_end,
-                                                       new_top2_addr);
-      if(done)
-      {
-        // this means that the space ended up fitting after all
-        _space_info[id].set_new_top(space->bottom());
-      } else {
-
-        // The source space becomes the new target, so the remainder is compacted
-        // within the space itself.
-        dst_space_id = SpaceId(id);
-        dst_space_end = space->end();
-        new_top_addr = _space_info[id].new_top_addr();
-        NOT_PRODUCT(summary_phase_msg(dst_space_id,
-                                      space->bottom(), dst_space_end,
-                                      SpaceId(id), next_src_addr, space->top());)
-          done = _summary_data.summarize(_space_info[id].split_info(),
-                                         next_src_addr, space->top(),
-                                         NULL,
-                                         space->bottom(), dst_space_end,
-                                         new_top_addr);
-        assert(done, "space must fit when compacted into itself");
-        assert(*new_top_addr <= space->top(), "usage should not grow");
+      //   // Reset the new_top value for the space.
+      //   _space_info[id].set_new_top(space->bottom());
+      //   // } else
+      if (live > 0) {
+        // if(split_occured) {
+        //   //   // All the live data will fit.
+        //     bool done = _summary_data.summarize(_space_info[id].split_info(),
+        //                                         space->bottom(), space->top(),
+        //                                         NULL,
+        //                                         *new_top_addr, dst_space_end,
+        //                                       new_top_addr);
+        //     assert(done, "space must fit into the other generations");
+        //     _space_info[id].set_new_top(space->bottom());
+        // } else {
+        // bool done = _summary_data.summarize(_space_info[id].split_info(),
+        //                                     space->bottom(), space->top(),
+        //                                     NULL,
+        //                                     *new_top_addr, dst_space_end,
+        //                                     new_top_addr);
+        // assert(done, "space must fit onto itself");
+        // assert(*new_top_addr <= space->top(), "usage should not grow");
+        //} else {
+        // Attempt to fit part of the source space into the target space.
+        HeapWord* next_src_addr = NULL;
+        // bool done = _summary_data.summarize(_space_info[id].split_info(),
+        //                                     space->bottom(), space->top(),
+        //                                     &next_src_addr,
+        //                                     *new_top_addr, dst_space_end,
+        //                                     new_top_addr);
+        // assert(!done, "space should not fit into old gen");
+        // assert(next_src_addr != NULL, "sanity");
+        bool done = _summary_data.summarize_parse_region(_space_info[id].split_info(),
+                                                         space->bottom(), space->top(),
+                                                         &next_src_addr,
+                                                         *new_top0_addr, dst0_space_end,
+                                                         new_top0_addr,
+                                                         *new_top1_addr, dst1_space_end,
+                                                         new_top1_addr,
+                                                         *new_top2_addr, dst2_space_end,
+                                                         new_top2_addr);
+        if(done)
+        {
+          assert(done, "space must fit into old gen");
+          // this means that the space ended up fitting after all
+          _space_info[id].set_new_top(space->bottom());
+        } else {
+          // The source space becomes the new target, so the remainder is compacted
+          // within the space itself.
+          dst_space_id = SpaceId(id);
+          dst_space_end = space->end();
+          new_top_addr = _space_info[id].new_top_addr();
+          NOT_PRODUCT(summary_phase_msg(dst_space_id,
+                                        space->bottom(), dst_space_end,
+                                        SpaceId(id), next_src_addr, space->top());)
+            done = _summary_data.summarize(_space_info[id].split_info(),
+                                           next_src_addr, space->top(),
+                                           NULL,
+                                           space->bottom(), dst_space_end,
+                                           new_top_addr);
+          split_occured = true;
+          assert(done, "space must fit when compacted into itself");
+          assert(*new_top_addr <= space->top(), "usage should not grow");
+        }
+        //}
       }
-    }
   }
 
   if (TraceParallelOldGCSummaryPhase) {
@@ -2305,6 +2335,10 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
 
   // Place after pre_compact() where the number of invocations is incremented.
   AdaptiveSizePolicyOutput(size_policy, heap->total_collections());
+
+  // Additional code to adjust the regions free size as a dependency of
+  // the generation free size before the GC
+  bool adjusted_before_gc = heap->adjust_object_space();
 
   {
     ResourceMark rm;
@@ -2441,6 +2475,12 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
     // Resize the metaspace capactiy after a collection
     MetaspaceGC::compute_new_size();
 
+    // Additional code to adjust the regions free size as a dependency of
+    // the generation free size in case it was not possible to adjust before
+    // GC.
+    if(!adjusted_before_gc)
+      heap->adjust_object_space();
+
     if (TraceGen1Time) accumulated_time()->stop();
 
     if (PrintGC) {
@@ -2453,6 +2493,11 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
       } else {
         heap->print_heap_change(pre_gc_values.heap_used());
       }
+    }
+    // Print the Old Generation regions, whether descriptively or not.
+    if(UseBDA && BDAPrintRegions) {
+      ((BDCMutableSpace*)(old_gen->object_space()))->print_current_space_layout(
+        BDAPrintDescriptive, BDAPrintOnlyCollections);
     }
 
     // Track memory usage and detect low memory
@@ -3293,8 +3338,13 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
   HeapWord* const top_aligned_up = sd.region_align_up(src_space_top);
   const RegionData* const top_region_ptr =
     sd.addr_to_region_ptr(top_aligned_up);
-  while (src_region_ptr < top_region_ptr && src_region_ptr->data_size() == 0) {
-    ++src_region_ptr;
+  while (src_region_ptr < top_region_ptr) {
+    if(space_id(src_region_ptr->destination()) != space_id(closure.destination()) ||
+       src_region_ptr->data_size() == 0) {
+      ++src_region_ptr;
+      continue;
+    }
+    break;
   }
 
   if (src_region_ptr < top_region_ptr) {
@@ -3325,7 +3375,7 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
       const RegionData* const top_cp = sd.addr_to_region_ptr(top_aligned_up);
 
       for (const RegionData* src_cp = bottom_cp; src_cp < top_cp; ++src_cp) {
-        if (src_cp->live_obj_size() > 0 && src_cp->destination() != destination) {
+        if (src_cp->data_size() > 0 && src_cp->destination() != destination) {
           // This jumps the scanned region because some may have their
           // destination set to other old-space segments
           continue;
@@ -3334,9 +3384,8 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
           // Found it.
           assert(src_cp->destination() == destination,
                  "first live obj in the space must match the destination");
-          // This assert must be removed for now
-          // assert(src_cp->partial_obj_size() == 0,
-          //        "a space cannot begin with a partial obj");
+          assert(src_cp->partial_obj_size() == 0,
+                 "a space cannot begin with a partial obj");
 
           src_space_id = SpaceId(space_id);
           src_space_top = space->top();

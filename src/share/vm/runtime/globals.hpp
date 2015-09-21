@@ -3948,8 +3948,17 @@ class CommandLineFlags {
   product(bool, UseLockedTracing, false,                                    \
           "Use locked-tracing when doing event-based tracing")              \
                                                                             \
-  product(bool, UseBDA, false,                                         \
+  product(bool, UseBDA, false,                                              \
                "Use Big-data collections spaces")                           \
+                                                                            \
+  product(bool, BDAPrintRegions, false,                                     \
+               "Print big-data aware space after compacting GC")            \
+                                                                            \
+  product(bool, BDAPrintDescriptive, false,                                 \
+               "Print big-data aware space in a descriptive manner")        \
+                                                                            \
+  product(bool, BDAPrintOnlyCollections, false,                             \
+               "Print big-data aware space, but only collections")          \
 
 /*
  *  Macros for factoring of globals
