@@ -34,7 +34,6 @@ do
             shift
             ;;
         *)
-            MODE=product
             break
             ;;
     esac
