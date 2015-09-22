@@ -143,9 +143,9 @@ class MutableSpace: public ImmutableSpace {
   bool cas_deallocate(HeapWord *obj, size_t size);
 
   // Iteration.
-  void oop_iterate(ExtendedOopClosure* cl);
-  void oop_iterate_no_header(OopClosure* cl);
-  void object_iterate(ObjectClosure* cl);
+  virtual void oop_iterate(ExtendedOopClosure* cl);
+  virtual void oop_iterate_no_header(OopClosure* cl);
+  virtual void object_iterate(ObjectClosure* cl);
 
   // Helper methods for scavenging (for the mutableSpace it returns _top)
   virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) { return _top; }

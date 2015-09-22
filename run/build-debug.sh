@@ -7,12 +7,22 @@ BUILD_SCRIPT_DIR=`cd ../make && pwd`;
 BUILD_SCRIPT=$BUILD_SCRIPT_DIR/build.sh
 
 BUILD_DIR=`cd ../build/linux && pwd`
+DEBUG_BIN=true
 
 while :
 do
     case "$1" in
+        -buildir)
+            BUILD_DIR=`cd $2 && pwd`
+            shift 2
+            ;;
         -debug)
             MODE=debug
+            DEBUG_BIN=true
+            shift
+            ;;
+        -nodebugbin)
+            DEBUG_BIN=false
             shift
             ;;
         -clean)
@@ -39,4 +49,4 @@ do
     esac
 done
 
-exec $BUILD_SCRIPT $MODE LP64=1 DEBUG_BINARIES=true ALT_OUTPUTDIR=$BUILD_DIR ENABLE_BDA_HEADER_MARK=$ENABLE_BDA_HEADERMARK ENABLE_BDA_HASH_MARK=$ENABLE_BDA_HASHMARK
+exec $BUILD_SCRIPT $MODE LP64=1 DEBUG_BINARIES=$DEBUG_BIN ALT_OUTPUTDIR=$BUILD_DIR ENABLE_BDA_HEADER_MARK=$ENABLE_BDA_HEADERMARK ENABLE_BDA_HASH_MARK=$ENABLE_BDA_HASHMARK

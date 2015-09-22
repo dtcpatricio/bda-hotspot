@@ -1,5 +1,7 @@
 #!/bin/sh
 
+HS_SCRIPT_DIR=`cd ../build/linux/linux_amd64_compiler2/product && pwd`
+
 while :
 do
     case "$1" in
@@ -12,12 +14,16 @@ do
             shift 4
             ;;
         -nocomp)
-            compresed="-XX:-UseCompressedOops -XX:-UseCompressedClassPointers"
+            compressed="-XX:-UseCompressedOops -XX:-UseCompressedClassPointers"
             shift
             ;;
         -print)
             print="-XX:+BDAPrintRegions"
             shift
+            ;;
+        -dir)
+            HS_SCRIPT_DIR=`cd $2 && pwd`
+            shift 2
             ;;
         *)
           prog=$1
@@ -28,7 +34,6 @@ done
 
 REL_MYDIR=`dirname $0`
 MYDIR=`cd $REL_MYDIR && pwd`
-HS_SCRIPT_DIR=`cd ../build/linux/linux_amd64_compiler2/product && pwd`
 
 if [ -z "$DACAPO_ARGS" ]; then
     JAVA_ARGS="-classpath $MYDIR $prog"

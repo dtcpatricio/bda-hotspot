@@ -508,7 +508,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   BDARegion r;
 #if defined(BIGDATA_HASH_MARK)
   // There must be a better way of doing this...
-  r = heap->old_gen->region_map()->region_for_klass(klass);
+  r = PSParallelCompact::gc_heap()->old_gen()->region_map()->region_for_klass(klass);
 #elif defined(BIGDATA_HEADER)
   r = ((oop)addr)->region()->decode_pointer_as_region();
 #endif
@@ -2338,7 +2338,7 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
 
   // Additional code to adjust the regions free size as a dependency of
   // the generation free size before the GC
-  bool adjusted_before_gc = heap->adjust_object_space();
+  //bool adjusted_before_gc = heap->adjust_object_space();
 
   {
     ResourceMark rm;
@@ -2472,14 +2472,15 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
 
     heap->resize_all_tlabs();
 
+//    heap->adjust_object_space();
     // Resize the metaspace capactiy after a collection
     MetaspaceGC::compute_new_size();
 
     // Additional code to adjust the regions free size as a dependency of
     // the generation free size in case it was not possible to adjust before
     // GC.
-    if(!adjusted_before_gc)
-      heap->adjust_object_space();
+    // if(!adjusted_before_gc)
+
 
     if (TraceGen1Time) accumulated_time()->stop();
 

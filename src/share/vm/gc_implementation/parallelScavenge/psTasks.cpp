@@ -190,12 +190,12 @@ void OldToYoungRootsTask::do_it(GCTaskManager* manager, uint which) {
     CardTableExtension* card_table = (CardTableExtension *)Universe::heap()->barrier_set();
     // FIX ME! Assert that card_table is the type we believe it to be.
 
-    for(int i = 0; i < _helper->tops().length(); i++) {
+    for(int i = 0; i < _helper->length(); i++) {
       card_table->scavenge_contents_parallel(_gen->start_array(),
                                              //_gen->object_space(),
-                                             _helper->bottoms().at(i),
+                                             _helper->bottoms()[i],
                                              //_gen_top,
-                                             _helper->tops().at(i),
+                                             _helper->tops()[i],
                                              pm,
                                              _stripe_number,
                                              _stripe_total);

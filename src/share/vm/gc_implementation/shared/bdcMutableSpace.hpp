@@ -17,17 +17,18 @@ class BDCMutableSpace;
 class BDACardTableHelper : public CHeapObj<mtGC> {
 
 private:
-  GrowableArray<HeapWord*> _tops;
-  GrowableArray<HeapWord*> _bottoms;
+  int _length;
+  HeapWord** _tops;
+  HeapWord** _bottoms;
 
 public:
 
   BDACardTableHelper(BDCMutableSpace* sp);
   ~BDACardTableHelper();
 
-  HeapWord* top_region_for_slice(HeapWord* slice_start);
-  GrowableArray<HeapWord*> tops() const { return _tops; }
-  GrowableArray<HeapWord*> bottoms() const { return _bottoms; }
+  int        length() const { return _length; }
+  HeapWord** tops() const { return _tops; }
+  HeapWord** bottoms() const { return _bottoms; }
 };
 
 // The BDCMutableSpace class is a general object that encapsulates multiple
@@ -190,6 +191,11 @@ public:
   virtual void      clear(bool mangle_space);
   virtual void      set_top(HeapWord* value);
   virtual void      set_end(HeapWord* value) { _end = value; }
+
+  // Iteration.
+  virtual void oop_iterate(ExtendedOopClosure* cl);
+  virtual void oop_iterate_no_header(OopClosure* cl);
+  virtual void object_iterate(ObjectClosure* cl);
 
   // Debugging virtuals
   virtual void print_on(outputStream* st) const;

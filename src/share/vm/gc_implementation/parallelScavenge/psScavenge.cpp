@@ -250,6 +250,7 @@ bool PSScavenge::invoke() {
     const bool clear_all_softrefs = cp->should_clear_all_soft_refs();
 
     if (UseParallelOldGC) {
+      heap->adjust_object_space();
       full_gc_done = PSParallelCompact::invoke_no_policy(clear_all_softrefs);
     } else {
       full_gc_done = PSMarkSweep::invoke_no_policy(clear_all_softrefs);
@@ -636,6 +637,8 @@ bool PSScavenge::invoke_no_policy() {
       heap->gc_policy_counters()->update_counters();
 
       heap->resize_all_tlabs();
+
+      delete saved_tops;
 
       assert(young_gen->to_space()->is_empty(), "to space should be empty now");
     }

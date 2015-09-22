@@ -16,22 +16,20 @@ const size_t BDCMutableSpace::MinRegionAddrOffsetMask = MinRegionSizeBytes - 1;
 const size_t BDCMutableSpace::MinRegionAddrMask       = ~MinRegionAddrOffsetMask;
 
 BDACardTableHelper::BDACardTableHelper(BDCMutableSpace* sp) {
-  for(int i = 0; i < sp->collections()->length(); ++i) {
+  _length = sp->collections()->length();
+  _tops = NEW_RESOURCE_ARRAY(HeapWord*, _length);
+  _bottoms = NEW_RESOURCE_ARRAY(HeapWord*, _length);
+  for(int i = 0; i < _length; ++i) {
     MutableSpace* ms = sp->collections()->at(i)->space();
-    _tops.append(ms->top());
-    _bottoms.append(ms->bottom());
+    _tops[i] = ms->top();
+    _bottoms[i] = ms->bottom();
   }
 }
 
-HeapWord*
-BDACardTableHelper::top_region_for_slice(HeapWord* slice_start) {
-  HeapWord* p = _tops.top();
-  for(int i = _tops.length() - 2; i >= 0; i--) {
-    // if another saved top is smaller than the previous and slice_start is smaller
-    // then update the saved top
-    p = _tops.at(i) < p && slice_start < _tops.at(i) ? _tops.at(i) : p;
-  }
-  return p;
+BDACardTableHelper::~BDACardTableHelper()
+{
+  FREE_RESOURCE_ARRAY(HeapWord*, _tops[0], _length);
+  FREE_RESOURCE_ARRAY(HeapWord*, _bottoms[0], _length);
 }
 
 BDCMutableSpace::BDCMutableSpace(size_t alignment) : MutableSpace(alignment) {
@@ -763,18 +761,19 @@ HeapWord* BDCMutableSpace::cas_allocate(size_t size) {
 
   assert(obj <= ms->top() && obj + size <= top(), "Incorrect push of the space's top");
 
-  if(obj != NULL) {
-    size_t remainder = pointer_delta(ms->end(), obj + size);
-    if (remainder < CollectedHeap::min_fill_size() && remainder > 0) {
-      if (ms->cas_deallocate(obj, size)) {
-        // We were the last to allocate and created a fragment less than
-        // a minimal object.
-        return NULL;
-      } else {
-        guarantee(false, "Deallocation should always succeed");
-      }
-    }
-  }
+  // Not needed!
+  // if(obj != NULL) {
+  //   size_t remainder = pointer_delta(ms->end(), obj + size);
+  //   if (remainder < CollectedHeap::min_fill_size() && remainder > 0) {
+  //     if (ms->cas_deallocate(obj, size)) {
+  //       // We were the last to allocate and created a fragment less than
+  //       // a minimal object.
+  //       return NULL;
+  //     } else {
+  //       guarantee(false, "Deallocation should always succeed");
+  //     }
+  //   }
+  // }
 
   return obj;
 }
@@ -852,6 +851,32 @@ BDCMutableSpace::print_short_on(outputStream* st) const {
   }
   st->print(") ");
 }
+
+/// ITERATION
+void
+BDCMutableSpace::oop_iterate(ExtendedOopClosure* cl)
+{
+  for(int i = 0; i < collections()->length(); ++i) {
+    collections()->at(i)->space()->oop_iterate(cl);
+  }
+}
+
+void
+BDCMutableSpace::oop_iterate_no_header(OopClosure* cl)
+{
+  for(int i = 0; i < collections()->length(); ++i) {
+    collections()->at(i)->space()->oop_iterate_no_header(cl);
+  }
+}
+
+void
+BDCMutableSpace::object_iterate(ObjectClosure* cl)
+{
+  for(int i = 0; i < collections()->length(); ++i) {
+    collections()->at(i)->space()->object_iterate(cl);
+  }
+}
+/////////////
 
 void
 BDCMutableSpace::print_current_space_layout(bool descriptive,
