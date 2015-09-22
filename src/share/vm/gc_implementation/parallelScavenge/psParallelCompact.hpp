@@ -242,6 +242,12 @@ public:
     // The count of hashtable related objects found in the region
     int hashtable_count() const { return _hashtable_ctr; }
 
+    // The sum of the size of all hashmap based elements found in the region
+    size_t hashmap_size() const { return _hashmap_total_size; }
+
+    // The sum of the size of all hashtable based elements found in the region
+    size_t hashtable_size() const { return _hashtable_total_size; }
+
     // Destination address of the region.
     HeapWord* destination() const { return _destination; }
 
@@ -336,8 +342,8 @@ public:
     inline bool claim();
 
     // These are also atomic
-    inline void incr_hashmap_counter();
-    inline void incr_hashtable_counter();
+    inline jint incr_hashmap_counter(size_t sz);
+    inline jint incr_hashtable_counter(size_t sz);
 
   private:
     // The type used to represent object sizes within a region.
@@ -361,6 +367,8 @@ public:
     bool                 _blocks_filled;
     int                  _hashmap_ctr;
     int                  _hashtable_ctr;
+    size_t               _hashmap_total_size;
+    size_t               _hashtable_total_size;
 
 #ifdef ASSERT
     size_t               _blocks_filled_count;   // Number of block table fills.
@@ -602,19 +610,24 @@ inline void ParallelCompactData::RegionData::add_live_obj(size_t words)
   Atomic::add((int) words, (volatile int*) &_dc_and_los);
 }
 
-inline void
-ParallelCompactData::RegionData::incr_hashmap_counter()
+inline jint
+ParallelCompactData::RegionData::incr_hashmap_counter(size_t sz)
 {
   assert(_hashmap_ctr >= 0, "value cannot be less than 0");
+  assert(_hashmap_total_size >= 0, "total size cannot be less than 0");
   Atomic::inc((volatile int*)&_hashmap_ctr);
+  return Atomic::add((jint)sz, (volatile int*)&_hashmap_total_size);
 }
 
-inline void
-ParallelCompactData::RegionData::incr_hashtable_counter()
+inline jint
+ParallelCompactData::RegionData::incr_hashtable_counter(size_t sz)
 {
   assert(_hashtable_ctr >= 0, "value cannot be less than 0");
+  assert(_hashtable_total_size >= 0, "total size cannot be less than 0");
   Atomic::inc((volatile int*)&_hashtable_ctr);
+  return Atomic::add((jint)sz, (volatile int*)&_hashtable_total_size);
 }
+
 
 inline void ParallelCompactData::RegionData::set_highest_ref(HeapWord* addr)
 {

@@ -3951,6 +3951,9 @@ class CommandLineFlags {
   product(bool, UseBDA, false,                                              \
                "Use Big-data collections spaces")                           \
                                                                             \
+  product(intx, BDAThreshold, 100,                                          \
+               "Threshold percentage for the decision on promotion")        \
+                                                                            \
   product(bool, BDAPrintRegions, false,                                     \
                "Print big-data aware space after compacting GC")            \
                                                                             \

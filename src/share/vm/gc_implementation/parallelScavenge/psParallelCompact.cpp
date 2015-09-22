@@ -512,20 +512,24 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
 #elif defined(BIGDATA_HEADER)
   r = ((oop)addr)->region()->decode_pointer_as_region();
 #endif
-  if(r == region_hashmap)
-    _region_data[beg_region].incr_hashmap_counter();
-  else if(r == region_hashtable)
-    _region_data[beg_region].incr_hashtable_counter();
 
   if (beg_region == end_region) {
     // All in one region.
     _region_data[beg_region].add_live_obj(len);
+    if(r == region_hashmap)
+      _region_data[beg_region].incr_hashmap_counter(len);
+    else if(r == region_hashtable)
+      _region_data[beg_region].incr_hashtable_counter(len);
     return;
   }
 
   // First region.
   const size_t beg_ofs = region_offset(addr);
   _region_data[beg_region].add_live_obj(RegionSize - beg_ofs);
+  if(r == region_hashmap)
+    _region_data[beg_region].incr_hashmap_counter(RegionSize - beg_ofs);
+  else if(r == region_hashtable)
+    _region_data[beg_region].incr_hashtable_counter(RegionSize - beg_ofs);
 
 
   // Middle regions--completely spanned by this object.
@@ -533,9 +537,9 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
     _region_data[region].set_partial_obj_size(RegionSize);
     _region_data[region].set_partial_obj_addr(addr);
     if(r == region_hashmap)
-      _region_data[region].incr_hashmap_counter();
+      _region_data[region].incr_hashmap_counter(RegionSize);
     else if(r == region_hashtable)
-      _region_data[region].incr_hashtable_counter();
+      _region_data[region].incr_hashtable_counter(RegionSize);
   }
 
   // Last region.
@@ -543,10 +547,8 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   _region_data[end_region].set_partial_obj_size(end_ofs + 1);
   _region_data[end_region].set_partial_obj_addr(addr);
 
-  if(r == region_hashmap)
-    _region_data[end_region].incr_hashmap_counter();
-  else if(r == region_hashtable)
-    _region_data[end_region].incr_hashtable_counter();
+  // No need to update counter here because the destination will always
+  // be the same as the previous region
 }
 
 void
@@ -840,14 +842,26 @@ ParallelCompactData::summarize_parse_region(
     } else {
       int hashmap_ctr = _region_data[cur_region].hashmap_count();
       int hashtable_ctr = _region_data[cur_region].hashtable_count();
+      if(hashmap_ctr == 0 && hashtable_ctr == 0) {
+        target_end = target0_end;
+      } else {
+        size_t hashmap_ts = _region_data[cur_region].hashmap_size();
+        size_t hashtable_ts = _region_data[cur_region].hashtable_size();
+        float avg_hashmap_el = hashmap_ts / hashmap_ctr;
+        float avg_hashtable_el = hashtable_ts / hashtable_ctr;
 
-      // Initialize the pointers needed for this cycle according to the
-      // statistics above
-      target_end = hashtable_ctr > 0 && hashtable_ctr > hashmap_ctr ?
-        target2_end :
-        hashmap_ctr > 0 && hashmap_ctr > hashtable_ctr ?
-        target1_end :
-        target0_end;
+        float ratio = hashmap_ctr > hashtable_ctr ?
+          (float)hashtable_ctr / hashmap_ctr :
+          (float)hashmap_ctr / hashtable_ctr;
+
+        if(ratio <= (float)BDAThreshold / 100) {
+          target_end = hashmap_ctr > hashtable_ctr ?
+            target1_end : target2_end;
+        } else {
+          target_end = avg_hashmap_el > avg_hashtable_el ?
+            target1_end : target2_end;
+        }
+      }
 
       target_next = target_end == target0_end ? target0_next :
         target_end == target1_end ? target1_next :
