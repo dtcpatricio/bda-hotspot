@@ -8,6 +8,7 @@ test/
 ## ignore the following because we're not targetting for them
 src/os/*
 !src/os/linux
+!src/os/posix
 src/os_cpu/*
 !src/os_cpu/linux_x86
 src/cpu/*
