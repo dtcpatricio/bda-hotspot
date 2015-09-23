@@ -844,6 +844,10 @@ ParallelCompactData::summarize_parse_region(
       int hashtable_ctr = _region_data[cur_region].hashtable_count();
       if(hashmap_ctr == 0 && hashtable_ctr == 0) {
         target_end = target0_end;
+      } else if(hashtable_ctr == 0) {
+        target_end = target1_end;
+      } else if(hashmap_ctr == 0) {
+        target_end = target2_end;
       } else {
         size_t hashmap_ts = _region_data[cur_region].hashmap_size();
         size_t hashtable_ts = _region_data[cur_region].hashtable_size();

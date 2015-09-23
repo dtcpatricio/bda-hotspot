@@ -25,6 +25,10 @@ do
             HS_SCRIPT_DIR=`cd $2 && pwd`
             shift 2
             ;;
+        -*)
+            add_args="${add_args} $1"
+            shift
+            ;;
         *)
           prog=$1
           break
@@ -41,7 +45,7 @@ else
     JAVA_ARGS="-classpath $MYDIR $DACAPO_ARGS"
 fi
 
-JVM_ARGS="${usebda} ${compressed} ${print}"
+JVM_ARGS="${usebda} ${compressed} ${print} ${add_args}"
 
 echo "JAVA_ARGS to be used $JAVA_ARGS"
 echo "JVM_ARGS to be used $JVM_ARGS"
