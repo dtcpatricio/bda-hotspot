@@ -16,17 +16,16 @@ do
             BUILD_DIR=`cd $2 && pwd`
             shift 2
             ;;
-        -debug)
-            MODE=debug
-            DEBUG_BIN=true
-            shift
-            ;;
+	-bootdir)
+	    JAVA_HOME=`cd $2 && pwd`
+ 	    shift 2
+	    ;;
+	-mode)
+	    MODE=$2
+	    shift 2
+	    ;;
         -nodebugbin)
             DEBUG_BIN=false
-            shift
-            ;;
-        -clean)
-            MODE=clean
             shift
             ;;
         -header)
@@ -37,10 +36,6 @@ do
         -hash)
             ENABLE_BDA_HASHMARK=1
             ENABLE_BDA_HEADERMARK=0
-            shift
-            ;;
-        -product)
-            MODE=product
             shift
             ;;
         *)

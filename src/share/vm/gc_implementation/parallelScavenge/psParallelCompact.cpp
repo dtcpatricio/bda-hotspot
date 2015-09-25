@@ -2154,7 +2154,7 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
   HeapWord** new_top2_addr = _space_info[dst2_space_id].new_top_addr();
 
   bool split_occured = false;
-  for (unsigned int id = eden_space_id; id < last_space_id; ++id) {
+  for (unsigned int id = to_space_id; id < last_space_id; ++id) {
     const MutableSpace* space = _space_info[id].space();
     const size_t live = pointer_delta(_space_info[id].new_top(),
                                       space->bottom());
