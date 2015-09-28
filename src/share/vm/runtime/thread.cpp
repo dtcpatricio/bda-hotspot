@@ -3303,7 +3303,6 @@ void Threads::threads_do(ThreadClosure* tc) {
 }
 
 jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
-    printf("Starting to create the VM thread\n");
 
   extern void JDK_Version_init();
 
@@ -3477,7 +3476,6 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   // Notify JVMTI agents that VM has started (JNI is up) - nop if no agents.
   JvmtiExport::post_vm_start();
-  printf("VM Start: Initializing classes\n");
   {
     TraceTime timer("Initialize java.lang classes", TraceStartupTime);
 
@@ -3697,7 +3695,6 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 #ifdef ASSERT
   _vm_complete = true;
 #endif
-  printf("VM Created!\n");
   return JNI_OK;
 }
 

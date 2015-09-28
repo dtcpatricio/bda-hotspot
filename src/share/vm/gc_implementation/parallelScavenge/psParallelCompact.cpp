@@ -2136,8 +2136,7 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
   // SpaceId dst_space_id = old_space_id;
   // HeapWord* dst_space_end = old_space->end();
 
-  // We leave this values to avoid breaking the rest of the code
-  SpaceId dst_space_id = old_space_other_id;
+  SpaceId dst_space_id = old_space_id;
   HeapWord* dst_space_end = _space_info[dst_space_id].space()->end();
   HeapWord** new_top_addr = _space_info[dst_space_id].new_top_addr();
 
@@ -2153,25 +2152,12 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
   HeapWord* dst2_space_end = _space_info[dst2_space_id].space()->end();
   HeapWord** new_top2_addr = _space_info[dst2_space_id].new_top_addr();
 
-  bool split_occured = false;
   for (unsigned int id = to_space_id; id < last_space_id; ++id) {
     const MutableSpace* space = _space_info[id].space();
     const size_t live = pointer_delta(_space_info[id].new_top(),
                                       space->bottom());
     //const size_t available = pointer_delta(dst_space_end, *new_top_addr);
 
-    // gradualy find the smallest chunk of free space in the old gen.
-    // we target that one in the following conditions, although that does
-    // not happen in the summarize methods.
-    size_t available = pointer_delta(dst0_space_end, *new_top0_addr);
-    if(pointer_delta(dst1_space_end, *new_top1_addr) < available)
-      available = pointer_delta(dst1_space_end, *new_top1_addr);
-    if(pointer_delta(dst2_space_end, *new_top2_addr) < available)
-      available = pointer_delta(dst2_space_end, *new_top2_addr);
-
-    // if(split_occured) {
-    //   available = pointer_delta(dst_space_end, *new_top_addr);
-    // }
     NOT_PRODUCT(summary_phase_msg(dst_space_id, *new_top_addr, dst_space_end,
                                   SpaceId(id), space->bottom(), space->top());)
       // if (live > 0 && live <= available) {
@@ -2251,7 +2237,6 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
                                            NULL,
                                            space->bottom(), dst_space_end,
                                            new_top_addr);
-          split_occured = true;
           assert(done, "space must fit when compacted into itself");
           assert(*new_top_addr <= space->top(), "usage should not grow");
         }
@@ -2353,10 +2338,6 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
 
   // Place after pre_compact() where the number of invocations is incremented.
   AdaptiveSizePolicyOutput(size_policy, heap->total_collections());
-
-  // Additional code to adjust the regions free size as a dependency of
-  // the generation free size before the GC
-  //bool adjusted_before_gc = heap->adjust_object_space();
 
   {
     ResourceMark rm;
@@ -2490,7 +2471,6 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
 
     heap->resize_all_tlabs();
 
-//    heap->adjust_object_space();
     // Resize the metaspace capactiy after a collection
     MetaspaceGC::compute_new_size();
 

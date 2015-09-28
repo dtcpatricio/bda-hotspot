@@ -250,6 +250,8 @@ bool PSScavenge::invoke() {
     const bool clear_all_softrefs = cp->should_clear_all_soft_refs();
 
     if (UseParallelOldGC) {
+      // Additional code to adjust the regions free size as a dependency of
+      // the generation free size before the GC
       heap->adjust_object_space();
       full_gc_done = PSParallelCompact::invoke_no_policy(clear_all_softrefs);
     } else {
