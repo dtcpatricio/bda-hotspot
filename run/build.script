@@ -6,7 +6,7 @@ export JAVA_HOME
 BUILD_SCRIPT_DIR=`cd ../make && pwd`;
 BUILD_SCRIPT=$BUILD_SCRIPT_DIR/build.sh
 
-BUILD_DIR=`cd ../build/linux && pwd`
+BUILD_DIR=../build/linux
 DEBUG_BIN=false
 
 ENABLE_BDA_HEADERMARK=0
