@@ -1457,9 +1457,6 @@ class CommandLineFlags {
   product(uintx, OldPLABSize, 1024,                                         \
           "Size of old gen promotion LAB's (in HeapWords)")                 \
                                                                             \
-  product(uintx, BDAMinOldPLABSize, 1024,                                   \
-          "Minimum size for the old gen promotion LAB (in HeapWords)")      \
-                                                                            \
   product(uintx, GCTaskTimeStampEntries, 200,                               \
           "Number of time stamp entries per gc worker thread")              \
                                                                             \
@@ -1497,7 +1494,7 @@ class CommandLineFlags {
           "How much the GC can expand the eden by while the GC locker "     \
           "is active (as a percentage)")                                    \
                                                                             \
-  diagnostic(intx, GCLockerRetryAllocationCount, 2,                         \
+  diagnostic(uintx, GCLockerRetryAllocationCount, 2,                        \
           "Number of times to retry allocations when "                      \
           "blocked by the GC locker")                                       \
                                                                             \
@@ -2050,9 +2047,6 @@ class CommandLineFlags {
   product(bool, TLABStats, true,                                            \
           "Provide more detailed and expensive TLAB statistics "            \
           "(with PrintTLAB)")                                               \
-                                                                            \
-  EMBEDDED_ONLY(product(bool, LowMemoryProtection, true,                    \
-          "Enable LowMemoryProtection"))                                    \
                                                                             \
   product_pd(bool, NeverActAsServerClassMachine,                            \
           "Never act like a server-class machine")                          \
@@ -3948,6 +3942,10 @@ class CommandLineFlags {
   product(bool, UseLockedTracing, false,                                    \
           "Use locked-tracing when doing event-based tracing")              \
                                                                             \
+  product_pd(bool, PreserveFramePointer,                                    \
+             "Use the FP register for holding the frame pointer "           \
+             "and not as a general purpose register.")                      \
+                                                                            \
   product(bool, UseBDA, false,                                              \
                "Use Big-data collections spaces")                           \
                                                                             \
@@ -3962,6 +3960,12 @@ class CommandLineFlags {
                                                                             \
   product(bool, BDAPrintOnlyCollections, false,                             \
                "Print big-data aware space, but only collections")          \
+                                                                            \
+  product(uintx, BDAMinOldPLABSize, 1024,                                   \
+          "Minimum size for the old gen promotion LAB (in HeapWords)")      \
+                                                                            \
+  product(uintx, BDAKlassHashArray, 200,                                    \
+          "The size of the Klass HashArray on BDA")                         \
 
 /*
  *  Macros for factoring of globals

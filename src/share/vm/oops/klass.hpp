@@ -719,11 +719,9 @@ protected:
   void klass_update_barrier_set(oop v);
   void klass_update_barrier_set_pre(oop* p, oop v);
 
-#if defined(BIGDATA_HASH_MARK) || defined(BIGDATA_HEADER)
-public:
+ public:
   // Big Data allocators support
   BDARegion is_subtype_for_bda();
-#endif
 };
 
 #endif // SHARE_VM_OOPS_KLASS_HPP

@@ -19,7 +19,7 @@ class BDACardTableHelper : public CHeapObj<mtGC> {
 private:
   int _length;
   HeapWord** _tops;
-  HeapWord** _bottoms;
+  MutableSpace** _spaces;
 
 public:
 
@@ -28,7 +28,7 @@ public:
 
   int        length() const { return _length; }
   HeapWord** tops() const { return _tops; }
-  HeapWord** bottoms() const { return _bottoms; }
+  MutableSpace** spaces() const { return _spaces; }
 };
 
 // The BDCMutableSpace class is a general object that encapsulates multiple
@@ -143,6 +143,7 @@ public:
   // This method adjusts the regions to give precedence to the one with the most
   // occupancy rate, which indicates it to be the needy one
   bool adjust_layout(bool force);
+  size_t compute_avg_freespace();
 
   virtual HeapWord *top_specific(BDARegion type) {
     int i = _collections->find(&type, CGRPSpace::equals);
@@ -162,6 +163,7 @@ public:
   virtual size_t used_in_words() const;
   virtual size_t free_in_words() const;
   virtual size_t free_in_words(int grp) const;
+  virtual size_t free_in_bytes(int grp) const;
 
   // Size computations for tlabs
   using MutableSpace::capacity_in_words;

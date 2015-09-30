@@ -27,6 +27,9 @@
 
 #include "memory/allocation.hpp"
 #include "utilities/growableArray.hpp"
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+# include "gc_implementation/shared/bdcMutableSpace.hpp"
+#endif
 
 //
 // psTasks.hpp is a collection of GCTasks used by the
@@ -42,7 +45,6 @@ class MutableSpace;
 class PSOldGen;
 class Thread;
 class VMThread;
-class BDACardTableHelper;
 
 //
 // ScavengeRootsTask
@@ -162,23 +164,34 @@ class StealTask : public GCTask {
 class OldToYoungRootsTask : public GCTask {
  private:
   PSOldGen* _gen;
-  //HeapWord* _gen_top;
+#if defined(HASH_MARK) || defined(HEADER_MARK)
   BDACardTableHelper* _helper;
-
+#else
+  HeapWord* _gen_top;
+#endif
   uint _stripe_number;
   uint _stripe_total;
 
  public:
+#if defined(HASH_MARK) || defined(HEADER_MARK)
   OldToYoungRootsTask(PSOldGen *gen,
-                      //HeapWord* gen_top,
                       BDACardTableHelper* helper,
                       uint stripe_number,
                       uint stripe_total) :
     _gen(gen),
-    //_gen_top(gen_top),
     _helper(helper),
     _stripe_number(stripe_number),
     _stripe_total(stripe_total) { }
+#else
+  OldToYoungRootsTask(PSOldGen *gen,
+                      HeapWord* gen_top,
+                      uint stripe_number,
+                      uint stripe_total) :
+    _gen(gen),
+    _gen_top(gen_top),
+    _stripe_number(stripe_number),
+    _stripe_total(stripe_total) { }
+#endif
 
   char* name() { return (char *)"old-to-young-roots-task"; }
 

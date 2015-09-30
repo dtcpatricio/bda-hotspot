@@ -31,6 +31,9 @@
 #include "oops/metadata.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/top.hpp"
+#ifdef HEADER_MARK
+# include "gc_implementation/shared/bdaGlobals.hpp"
+#endif
 
 // oopDesc is the top baseclass for objects classes.  The {name}Desc classes describe
 // the format of Java objects so the fields can be accessed from C++.
@@ -60,7 +63,7 @@ class oopDesc {
   friend class VMStructs;
  private:
   volatile markOop  _mark;
-#ifdef BIGDATA_HEADER
+#ifdef HEADER_MARK
   volatile regionMark _region;
 #endif
   union _metadata {
@@ -85,13 +88,13 @@ class oopDesc {
   void init_mark();
 
 
+#ifdef HEADER_MARK
   // Big Data alloc support
-#ifdef BIGDATA_HEADER
   regionMark  region() const      { return _region; }
   regionMark* region_addr() const { return (regionMark*)&_region; }
   void set_region(volatile regionMark r) { _region = r; }
-#endif
   // ---- End of Big Data alloc support ----
+#endif
 
 
   Klass* klass() const;

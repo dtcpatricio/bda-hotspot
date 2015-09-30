@@ -42,8 +42,6 @@
 #include "services/management.hpp"
 #include "utilities/taskqueue.hpp"
 
-#include "gc_implementation/shared/bdcMutableSpace.hpp"
-
 //
 // ScavengeRootsTask
 //
@@ -178,9 +176,10 @@ void OldToYoungRootsTask::do_it(GCTaskManager* manager, uint which) {
   assert(!_gen->object_space()->is_empty(),
     "Should not be called is there is no work");
   assert(_gen != NULL, "Sanity");
-  //assert(_gen->object_space()->contains(_gen_top) || _gen_top == _gen->object_space()->top(), "Sanity");
-  // skip this assert for now... TODO: FIXME: Fix this assert
-  // assert(_gen->object_space()->contains(_tops->cur_top()) || _tops->cur_top() == _gen->object_space()->top(), "Sanity");
+#if !defined(HASH_MARK) && !defined(HEADER_MARK)
+  // For now skip this assert
+  assert(_gen->object_space()->contains(_gen_top) || _gen_top == _gen->object_space()->top(), "Sanity");
+#endif
   assert(_stripe_number < ParallelGCThreads, "Sanity");
 
   {
@@ -189,18 +188,27 @@ void OldToYoungRootsTask::do_it(GCTaskManager* manager, uint which) {
     assert(Universe::heap()->kind() == CollectedHeap::ParallelScavengeHeap, "Sanity");
     CardTableExtension* card_table = (CardTableExtension *)Universe::heap()->barrier_set();
     // FIX ME! Assert that card_table is the type we believe it to be.
-
+#if defined(HASH_MARK) || defined(HEADER_MARK)
     for(int i = 0; i < _helper->length(); i++) {
+      // A quick fix due to the fact that some regions can be empty at the time
+      if(_helper->spaces()[i]->bottom() == _helper->spaces()[i]->top())
+        continue;
+
       card_table->scavenge_contents_parallel(_gen->start_array(),
-                                             //_gen->object_space(),
-                                             _helper->bottoms()[i],
-                                             //_gen_top,
+                                             _helper->spaces()[i],
                                              _helper->tops()[i],
                                              pm,
                                              _stripe_number,
                                              _stripe_total);
     }
-
+#else
+    card_table->scavenge_contents_parallel(_gen->start_array(),
+                                           _gen->object_space(),
+                                           _gen_top,
+                                           pm,
+                                           _stripe_number,
+                                           _stripe_total);
+#endif
     // Do the real work
     pm->drain_stacks(false);
   }

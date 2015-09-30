@@ -39,8 +39,6 @@ typedef juint  narrowKlass;
 
 typedef void* OopOrNarrowOopStar;
 typedef class   markOopDesc*                markOop;
-
-// If using Big Data allocator, the regionMark defines the region to which the oop is allocated
 typedef class   regionMarkDesc*             regionMark;
 
 #ifndef CHECK_UNHANDLED_OOPS

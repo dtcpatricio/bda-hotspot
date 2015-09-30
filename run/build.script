@@ -1,13 +1,16 @@
 #!/bin/sh
 
-JAVA_HOME=`cd /usr/lib/jvm/java-8-openjdk && pwd`;
+JAVA_HOME=/usr/lib/jvm/java-8-openjdk;
 export JAVA_HOME
 
 BUILD_SCRIPT_DIR=`cd ../make && pwd`;
 BUILD_SCRIPT=$BUILD_SCRIPT_DIR/build.sh
 
 BUILD_DIR=`cd ../build/linux && pwd`
-DEBUG_BIN=true
+DEBUG_BIN=false
+
+ENABLE_BDA_HEADERMARK=0
+ENABLE_BDA_HASHMARK=0
 
 while :
 do
@@ -24,16 +27,16 @@ do
 	    MODE=$2
 	    shift 2
 	    ;;
-        -nodebugbin)
-            DEBUG_BIN=false
+        -debugbin)
+            DEBUG_BIN=true
             shift
             ;;
-        -header)
+        -header) ## Both cannot exist at the same time
             ENABLE_BDA_HEADERMARK=1
             ENABLE_BDA_HASHMARK=0
             shift
             ;;
-        -hash)
+        -hash) ## Both cannot exist at the same time
             ENABLE_BDA_HASHMARK=1
             ENABLE_BDA_HEADERMARK=0
             shift

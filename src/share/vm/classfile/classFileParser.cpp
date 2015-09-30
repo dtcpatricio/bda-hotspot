@@ -1783,6 +1783,10 @@ ClassFileParser::AnnotationCollector::annotation_index(ClassLoaderData* loader_d
     if (_location != _in_method)  break;  // only allow for methods
     if (!privileged)              break;  // only allow in privileged code
     return _method_DontInline;
+  case vmSymbols::VM_SYMBOL_ENUM_NAME(java_lang_invoke_InjectedProfile_signature):
+    if (_location != _in_method)  break;  // only allow for methods
+    if (!privileged)              break;  // only allow in privileged code
+    return _method_InjectedProfile;
   case vmSymbols::VM_SYMBOL_ENUM_NAME(java_lang_invoke_LambdaForm_Compiled_signature):
     if (_location != _in_method)  break;  // only allow for methods
     if (!privileged)              break;  // only allow in privileged code
@@ -1824,6 +1828,8 @@ void ClassFileParser::MethodAnnotationCollector::apply_to(methodHandle m) {
     m->set_force_inline(true);
   if (has_annotation(_method_DontInline))
     m->set_dont_inline(true);
+  if (has_annotation(_method_InjectedProfile))
+    m->set_has_injected_profile(true);
   if (has_annotation(_method_LambdaForm_Compiled) && m->intrinsic_id() == vmIntrinsics::_none)
     m->set_intrinsic_id(vmIntrinsics::_compiledLambdaForm);
   if (has_annotation(_method_LambdaForm_Hidden))
@@ -3232,8 +3238,8 @@ void ClassFileParser::layout_fields(Handle class_loader,
   next_static_byte_offset     = next_static_short_offset +
                                 ((fac->count[STATIC_SHORT]) * BytesPerShort);
 
-  int nonstatic_fields_start  = instanceOopDesc::base_offset_in_bytes()
-    + nonstatic_field_size * heapOopSize;
+  int nonstatic_fields_start  = instanceOopDesc::base_offset_in_bytes() +
+                                nonstatic_field_size * heapOopSize;
 
   next_nonstatic_field_offset = nonstatic_fields_start;
 
@@ -3653,8 +3659,7 @@ void ClassFileParser::layout_fields(Handle class_loader,
   int instance_size             = align_object_size(instance_end / wordSize);
 
   assert(instance_size == align_object_size(align_size_up(
-         (instanceOopDesc::base_offset_in_bytes() +
-          nonstatic_field_size*heapOopSize),
+         (instanceOopDesc::base_offset_in_bytes() + nonstatic_field_size*heapOopSize),
           wordSize) / wordSize), "consistent layout helper value");
 
   // Invariant: nonstatic_field end/start should only change if there are
@@ -4138,18 +4143,6 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
 
     // Fill in information needed to compute superclasses.
     this_klass->initialize_supers(super_klass(), CHECK_(nullHandle));
-
-    // After initializing supers and the class name, we can add information
-    // about the class. This code marks a klass as a container, element of
-    // a container or other for the Big Data allocator regions
-    // for(int k = 0; k < (int)this_klass->super_depth(); ++k) {
-    //   if(this_klass->primary_super_of_depth(k) != NULL &&
-    //      strstr(this_klass->primary_super_of_depth(k)->signature_name(), "java/util/HashMap")) {
-    //     tty->print_cr("Initializing class %s with ...", this_klass->signature_name());
-    //     tty->print_cr("HashMap subclass of it: %s",
-    //                   this_klass->primary_super_of_depth(k)->signature_name());
-    //   }
-    // }
 
     // Initialize itable offset tables
     klassItable::setup_itable_offset_table(this_klass);

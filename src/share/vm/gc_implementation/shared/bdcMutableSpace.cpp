@@ -3,6 +3,7 @@
 #include "gc_interface/collectedHeap.hpp"
 #include "memory/resourceArea.hpp"
 #include "runtime/thread.hpp"
+#include "oops/oop.inline.hpp"
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
@@ -18,18 +19,18 @@ const size_t BDCMutableSpace::MinRegionAddrMask       = ~MinRegionAddrOffsetMask
 BDACardTableHelper::BDACardTableHelper(BDCMutableSpace* sp) {
   _length = sp->collections()->length();
   _tops = NEW_RESOURCE_ARRAY(HeapWord*, _length);
-  _bottoms = NEW_RESOURCE_ARRAY(HeapWord*, _length);
+  _spaces = NEW_RESOURCE_ARRAY(MutableSpace*, _length);
   for(int i = 0; i < _length; ++i) {
     MutableSpace* ms = sp->collections()->at(i)->space();
     _tops[i] = ms->top();
-    _bottoms[i] = ms->bottom();
+    _spaces[i] = ms;
   }
 }
 
 BDACardTableHelper::~BDACardTableHelper()
 {
   FREE_RESOURCE_ARRAY(HeapWord*, _tops[0], _length);
-  FREE_RESOURCE_ARRAY(HeapWord*, _bottoms[0], _length);
+  FREE_RESOURCE_ARRAY(MutableSpace*, _spaces[0], _length);
 }
 
 BDCMutableSpace::BDCMutableSpace(size_t alignment) : MutableSpace(alignment) {
@@ -58,7 +59,7 @@ void BDCMutableSpace::initialize(MemRegion mr, bool clear_space, bool mangle_spa
 
   // This means that allocations have already taken place
   // and that this is a resize
-  if(!clear_space && top() > this->bottom()) {
+  if(!clear_space) {
     update_layout(mr);
     return;
   }
@@ -102,6 +103,10 @@ BDCMutableSpace::adjust_layout(bool force)
     MutableSpace* expand_spc = collections()->at(i)->space();
     double occ_ratio0 =
       (double)expand_spc->used_in_words() / expand_spc->capacity_in_words();
+    // check if it's worth expanding or we just let a collection do the work
+    if (occ_ratio0 < 0.8)
+      return true;
+
     double free_ratio0 = 1 - occ_ratio0;
     const size_t free_space0_sz = expand_spc->free_in_words();
     size_t expand_size = size_t(occ_ratio0 * multiplier * MinRegionSize);
@@ -150,6 +155,29 @@ BDCMutableSpace::adjust_layout(bool force)
     // Not yet implemented
     return false;
   }
+}
+
+size_t
+BDCMutableSpace::compute_avg_freespace() {
+  // Scan the regions to find the needy one
+  int i = -1;
+  double max = 0.0;
+  for(int j = 0; j < collections()->length(); ++j) {
+    MutableSpace* spc = collections()->at(j)->space();
+    double occupancy_ratio =
+      (double)spc->used_in_words() / spc->capacity_in_words();
+    double free_ratio = 1 - occupancy_ratio;
+    if(occupancy_ratio - free_ratio > max) {
+      i = j;
+      max = occupancy_ratio - free_ratio;
+    }
+  }
+  // If all were occupied then return the same free size
+  if ( i == -1 )
+    return MutableSpace::free_in_bytes();
+
+  size_t free_sz = MutableSpace::free_in_bytes() - free_in_bytes(i);
+  return MutableSpace::free_in_bytes() + (free_sz / (collections()->length() - 1));
 }
 
 void
@@ -284,8 +312,9 @@ BDCMutableSpace::initialize_regions_evenly(int from_id, int to_id,
   HeapWord *start = start_limit, *tail = start_limit + chunk;
   for(int i = from_id; i <= to_id; ++i) {
     blocks_left -= blocks_per_spc;
-    if(blocks_left < 0)
-      chunk -= -blocks_left * MinRegionSize;
+    if(blocks_left < 0) {
+      tail -= -blocks_left * MinRegionSize;
+    }
 
     assert(pointer_delta(tail, start) % page_size() == 0, "chunk size not page aligned");
     collections()->at(i)->space()->initialize(MemRegion(start, tail),
@@ -658,6 +687,12 @@ size_t
 BDCMutableSpace::free_in_words(int grp) const {
   assert(grp < collections()->length(), "Sanity");
   return collections()->at(grp)->space()->free_in_words();
+}
+
+size_t
+BDCMutableSpace::free_in_bytes(int grp) const {
+  assert(grp < collections()->length(), "Sanity");
+  return collections()->at(grp)->space()->free_in_bytes();
 }
 
 size_t

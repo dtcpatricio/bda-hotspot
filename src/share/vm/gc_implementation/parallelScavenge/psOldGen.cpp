@@ -32,7 +32,6 @@
 #include "memory/gcLocker.inline.hpp"
 #include "oops/oop.inline.hpp"
 #include "runtime/java.hpp"
-#include "gc_implementation/shared/bdcMutableSpace.hpp"
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
@@ -129,8 +128,8 @@ void PSOldGen::initialize_work(const char* perf_data_name, int level) {
   //
   // Klass Regions Map
   //
-#ifdef BIGDATA_HASH_MARK
-  _region_map = new KlassRegionMap(200);
+#ifdef HASH_MARK
+  _region_map = new KlassRegionMap(BDAKlassHashArray);
 #endif
 
   //
@@ -237,26 +236,7 @@ void PSOldGen::expand(size_t bytes) {
   if (bytes == 0) {
     return;
   }
-
-  // size_t segment_sz;
-  // if(UseBDA) {
-  //   BDCMutableSpace* gen = (BDCMutableSpace*)_object_space;
-  //   BDARegion region = Thread::current()->alloc_region();
-  //   segment_sz = gen->region_for(region)->capacity_in_words();
-  // }
-
   MutexLocker x(ExpandHeap_lock);
-
-  // if(UseBDA) {
-  //   // MEMFENCE here before checking if the expansion has been done by another thread
-  //   OrderAccess::storeload();
-  //   BDCMutableSpace* gen = (BDCMutableSpace*)_object_space;
-  //   BDARegion region = Thread::current()->alloc_region();
-  //   if(gen->region_for(region)->capacity_in_words() != segment_sz) {
-  //     return;
-  //   }
-  // }
-
   const size_t alignment = virtual_space()->alignment();
   size_t aligned_bytes  = align_size_up(bytes, alignment);
   size_t aligned_expand_bytes = align_size_up(MinHeapDeltaBytes, alignment);
@@ -300,7 +280,6 @@ bool PSOldGen::expand_by(size_t bytes) {
   if (bytes == 0) {
     return true;  // That's what virtual_space()->expand_by(0) would return
   }
-
   bool result = virtual_space()->expand_by(bytes);
   if (result) {
     if (ZapUnusedHeapArea) {
@@ -419,6 +398,7 @@ void PSOldGen::resize(size_t desired_free_space) {
   }
 }
 
+#if defined(HASH_MARK) || defined(HEADER_MARK)
 // Big-Data aware code. It adjusts the object space regions in order
 // to adapt the free space for the needy.
 // NOTE! This code should only be called by one thread and never during
@@ -426,6 +406,12 @@ void PSOldGen::resize(size_t desired_free_space) {
 bool PSOldGen::adjust_object_space() {
   return ((BDCMutableSpace*)object_space())->adjust_layout(true);
 }
+
+size_t PSOldGen::avg_freespace() {
+  return ((BDCMutableSpace*)object_space())->compute_avg_freespace();
+}
+#endif
+
 
 // NOTE! We need to be careful about resizing. During a GC, multiple
 // allocators may be active during heap expansion. If we allow the

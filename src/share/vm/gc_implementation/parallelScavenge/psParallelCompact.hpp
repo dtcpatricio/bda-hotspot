@@ -236,17 +236,16 @@ public:
   class RegionData
   {
   public:
+#if defined(HASH_MARK) || defined(HEADER_MARK)
     // The count of hashmap related objects found in the region
     int hashmap_count() const { return _hashmap_ctr; }
-
     // The count of hashtable related objects found in the region
     int hashtable_count() const { return _hashtable_ctr; }
-
     // The sum of the size of all hashmap based elements found in the region
     size_t hashmap_size() const { return _hashmap_total_size; }
-
     // The sum of the size of all hashtable based elements found in the region
     size_t hashtable_size() const { return _hashtable_total_size; }
+#endif
 
     // Destination address of the region.
     HeapWord* destination() const { return _destination; }
@@ -341,9 +340,11 @@ public:
     inline void decrement_destination_count();
     inline bool claim();
 
+#if defined(HASH_MARK) || defined(HEADER_MARK)
     // These are also atomic
     inline jint incr_hashmap_counter(size_t sz);
     inline jint incr_hashtable_counter(size_t sz);
+#endif
 
   private:
     // The type used to represent object sizes within a region.
@@ -365,10 +366,12 @@ public:
     region_sz_t          _partial_obj_size;
     region_sz_t volatile _dc_and_los;
     bool                 _blocks_filled;
+#if defined(HASH_MARK) || defined(HEADER_MARK)
     int                  _hashmap_ctr;
     int                  _hashtable_ctr;
     size_t               _hashmap_total_size;
     size_t               _hashtable_total_size;
+#endif
 
 #ifdef ASSERT
     size_t               _blocks_filled_count;   // Number of block table fills.
@@ -433,16 +436,18 @@ public:
                  HeapWord* target_beg, HeapWord* target_end,
                  HeapWord** target_next);
 
-  // Support for bda. It deals with 3 regions only, at the time.
-  bool summarize_parse_region(SplitInfo& split_info,
-                              HeapWord* source_beg, HeapWord* source_end,
-                              HeapWord** source_next,
-                              HeapWord* target0_beg, HeapWord* target0_end,
-                              HeapWord** target0_next,
-                              HeapWord* target1_beg, HeapWord* target1_end,
-                              HeapWord** target1_next,
-                              HeapWord* target2_beg, HeapWord* target2_end,
-                              HeapWord** target2_next);
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+  bool summarize_parse_region(
+    SplitInfo& split_info,
+    HeapWord* source_beg, HeapWord* source_end,
+    HeapWord** source_next,
+    HeapWord* target0_beg, HeapWord* target0_end,
+    HeapWord** target0_next,
+    HeapWord* target1_beg, HeapWord* target1_end,
+    HeapWord** target1_next,
+    HeapWord* target2_beg, HeapWord* target2_end,
+    HeapWord** target2_next);
+#endif
 
   void clear();
   void clear_range(size_t beg_region, size_t end_region);
@@ -610,6 +615,7 @@ inline void ParallelCompactData::RegionData::add_live_obj(size_t words)
   Atomic::add((int) words, (volatile int*) &_dc_and_los);
 }
 
+#if defined(HASH_MARK) || defined(HEADER_MARK)
 inline jint
 ParallelCompactData::RegionData::incr_hashmap_counter(size_t sz)
 {
@@ -627,7 +633,7 @@ ParallelCompactData::RegionData::incr_hashtable_counter(size_t sz)
   Atomic::inc((volatile int*)&_hashtable_ctr);
   return Atomic::add((jint)sz, (volatile int*)&_hashtable_total_size);
 }
-
+#endif
 
 inline void ParallelCompactData::RegionData::set_highest_ref(HeapWord* addr)
 {
@@ -970,6 +976,7 @@ class PSParallelCompact : AllStatic {
   typedef ParallelCompactData::RegionData RegionData;
   typedef ParallelCompactData::BlockData BlockData;
 
+#if defined(HASH_MARK) || defined(HEADER_MARK)
   // This alteration is needed to cope with the segments in the old space.
   // We leave the old_space_id since it is useful in size/capacity computations.
   typedef enum {
@@ -977,10 +984,12 @@ class PSParallelCompact : AllStatic {
     old_space_other_id, old_space_hashmap_id, old_space_hashtable_id,
     eden_space_id, from_space_id, to_space_id, last_space_id
   } SpaceId;
-  // typedef enum {
-  //   old_space_id, eden_space_id,
-  //   from_space_id, to_space_id, last_space_id
-  // } SpaceId;
+#else
+  typedef enum {
+    old_space_id, eden_space_id,
+    from_space_id, to_space_id, last_space_id
+  } SpaceId;
+#endif
 
  public:
   // Inline closure decls
@@ -1595,16 +1604,16 @@ public:
     ParMarkBitMapClosure(PSParallelCompact::mark_bitmap(), cm),
     _start_array(PSParallelCompact::start_array(space_id))
   {
+#if defined(HASH_MARK) || defined(HEADER_MARK)
     // A patch to save possible failed assert
-    if(UseBDA) {
       assert(space_id == PSParallelCompact::old_space_other_id ||
              space_id == PSParallelCompact::old_space_hashmap_id ||
              space_id == PSParallelCompact::old_space_hashtable_id,
              "cannot use FillClosure in the young gen");
-    } else {
+#else
       assert(space_id == PSParallelCompact::old_space_id,
              "cannot use FillClosure in the young gen");
-    }
+#endif
   }
 
   virtual IterationStatus do_addr(HeapWord* addr, size_t size) {

@@ -154,15 +154,7 @@ class ObjectStartArray : public CHeapObj<mtGC> {
     return scroll_forward;
   }
 
-  bool is_block_allocated(HeapWord* addr) {
-    assert(_covered_region.contains(addr), "Must be in covered region");
-    jbyte* block = block_for_addr(addr);
-    if (*block == clean_block)
-      return false;
-
-    return true;
-  }
-
+#if defined(HASH_MARK) || defined(HEADER_MARK)
   // Big Data Aware alloc version of the object start function
   // It is optimized for finding the first object that crosses
   // into a given block, the one containing addr. If the addr <= low_bound
@@ -192,6 +184,16 @@ class ObjectStartArray : public CHeapObj<mtGC> {
     assert(scroll_forward <= addr, "wrong order for current and arg");
     assert(addr <= next, "wrong order for arg and next");
     return scroll_forward;
+  }
+#endif
+
+  bool is_block_allocated(HeapWord* addr) {
+    assert(_covered_region.contains(addr), "Must be in covered region");
+    jbyte* block = block_for_addr(addr);
+    if (*block == clean_block)
+      return false;
+
+    return true;
   }
 
   // Return true if an object starts in the range of heap addresses.

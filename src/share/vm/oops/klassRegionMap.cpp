@@ -1,5 +1,4 @@
 #include "oops/klassRegionMap.hpp"
-#include "gc_implementation/shared/bdaGlobals.hpp"
 
 #include <cmath>
 

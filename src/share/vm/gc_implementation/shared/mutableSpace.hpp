@@ -28,7 +28,7 @@
 #include "gc_implementation/shared/immutableSpace.hpp"
 #include "memory/memRegion.hpp"
 #include "utilities/copy.hpp"
-// for the CollectionType enum
+
 #include "gc_implementation/shared/bdaGlobals.hpp"
 
 // A MutableSpace is a subtype of ImmutableSpace that supports the
@@ -70,8 +70,6 @@ class MutableSpace: public ImmutableSpace {
   // Accessors
   HeapWord* top() const                    { return _top;    }
   virtual void set_top(HeapWord* value)    { _top = value;   }
-  // For Big Data implementations. On other cases it is return like top()
-  virtual HeapWord* top_specific(BDARegion type) { return top(); }
 
   HeapWord** top_addr()                    { return &_top; }
   HeapWord** end_addr()                    { return &_end; }
@@ -82,12 +80,19 @@ class MutableSpace: public ImmutableSpace {
   size_t alignment()                       { return _alignment; }
 
   // Returns a subregion containing all objects in this space.
-  virtual MemRegion used_region() { return MemRegion(bottom(), top()); }
+  MemRegion used_region() { return MemRegion(bottom(), top()); }
+
+  // ---------- BIGDATA AWARE ALLOCATORS SUPPORT VIRTUALS ----------------
   // Returns a subregion containing all objects in the space.
   // Used in the Big Data Aware mutable space
   virtual MemRegion used_region(BDARegion type) {
     return MemRegion(bottom(), top());
   }
+  // Helper methods for scavenging (for the mutableSpace it returns _top)
+  virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) { return _top; }
+  // For Big Data implementations. On other cases it is return like top()
+  virtual HeapWord* top_specific(BDARegion type) { return top(); }
+  // ----------- END OF BIGDATA AWARE ALLOCATORS SUPPORT VIRTUALS ---------
 
   static const bool SetupPages = true;
   static const bool DontSetupPages = false;
@@ -143,12 +148,9 @@ class MutableSpace: public ImmutableSpace {
   bool cas_deallocate(HeapWord *obj, size_t size);
 
   // Iteration.
-  virtual void oop_iterate(ExtendedOopClosure* cl);
-  virtual void oop_iterate_no_header(OopClosure* cl);
-  virtual void object_iterate(ObjectClosure* cl);
-
-  // Helper methods for scavenging (for the mutableSpace it returns _top)
-  virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) { return _top; }
+  void oop_iterate(ExtendedOopClosure* cl);
+  void oop_iterate_no_header(OopClosure* cl);
+  void object_iterate(ObjectClosure* cl);
 
   // Debugging
   virtual void print() const;

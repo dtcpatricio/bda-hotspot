@@ -40,7 +40,7 @@ class instanceOopDesc : public oopDesc {
     // offset computation code breaks if UseCompressedClassPointers
     // only is true
     return (UseCompressedOops && UseCompressedClassPointers) ?
-      klass_gap_offset_in_bytes() :
+             klass_gap_offset_in_bytes() :
              sizeof(instanceOopDesc);
   }
 

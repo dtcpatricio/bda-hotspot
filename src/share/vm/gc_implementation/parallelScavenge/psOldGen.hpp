@@ -30,10 +30,11 @@
 #include "gc_implementation/parallelScavenge/psVirtualspace.hpp"
 #include "gc_implementation/shared/mutableSpace.hpp"
 #include "gc_implementation/shared/spaceCounters.hpp"
+#include "gc_implementation/shared/bdcMutableSpace.hpp"
 #include "runtime/safepoint.hpp"
-
-// For the BDA Allocator
-#include "oops/klassRegionMap.hpp"
+#ifdef HASH_MARK
+# include "oops/klassRegionMap.hpp"
+#endif
 
 class PSMarkSweepDecorator;
 
@@ -60,8 +61,10 @@ class PSOldGen : public CHeapObj<mtGC> {
   const size_t _min_gen_size;
   const size_t _max_gen_size;
 
+#ifdef HASH_MARK
   // Information about the placement of klasses in regions for the BDA Allocators
   KlassRegionMap*          _region_map;
+#endif
 
   // Used when initializing the _name field.
   static inline const char* select_name();
@@ -102,7 +105,10 @@ class PSOldGen : public CHeapObj<mtGC> {
 
   void shrink(size_t bytes);
 
+#if defined(HASH_MARK) || defined(HEADER_MARK)
   bool adjust_object_space();
+  size_t avg_freespace();
+#endif
 
   void post_resize();
 
@@ -142,7 +148,9 @@ class PSOldGen : public CHeapObj<mtGC> {
   PSMarkSweepDecorator* object_mark_sweep() const { return _object_mark_sweep; }
   ObjectStartArray*     start_array()             { return &_start_array; }
   PSVirtualSpace*       virtual_space() const     { return _virtual_space;}
-  KlassRegionMap*       region_map() const        { return _region_map; }
+#ifdef HASH_MARK
+  KlassRegionMap*        region_map() const        { return _region_map; }
+#endif
 
   // Has the generation been successfully allocated?
   bool is_allocated();

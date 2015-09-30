@@ -32,8 +32,6 @@
 #include "oops/oop.psgc.inline.hpp"
 #include "runtime/prefetch.inline.hpp"
 
-#include "gc_implementation/shared/bdcMutableSpace.hpp"
-
 // Checks an individual oop for missing precise marks. Mark
 // may be either dirty or newgen.
 class CheckForUnmarkedOops : public OopClosure {
@@ -131,24 +129,23 @@ class CheckForPreciseMarks : public OopClosure {
 // when the space is empty, fix the calculation of
 // end_card to allow sp_top == sp->bottom().
 
+// This method contains two "versions" such that some calls must be made
+// to similar methods but with different signature to avoid errors due to
+// the segmentation of spaces in the big-data allocators
+
 void CardTableExtension::scavenge_contents_parallel(ObjectStartArray* start_array,
-                                                    //MutableSpace* sp,
-                                                    HeapWord* space_bottom,
+                                                    MutableSpace* sp,
                                                     HeapWord* space_top,
                                                     PSPromotionManager* pm,
                                                     uint stripe_number,
                                                     uint stripe_total) {
   int ssize = 128; // Naked constant!  Work unit = 64k.
   int dirty_card_count = 0;
-  // A quick fix due to the fact that some regions can be empty at the time
-  if(space_bottom == space_top)
-    return;
 
   // It is a waste to get here if empty.
-  assert(space_bottom < space_top, "Should not be called if empty");
+  assert(sp->bottom() < sp->top(), "Should not be called if empty");
   oop* sp_top = (oop*)space_top;
-  // oop* sp_top = (oop*)tops->cur_top();
-  jbyte* start_card = byte_for(space_bottom);
+  jbyte* start_card = byte_for(sp->bottom());
   jbyte* end_card   = byte_for(sp_top - 1) + 1;
   oop* last_scanned = NULL; // Prevent scanning objects more than once
   // The width of the stripe ssize*stripe_total must be
@@ -172,8 +169,6 @@ void CardTableExtension::scavenge_contents_parallel(ObjectStartArray* start_arra
     // Note! ending cards are exclusive!
     HeapWord* slice_start = addr_for(worker_start_card);
     HeapWord* slice_end = MIN2((HeapWord*) sp_top, addr_for(worker_end_card));
-    // HeapWord* slice_end = MIN2(sptops->top_region_for_slice(slice_start),
-    //                            addr_for(worker_end_card));
 
 #ifdef ASSERT
     if (GCWorkerDelayMillis > 0) {
@@ -189,9 +184,12 @@ void CardTableExtension::scavenge_contents_parallel(ObjectStartArray* start_arra
     if (!start_array->object_starts_in_range(slice_start, slice_end)) {
       continue;
     }
-
     // Update our beginning addr
-    HeapWord* first_object = start_array->object_start(slice_start, space_bottom);
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+    HeapWord* first_object = start_array->object_start(slice_start, sp->bottom());
+#else
+    HeapWord* first_object = start_array->object_start(slice_start);
+#endif
     debug_only(oop* first_object_within_slice = (oop*) first_object;)
     if (first_object < slice_start) {
       last_scanned = (oop*)(first_object + oop(first_object)->size());
@@ -202,7 +200,12 @@ void CardTableExtension::scavenge_contents_parallel(ObjectStartArray* start_arra
     // Update the ending addr
     if (slice_end < (HeapWord*)sp_top) {
       // The subtraction is important! An object may start precisely at slice_end.
-      HeapWord* last_object = start_array->object_start(slice_end - 1, space_bottom);
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+      HeapWord* last_object = start_array->object_start(slice_end - 1,
+                                                        sp->bottom());
+#else
+      HeapWord* last_object = start_array->object_start(slice_end - 1);
+#endif
       slice_end = last_object + oop(last_object)->size();
       // worker_end_card is exclusive, so bump it one past the end of last_object's
       // covered span.
@@ -240,7 +243,12 @@ void CardTableExtension::scavenge_contents_parallel(ObjectStartArray* start_arra
           // we will attempt to scan it twice. The test against "last_scanned"
           // prevents the redundant object scan, but it does not prevent newly
           // marked cards from being cleaned.
-          HeapWord* last_object_in_dirty_region = start_array->object_start(addr_for(current_card)-1, space_bottom);
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+          HeapWord* last_object_in_dirty_region = start_array->object_start(
+            addr_for(current_card)-1, sp->bottom());
+#else
+          HeapWord* last_object_in_dirty_region = start_array->object_start(addr_for(current_card)-1);
+#endif
           size_t size_of_last_object = oop(last_object_in_dirty_region)->size();
           HeapWord* end_of_last_object = last_object_in_dirty_region + size_of_last_object;
           jbyte* ending_card_of_last_object = byte_for(end_of_last_object);
@@ -255,7 +263,12 @@ void CardTableExtension::scavenge_contents_parallel(ObjectStartArray* start_arra
       jbyte* following_clean_card = current_card;
 
       if (first_unclean_card < worker_end_card) {
-        oop* p = (oop*) start_array->object_start(addr_for(first_unclean_card), space_bottom);
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+        oop* p = (oop*) start_array->object_start(addr_for(first_unclean_card),
+                                                  sp->bottom());
+#else
+        oop* p = (oop*) start_array->object_start(addr_for(first_unclean_card));
+#endif
         assert((HeapWord*)p <= addr_for(first_unclean_card), "checking");
         // "p" should always be >= "last_scanned" because newly GC dirtied
         // cards are no longer scanned again (see comment at end

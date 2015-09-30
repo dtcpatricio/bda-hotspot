@@ -56,10 +56,6 @@
 #include "services/memoryService.hpp"
 #include "utilities/stack.inline.hpp"
 
-// Big Data Aware alloc includes
-#include "gc_implementation/shared/bdaGlobals.hpp"
-#include "gc_implementation/shared/bdcMutableSpace.hpp"
-
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
 HeapWord*                  PSScavenge::_to_space_top_before_gc = NULL;
@@ -250,9 +246,14 @@ bool PSScavenge::invoke() {
     const bool clear_all_softrefs = cp->should_clear_all_soft_refs();
 
     if (UseParallelOldGC) {
+#if defined(HASH_MARK) || defined(HEADER_MARK)
       // Additional code to adjust the regions free size as a dependency of
       // the generation free size before the GC
-      heap->adjust_object_space();
+      if(!heap->adjust_object_space()) {
+        size_t desired_free_space = heap->avg_needed_freespace();
+        heap->resize_old_gen(desired_free_space);
+      }
+#endif
       full_gc_done = PSParallelCompact::invoke_no_policy(clear_all_softrefs);
     } else {
       full_gc_done = PSMarkSweep::invoke_no_policy(clear_all_softrefs);
@@ -336,7 +337,6 @@ bool PSScavenge::invoke_no_policy() {
     ResourceMark rm;
     HandleMark hm;
 
-    gclog_or_tty->date_stamp(PrintGC && PrintGCDateStamps);
     TraceCPUTime tcpu(PrintGCDetails, true, gclog_or_tty);
     GCTraceTime t1(GCCauseString("GC", gc_cause), PrintGC, !PrintGCDetails, NULL, _gc_tracer.gc_id());
     TraceCollectorStats tcs(counters());
@@ -386,9 +386,12 @@ bool PSScavenge::invoke_no_policy() {
     // creating the promotion_manager. We pass the top
     // values to the card_table, to prevent it from
     // straying into the promotion labs.
-    HeapWord* old_top = old_gen->object_space()->top();
+#if defined(HASH_MARK) || defined(HEADER_MARK)
     BDACardTableHelper* saved_tops = new BDACardTableHelper(
       (BDCMutableSpace*)old_gen->object_space());
+#else
+    HeapWord* old_top = old_gen->object_space()->top();
+#endif
 
     // Release all previously held resources
     gc_task_manager()->release_all_resources();
@@ -416,8 +419,11 @@ bool PSScavenge::invoke_no_policy() {
         // in the old gen.
         uint stripe_total = active_workers;
         for(uint i=0; i < stripe_total; i++) {
-          //q->enqueue(new OldToYoungRootsTask(old_gen, old_top, i, stripe_total));
+#if defined(HASH_MARK) || defined(HEADER_MARK)
           q->enqueue(new OldToYoungRootsTask(old_gen, saved_tops, i, stripe_total));
+#else
+          q->enqueue(new OldToYoungRootsTask(old_gen, old_top, i, stripe_total));
+#endif
         }
       }
 
@@ -639,8 +645,6 @@ bool PSScavenge::invoke_no_policy() {
       heap->gc_policy_counters()->update_counters();
 
       heap->resize_all_tlabs();
-
-      delete saved_tops;
 
       assert(young_gen->to_space()->is_empty(), "to space should be empty now");
     }

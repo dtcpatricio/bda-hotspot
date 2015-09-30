@@ -59,7 +59,6 @@ void VM_Operation::evaluate() {
     tty->print("[");
     NOT_PRODUCT(print();)
   }
-
   doit();
   if (TraceVMOperation) {
     tty->print_cr("]");
@@ -197,7 +196,6 @@ bool VM_PrintThreads::doit_prologue() {
 }
 
 void VM_PrintThreads::doit() {
-    printf("doit() on VM_PrintThreads\n");
   Threads::print_on(_out, true, false, _print_concurrent_locks);
 }
 
@@ -209,7 +207,6 @@ void VM_PrintThreads::doit_epilogue() {
 }
 
 void VM_PrintJNI::doit() {
-    printf("doit() on VM_PrintJNI\n");
   JNIHandles::print_on(_out);
 }
 
@@ -306,7 +303,6 @@ void VM_ThreadDump::doit_epilogue() {
 }
 
 void VM_ThreadDump::doit() {
-    printf("doit() on VM_ThreadDump\n");
   ResourceMark rm;
 
   ConcurrentLocksDump concurrent_locks(true);

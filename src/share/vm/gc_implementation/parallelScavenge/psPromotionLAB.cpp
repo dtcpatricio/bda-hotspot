@@ -28,7 +28,6 @@
 #include "gc_implementation/shared/mutableSpace.hpp"
 #include "oops/oop.inline.hpp"
 
-
 size_t PSPromotionLAB::filler_header_size;
 
 // This is the shared initialization code. It sets up the basic pointers,
@@ -152,13 +151,17 @@ bool PSYoungPromotionLAB::lab_is_valid(MemRegion lab) {
 
 bool PSOldPromotionLAB::lab_is_valid(MemRegion lab) {
   ParallelScavengeHeap* heap = (ParallelScavengeHeap*)Universe::heap();
-  Thread *thr = Thread::current();
   assert(heap->kind() == CollectedHeap::ParallelScavengeHeap, "Sanity");
   assert(_start_array->covered_region().contains(lab), "Sanity");
 
   PSOldGen* old_gen = heap->old_gen();
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+  Thread *thr = Thread::current();
   BDARegion type = thr->alloc_region();
   MemRegion used = old_gen->object_space()->used_region(type);
+#else
+  MemRegion used = old_gen->object_space()->used_region();
+#endif
 
   if (used.contains(lab)) {
     return true;

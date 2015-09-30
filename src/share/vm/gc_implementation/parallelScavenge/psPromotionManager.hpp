@@ -33,11 +33,6 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/taskqueue.hpp"
 
-// for the big-data aware plabs
-#include "gc_implementation/shared/bdcPromotionLAB.hpp"
-// for big-data collection stats
-#include "gc_implementation/shared/bdcPromotionStats.hpp"
-
 //
 // psPromotionManager is used by a single thread to manage object survival
 // during a scavenge. The promotion manager contains thread local data only.
@@ -82,8 +77,10 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
 
   PSYoungPromotionLAB                 _young_lab;
   PSOldPromotionLAB                   _old_lab;
+#if defined(HASH_MARK) || defined(HEADER_MARK)
   PSOldPromotionLAB                   _hashmap_old_lab;
   PSOldPromotionLAB                   _hashtable_old_lab;
+#endif
   bool                                _young_gen_is_full;
   bool                                _old_gen_is_full;
 
@@ -97,9 +94,6 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   uint                                _min_array_size_for_chunking;
 
   PromotionFailedInfo                 _promotion_failed_info;
-
-  // big-data collections promotion statistics class
-  BDCPromotionStats                   _bdc_promotion_stats;
 
   // Accessors
   static PSOldGen* old_gen()         { return _old_gen; }

@@ -31,8 +31,6 @@
 #include "gc_implementation/parallelScavenge/psScavenge.hpp"
 #include "oops/oop.psgc.inline.hpp"
 
-#include "gc_implementation/shared/bdaGlobals.hpp"
-
 inline PSPromotionManager* PSPromotionManager::manager_array(int index) {
   assert(_manager_array != NULL, "access of NULL manager_array");
   assert(index >= 0 && index <= (int)ParallelGCThreads, "out of range manager_array access");
@@ -128,10 +126,9 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       }
 #endif  // #ifndef PRODUCT
 
-
+#if defined(HASH_MARK)
       // Try to find the objects destination region
       // by using the klass pointer
-#if defined(BIGDATA_HASH_MARK)
       BDARegion target = old_gen()->region_map()->region_for_klass(o->klass());
       // If plab is already allocated, go through it directly
       if (mask_bits(target, region_hashmap)) {
@@ -141,24 +138,30 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       } else {
         new_obj = (oop) _old_lab.allocate(new_obj_size);
       }
-#elif defined(BIGDATA_HEADER)
+#elif defined(HEADER_MARK)
       if (o->region()->is_hashmap_oop())
         new_obj = (oop) _hashmap_old_lab.allocate(new_obj_size);
       else if (o->region()->is_hashtable_oop())
         new_obj = (oop) _hashtable_old_lab.allocate(new_obj_size);
-      else
+      else if (o->region()->is_other_oop())
         new_obj = (oop) _old_lab.allocate(new_obj_size);
+      else {
+        // The header is none of the above and it is being scavenged...
+        // weird kind of oop
+        o->set_region(regionMarkDesc::encode_pointer_as_other(0x0));
+      }
+#else
+      new_obj = (oop) _old_lab.allocate(new_obj_size);
 #endif
 
       new_obj_is_tenured = true;
 
       if (new_obj == NULL) {
-#if defined(BIGDATA_HASH_MARK)
+#if defined(HASH_MARK)
         thr->set_alloc_region(target);
-#elif defined(BIGDATA_HEADER)
+#elif defined(HEADER_MARK)
         thr->set_alloc_region(o->region()->decode_pointer_as_region());
 #endif
-
         if (!_old_gen_is_full) {
           // Do we allocate directly, or flush and refill?
           if (new_obj_size > (OldPLABSize / 2)) {
@@ -175,6 +178,8 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
                 os::sleep(Thread::current(), GCWorkerDelayMillis, false);
               }
 #endif
+
+#if defined(HASH_MARK) || defined(HEADER_MARK)
               if(thr->alloc_region() == region_hashmap) {
                 _hashmap_old_lab.flush();
                 _hashmap_old_lab.initialize(MemRegion(lab_base, OldPLABSize));
@@ -185,7 +190,9 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
                 _hashtable_old_lab.initialize(MemRegion(lab_base, OldPLABSize));
                 // Now try the collections old plab again
                 new_obj = (oop) _hashtable_old_lab.allocate(new_obj_size);
-              } else {
+              } else
+#endif
+              {
                 _old_lab.flush();
                 _old_lab.initialize(MemRegion(lab_base, OldPLABSize));
                 // Or try the old lab allocation again.
@@ -249,6 +256,7 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       // deallocate it, so we have to test.  If the deallocation fails,
       // overwrite with a filler object.
       if (new_obj_is_tenured) {
+#if defined(HASH_MARK) || defined(HEADER_MARK)
         if (thr->alloc_region() == region_hashmap) {
           if(!_hashmap_old_lab.unallocate_object((HeapWord*)new_obj, new_obj_size)) {
             CollectedHeap::fill_with_object((HeapWord*)new_obj, new_obj_size);
@@ -257,7 +265,9 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
           if(!_hashtable_old_lab.unallocate_object((HeapWord*)new_obj, new_obj_size)) {
             CollectedHeap::fill_with_object((HeapWord*)new_obj, new_obj_size);
           }
-        } else {
+        } else
+#endif
+        {
           if (!_old_lab.unallocate_object((HeapWord*) new_obj, new_obj_size)) {
             CollectedHeap::fill_with_object((HeapWord*) new_obj, new_obj_size);
           }

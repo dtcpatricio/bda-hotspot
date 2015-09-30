@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2014, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2001, 2015, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -261,7 +261,7 @@ HeapWord* ParallelScavengeHeap::mem_allocate(
 
   uint loop_count = 0;
   uint gc_count = 0;
-  int gclocker_stalled_count = 0;
+  uint gclocker_stalled_count = 0;
 
   while (result == NULL) {
     // We don't want to have multiple collections for a single filled generation.
@@ -521,8 +521,8 @@ void ParallelScavengeHeap::collect(GCCause::Cause cause) {
   assert(!Heap_lock->owned_by_self(),
     "this thread should not own the Heap_lock");
 
-  unsigned int gc_count      = 0;
-  unsigned int full_gc_count = 0;
+  uint gc_count      = 0;
+  uint full_gc_count = 0;
   {
     MutexLocker ml(Heap_lock);
     // This value is guarded by the Heap_lock
@@ -534,10 +534,19 @@ void ParallelScavengeHeap::collect(GCCause::Cause cause) {
   VMThread::execute(&op);
 }
 
-bool ParallelScavengeHeap::adjust_object_space() {
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+bool
+ParallelScavengeHeap::adjust_object_space() {
   // Delegate to the old gen
   old_gen()->adjust_object_space();
 }
+
+size_t
+ParallelScavengeHeap::avg_needed_freespace() {
+  // Delegate to the old gen
+  old_gen()->avg_freespace();
+}
+#endif
 
 void ParallelScavengeHeap::oop_iterate(ExtendedOopClosure* cl) {
   Unimplemented();

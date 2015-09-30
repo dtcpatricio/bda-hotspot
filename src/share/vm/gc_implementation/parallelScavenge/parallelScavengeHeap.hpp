@@ -163,7 +163,11 @@ class ParallelScavengeHeap : public CollectedHeap {
   // Support for System.gc()
   void collect(GCCause::Cause cause);
 
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+  // Support for adjusting the segmented heap
   bool adjust_object_space();
+  size_t avg_needed_freespace();
+#endif
 
   // These also should be called by the vm thread at a safepoint (e.g., from a
   // VM operation).

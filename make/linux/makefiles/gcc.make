@@ -1,5 +1,5 @@
 #
-# Copyright (c) 1999, 2013, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 1999, 2015, Oracle and/or its affiliates. All rights reserved.
 # DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
 #
 # This code is free software; you can redistribute it and/or modify it
@@ -19,7 +19,7 @@
 # Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
 # or visit www.oracle.com if you need additional information or have any
 # questions.
-#
+#  
 #
 
 #------------------------------------------------------------------------
@@ -176,21 +176,13 @@ ARCHFLAG/amd64   = -m64 $(STACK_ALIGNMENT_OPT)
 ARCHFLAG/ia64    =
 ARCHFLAG/sparc   = -m32 -mcpu=v9
 ARCHFLAG/sparcv9 = -m64 -mcpu=v9
-ARCHFLAG/arm     =  -fsigned-char
 ARCHFLAG/zero    = $(ZERO_ARCHFLAG)
-ifndef E500V2
-ARCHFLAG/ppc     =  -mcpu=powerpc
-endif
 ARCHFLAG/ppc64   =  -m64
 
 CFLAGS     += $(ARCHFLAG)
 AOUT_FLAGS += $(ARCHFLAG)
 LFLAGS     += $(ARCHFLAG)
 ASFLAGS    += $(ARCHFLAG)
-
-ifdef E500V2
-CFLAGS += -DE500V2
-endif
 
 # Use C++ Interpreter
 ifdef CC_INTERP
@@ -199,7 +191,7 @@ endif
 
 # Keep temporary files (.ii, .s)
 ifdef NEED_ASM
-  CFLAGS +=
+  CFLAGS += -save-temps
 else
   CFLAGS += -pipe
 endif
@@ -227,16 +219,16 @@ endif
 
 CFLAGS_WARN/DEFAULT = $(WARNINGS_ARE_ERRORS) $(WARNING_FLAGS)
 # Special cases
-CFLAGS_WARN/BYFILE = $(CFLAGS_WARN/$@)$(CFLAGS_WARN/DEFAULT$(CFLAGS_WARN/$@))
+CFLAGS_WARN/BYFILE = $(CFLAGS_WARN/$@)$(CFLAGS_WARN/DEFAULT$(CFLAGS_WARN/$@)) 
 
-# The flags to use for an Optimized g++ build :: DUARTE: Removed optimization level for better debugging
+# The flags to use for an Optimized g++ build
 OPT_CFLAGS/SIZE=-Os
-OPT_CFLAGS/SPEED=-O0
+OPT_CFLAGS/SPEED=-O3
 
 # Hotspot uses very unstrict aliasing turn this optimization off
 # This option is added to CFLAGS rather than OPT_CFLAGS
 # so that OPT_CFLAGS overrides get this option too.
-CFLAGS += -fno-strict-aliasing
+CFLAGS += -fno-strict-aliasing 
 
 OPT_CFLAGS_DEFAULT ?= SPEED
 
@@ -248,7 +240,7 @@ endif
 
 OPT_CFLAGS = $(OPT_CFLAGS/$(OPT_CFLAGS_DEFAULT)) $(OPT_EXTRAS)
 
-# The gcc compiler segv's on ia64 when compiling bytecodeInterpreter.cpp
+# The gcc compiler segv's on ia64 when compiling bytecodeInterpreter.cpp 
 # if we use expensive-optimizations
 ifeq ($(BUILDARCH), ia64)
 OPT_CFLAGS += -fno-expensive-optimizations
@@ -293,8 +285,8 @@ ifeq ($(USE_CLANG),)
   endif
 endif
 
-# Enable linker optimization -- DUARTE: reduce linker optimization for better debugging
-LFLAGS += -Xlinker -O0
+# Enable linker optimization
+LFLAGS += -Xlinker -O1
 
 ifeq ($(USE_CLANG),)
   # If this is a --hash-style=gnu system, use --hash-style=both
@@ -345,47 +337,41 @@ else
   # Note: The Itanium gcc compiler crashes when using -gstabs.
   DEBUG_CFLAGS/ia64  = -g
   DEBUG_CFLAGS/amd64 = -g
-  DEBUG_CFLAGS/arm   = -g
-  DEBUG_CFLAGS/ppc   = -g
   DEBUG_CFLAGS/ppc64 = -g
   DEBUG_CFLAGS += $(DEBUG_CFLAGS/$(BUILDARCH))
   ifeq ($(DEBUG_CFLAGS/$(BUILDARCH)),)
       ifeq ($(USE_CLANG), true)
         # Clang doesn't understand -gstabs
-        DEBUG_CFLAGS += -g
+        DEBUG_CFLAGS/$(BUILDARCH) = -g
       else
-        DEBUG_CFLAGS += -g -save-temps=obj
+        DEBUG_CFLAGS/$(BUILDARCH) = -gstabs
       endif
   endif
-
+  
   ifeq ($(ENABLE_FULL_DEBUG_SYMBOLS),1)
     FASTDEBUG_CFLAGS/ia64  = -g
     FASTDEBUG_CFLAGS/amd64 = -g
-    FASTDEBUG_CFLAGS/arm   = -g
-    FASTDEBUG_CFLAGS/ppc   = -g
     FASTDEBUG_CFLAGS/ppc64 = -g
-    FASTDEBUG_CFLAGS += $(DEBUG_CFLAGS/$(BUILDARCH))
+    FASTDEBUG_CFLAGS += $(FASTDEBUG_CFLAGS/$(BUILDARCH))
     ifeq ($(FASTDEBUG_CFLAGS/$(BUILDARCH)),)
       ifeq ($(USE_CLANG), true)
         # Clang doesn't understand -gstabs
-        FASTDEBUG_CFLAGS += -g
+        FASTDEBUG_CFLAGS/$(BUILDARCH) = -g
       else
-        FASTDEBUG_CFLAGS += -g -save-temps=obj
+        FASTDEBUG_CFLAGS/$(BUILDARCH) = -gstabs
       endif
     endif
-
+  
     OPT_CFLAGS/ia64  = -g
     OPT_CFLAGS/amd64 = -g
-    OPT_CFLAGS/arm   = -g
-    OPT_CFLAGS/ppc   = -g
     OPT_CFLAGS/ppc64 = -g
     OPT_CFLAGS += $(OPT_CFLAGS/$(BUILDARCH))
     ifeq ($(OPT_CFLAGS/$(BUILDARCH)),)
       ifeq ($(USE_CLANG), true)
         # Clang doesn't understand -gstabs
-        OPT_CFLAGS += -g
+        OPT_CFLAGS/$(BUILDARCH) = -g
       else
-        OPT_CFLAGS += -g -save-temps=obj
+        OPT_CFLAGS/$(BUILDARCH) = -gstabs
       endif
     endif
   endif
@@ -409,3 +395,5 @@ endif
 ifndef USE_SUNCC
   CFLAGS += -fno-omit-frame-pointer
 endif
+
+-include $(HS_ALT_MAKE)/linux/makefiles/gcc.make

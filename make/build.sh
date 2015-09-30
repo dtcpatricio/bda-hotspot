@@ -20,7 +20,7 @@
 # Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
 # or visit www.oracle.com if you need additional information or have any
 # questions.
-#
+#  
 #
 
 # Make sure the variable JAVA_HOME is set before running this script.
@@ -28,7 +28,7 @@
 set -u
 
 
-if [ $# -lt 1 ]; then
+if [ $# -lt 1 ]; then 
     echo "Usage : $0 BuildTarget [LP64=1] [BuildOptions]"
     echo "               Server VM | Client VM"
     echo "BuildTarget :  debug     | debug1"
@@ -61,7 +61,7 @@ fi
 HOTSPOT_SRC=`(dirname $0)`/..
 HOTSPOT_SRC=`(cd ${HOTSPOT_SRC}; pwd)`
 
-for gm in make gmake gnumake
+for gm in gmake gnumake
 do
   if [ "${GNUMAKE-}" != "" ]; then break; fi
   ($gm --version >/dev/null) 2>/dev/null && GNUMAKE=$gm
