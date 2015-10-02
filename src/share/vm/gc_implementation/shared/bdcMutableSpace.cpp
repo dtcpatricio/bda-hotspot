@@ -925,20 +925,20 @@ BDCMutableSpace::print_current_space_layout(bool descriptive,
       CGRPSpace* grp = collections()->at(j);
       MutableSpace* spc = grp->space();
       BDARegion region = grp->coll_type();
-      tty->print_cr("Region for objects %s :: From 0x%x to 0x%x top 0x%x",
+      gclog_or_tty->print_cr("Region for objects %s :: From 0x%x to 0x%x top 0x%x",
                     toString(region),
                     spc->bottom(),
                     spc->end(),
                     spc->top());
-      tty->print_cr("\t Fillings (words): Capacity %d :: Used space %d :: Free space %d",
+      gclog_or_tty->print_cr("\t Fillings (words): Capacity %d :: Used space %d :: Free space %d",
                     spc->capacity_in_words(),
                     spc->used_in_words(),
                     spc->free_in_words());
-      tty->print_cr("\t Space layout:");
+      gclog_or_tty->print_cr("\t Space layout:");
       oop next_obj = (oop)spc->bottom();
       while((HeapWord*)next_obj < spc->top()) {
         Klass* klassPtr = next_obj->klass();
-        tty->print_cr("address: %x , klass: %s",
+        gclog_or_tty->print_cr("address: %x , klass: %s",
                       next_obj,
                       klassPtr->external_name());
         next_obj = (oop)((HeapWord*)next_obj + next_obj->size());
@@ -949,12 +949,12 @@ BDCMutableSpace::print_current_space_layout(bool descriptive,
       CGRPSpace* grp = collections()->at(j);
       MutableSpace* spc = grp->space();
       BDARegion region = grp->coll_type();
-      tty->print_cr("Region for objects %s :: From 0x%x to 0x%x top 0x%x",
+      gclog_or_tty->print_cr("Region for objects %s :: From 0x%x to 0x%x top 0x%x",
                     toString(region),
                     spc->bottom(),
                     spc->end(),
                     spc->top());
-      tty->print_cr("\t Fillings (words): Capacity %d :: Used space %d :: Free space %d",
+      gclog_or_tty->print_cr("\t Fillings (words): Capacity %d :: Used space %d :: Free space %d",
                     spc->capacity_in_words(),
                     spc->used_in_words(),
                     spc->free_in_words());
