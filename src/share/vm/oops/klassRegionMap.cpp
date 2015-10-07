@@ -19,7 +19,7 @@ KlassRegionMap::compute_hash(intptr_t k) {
   uint n_low_bits = 24;
   uint low_bits = mask_bits(k, right_n_bits(n_low_bits));
   uint mix = floor(seed * (1 << n_low_bits));
-  uint mult = k * mix;
+  uint mult = low_bits * mix;
   uint hash = mult >> (24 - 16);
   return hash;
 }
