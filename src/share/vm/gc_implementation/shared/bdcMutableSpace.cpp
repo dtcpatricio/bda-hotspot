@@ -143,8 +143,17 @@ BDCMutableSpace::adjust_layout(bool force)
     HeapWord* new_end =
       (HeapWord*)round_to((intptr_t)(to_spc->top() + expand_size),
                           MinRegionSizeBytes);
+    HeapWord* new_top = to_spc->top() == to_spc->bottom() ?
+      expand_spc->top() :
+      to_spc->top();
+
+    if(new_top > expand_spc->top())
+      CollectedHeap::fill_with_object(expand_spc->top(),
+                                      pointer_delta(new_top, expand_spc->top()),
+                                      false);
+
     increase_space_set_top(expand_spc, pointer_delta(new_end, expand_spc->end()),
-                           to_spc->top());
+                           new_top);
 
     size_t available_space_size = pointer_delta(to_spc->end(), expand_spc->end());
     initialize_regions_evenly(i + 1, k, expand_spc->end(), to_spc->end(),

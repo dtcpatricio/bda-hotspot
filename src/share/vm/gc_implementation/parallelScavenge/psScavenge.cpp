@@ -689,6 +689,9 @@ bool PSScavenge::invoke_no_policy() {
     heap->update_counters();
 
     gc_task_manager()->release_idle_workers();
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+    delete saved_tops;
+#endif
   }
 
   if (VerifyAfterGC && heap->total_collections() >= VerifyGCStartAt) {
