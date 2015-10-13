@@ -1,11 +1,13 @@
 #include "gc_implementation/shared/bdcMutableSpace.hpp"
 #include "gc_implementation/shared/spaceDecorator.hpp"
-#include "gc_interface/collectedHeap.hpp"
+#include "gc_implementation/parallelScavenge/parallelScavengeHeap.hpp"
 #include "memory/resourceArea.hpp"
 #include "runtime/thread.hpp"
 #include "oops/oop.inline.hpp"
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
+// Forward declarations
+class ParallelScavengeHeap;
 
 // Definition of sizes - conformant with the PSParallelCompact class
 const size_t BDCMutableSpace::Log2MinRegionSize = 16; // 64K HeapWords
@@ -151,7 +153,9 @@ BDCMutableSpace::adjust_layout(bool force)
       CollectedHeap::fill_with_object(expand_spc->top(),
                                       pointer_delta(new_top, expand_spc->top()),
                                       false);
-      ParallelScavengeHeap::heap()->old_gen()->start_array()->
+      ParallelScavengeHeap* heap =
+        (ParallelScavengeHeap*)Universe::heap();
+      heap->old_gen()->start_array()->
         allocate_block(expand_spc->top());
     }
 
