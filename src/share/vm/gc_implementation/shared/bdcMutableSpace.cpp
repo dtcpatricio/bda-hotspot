@@ -150,13 +150,9 @@ BDCMutableSpace::adjust_layout(bool force)
       to_spc->top();
 
     if(new_top > expand_spc->top()) {
-      CollectedHeap::fill_with_object(expand_spc->top(),
-                                      pointer_delta(new_top, expand_spc->top()),
-                                      false);
-      ParallelScavengeHeap* heap =
-        (ParallelScavengeHeap*)Universe::heap();
-      heap->old_gen()->start_array()->
-        allocate_block(expand_spc->top());
+      // CollectedHeap::fill_with_object(expand_spc->top(),
+      //                                 pointer_delta(new_top, expand_spc->top()),
+      //                                 false);
     }
 
     increase_space_set_top(expand_spc, pointer_delta(new_end, expand_spc->end()),
