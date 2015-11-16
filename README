@@ -1,14 +1,32 @@
 README:
-  This file should be located at the top of the hotspot Mercurial repository.
+  This file explains how to compile and run the BDA hotspot VM on a Linux x86_x64 system.
 
-  See http://openjdk.java.net/ for more information about the OpenJDK.
+Build Instructions:
+  In the hotspot directory there exists a "run" directory.
+  Run the build.script file, with execution permissions in order to build the VM. Some arguments are, however, needed:
+      -buildir <directory where to output the build files>
+      -bootdir <direcotry where a prior instalation of a JVM exists> (for example: /usr/lib/jvm/java-7-openjdk)
+      -mode <product,debug,optimized or clean> (product is a version without assert calls on the code; debug asserts every value --- considerably slower ---, and clean cleans the output directory --- buildir argument. optimized is being deprecated since product already provides everything that optimized did).
+      -debugbin (if debug binaries are wanted)
+      -header (use an additional header word to identify the BDA-region segment of the BDA-heap for an object. -header and -hash cannot be used simultaneously)
+      -hash (use the hashing of the klass pointer to identify the BDA-region segment of the BDA-heap for an object)
 
-  See ../README-builds.html for complete details on build machine requirements.
+      If no -header or -hash is called, it produces a normal JVM.
 
-Simple Build Instructions:
+Run instructions:
+  The build process produces a libjvm.so file. This file should be included (by copying) in another jdk installation or called by the XXaltjvm argument.
+  When the BDA-heap is to be created, such as when built with -header or -hash, the -XX:+UseBDA argument must be passed to the launcher.
 
-    cd make && gnumake
-     
-  The files that will be imported into the jdk build will be in the "build"
-  directory.
+  Note well: A limitation exists when the old generation is shrunk after a full collection (the parallel scavenge collector tries to erase a BDA-region by shrinking below its address). Always use (disable) the -XX:-UseAdaptiveGenerationSizePolicyAtMajorCollection.
 
+  Examples:
+        When the libjvm.so was not installed on the jdk directory:
+        java -Dsun.java.launcher=gamma -XXaltjvm=`cd /home/xpto/bdahotspot/linux/product/ && pwd` -XX:+UseBDA -XX:-UseAdaptiveGenerationSizePolicyAtMajorCollection <java arguments>
+
+        When it was installed on the jdk directory:
+        java -XX:+UseBDA -XX:-UseAdaptiveGenerationSizePolicyAtMajorCollection <java arguments)
+
+     Run-down of the available arguments:
+       -XX:BDAThreshold=<1-100> Set the threshold of the ratio between the highest count of a special object and the lowest count of a special object within a compacting region (used only on the full collection)
+       -XX:BDAKlassHashArray=<integer> Set the size of the array where the hashed klass pointer indexes BDA-region identifiers. Only useful in the -hash configuration.
+        
