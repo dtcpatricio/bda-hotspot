@@ -750,10 +750,10 @@ Klass::is_subtype_for_bda() {
     if ( k == _primary_super_limit )
       return region_other;
     if(this->primary_super_of_depth(k) != NULL &&
-       strstr(this->primary_super_of_depth(k)->signature_name(), "java/util/HashMap")) {
+       strstr(this->primary_super_of_depth(k)->signature_name(), BDAKlass1)) {
       return region_hashmap;
     } else if(this->primary_super_of_depth(k) != NULL &&
-              strstr(this->primary_super_of_depth(k)->signature_name(), "java/util/Hashtable")) {
+              strstr(this->primary_super_of_depth(k)->signature_name(), BDAKlass2)) {
       return region_hashtable;
     }
   }

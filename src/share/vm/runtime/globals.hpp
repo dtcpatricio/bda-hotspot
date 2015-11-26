@@ -3966,6 +3966,12 @@ class CommandLineFlags {
                                                                             \
   product(uintx, BDAKlassHashArray, 200,                                    \
           "The size of the Klass HashArray on BDA")                         \
+                                                                            \
+  product(ccstr, BDAKlass1, "java/util/HashMap",                            \
+          "Define the Klass of objects saved in the first BDA-region")      \
+                                                                            \
+  product(ccstr, BDAKlass2, "java/util/Hashtable",                          \
+          "Define the Klass of objects saved in the second BDA-region")     \
 
 /*
  *  Macros for factoring of globals
