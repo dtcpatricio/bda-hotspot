@@ -17,7 +17,8 @@ int
 KlassRegionMap::compute_hash(intptr_t k) {
   // Following Knuths suggestion
   double a = (sqrt(5) - 1) / 2;
-  uint w = 8 << LogHeapWordSize; // 64 or 32
+  // 64 or 32
+  uint w = 8 << LogHeapWordSize;
   uint seed = floor(pow(2,a) * a);
   uint mult = k * seed;
   uint n_low_bits = 24;
@@ -32,7 +33,15 @@ KlassRegionMap::compute_hash(intptr_t k) {
 
 BDARegion
 KlassRegionMap::region_for_klass(Klass* k) {
-  uint hash = compute_hash((intptr_t)k);
+  //uint hash = compute_hash((intptr_t)k);
+  // Following Knuths suggestion
+  double a = (sqrt(5) - 1) / 2;
+  // 64 or 32
+  uint w = 8 << LogHeapWordSize;
+  uint seed = floor(pow(2,w) * a);
+  uint mult = (intptr_t)k * seed;
+  uint n_low_bits = 24;
+  uint hash = mult >> n_low_bits;
   int index = indexof(hash);
   if(table()->at(index) == (char)no_region) {
     BDARegion region = k->is_subtype_for_bda();
