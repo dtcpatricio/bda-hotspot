@@ -27,7 +27,7 @@ make/bsd/
 agent/
 
 ## some dirs in run (created automatically) must also be renamed
-run/scratch/
+bdavm/run/scratch/
 
 ## ignore all logs file from possbile hs errors
 *.log

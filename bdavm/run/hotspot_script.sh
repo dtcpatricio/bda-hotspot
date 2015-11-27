@@ -1,6 +1,6 @@
 #!/bin/sh
 
-HS_SCRIPT_DIR=`cd ../build/linux/linux_amd64_compiler2/product && pwd`
+#HS_SCRIPT_DIR=`cd ../build/linux/linux_amd64_compiler2/product && pwd`
 
 while :
 do
@@ -49,6 +49,7 @@ JVM_ARGS="${usebda} ${compressed} ${print} ${add_args}"
 
 echo "JAVA_ARGS to be used $JAVA_ARGS"
 echo "JVM_ARGS to be used $JVM_ARGS"
+echo "Using hotspot dir $HS_SCRIPT_DIR"
 
 ALT_JAVA_HOME=`cd /usr/lib/jvm/java-8-openjdk && pwd`
 

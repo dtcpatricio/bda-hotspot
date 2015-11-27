@@ -15,12 +15,18 @@ KlassRegionMap::~KlassRegionMap() {
 
 int
 KlassRegionMap::compute_hash(intptr_t k) {
-  uint seed = 101;
+  // Following Knuths suggestion
+  double a = (sqrt(5) - 1) / 2;
+  uint w = 8 << LogHeapWordSize; // 64 or 32
+  uint seed = floor(pow(2,a) * a);
+  uint mult = k * seed;
   uint n_low_bits = 24;
-  uint low_bits = mask_bits(k, right_n_bits(n_low_bits));
-  uint mix = floor(seed * (1 << n_low_bits));
-  uint mult = low_bits * mix;
-  uint hash = mult >> (24 - 16);
+  uint hash = mult >> (w - n_low_bits);
+
+  // uint low_bits = mask_bits(k, right_n_bits(n_low_bits));
+  // uint mix = floor(seed * (1 << n_low_bits));
+  // uint mult = low_bits * mix;
+  // uint hash = mult >> (24 - 16);
   return hash;
 }
 
