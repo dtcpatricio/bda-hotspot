@@ -10,8 +10,8 @@ BDCPromotionLAB::BDCPromotionLAB() : _top(NULL), _bottom(NULL), _end(NULL) {
   _collections = new (ResourceObj::C_HEAP, mtGC) GrowableArray<PLABRegion*>(0, true);
   _page_size = os::vm_page_size();
 
-  _collections->append(new PLABRegion(region_other));
-  _collections->append(new PLABRegion(region_hashmap));
+  // _collections->append(new PLABRegion(region_other));
+  // _collections->append(new PLABRegion(region_hashmap));
 }
 
 void BDCPromotionLAB::initialize(MemRegion lab) {

@@ -2013,6 +2013,9 @@ methodHandle ClassFileParser::parse_method(bool is_interface,
   Symbol*  name = _cp->symbol_at(name_index);
   verify_legal_method_name(name, CHECK_(nullHandle));
 
+  // Check if it is an "interesting" class for BDAGC
+  //verify_bda_klass_method(name, CHECK_(nullHandle));
+
   u2 signature_index = cfs->get_u2_fast();
   guarantee_property(
     valid_symbol_at(signature_index),
@@ -4237,6 +4240,12 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
       }
     }
 
+    // BDA --- check if this is one of our special klasses and, if so, set
+    // the klass and region on the KlassRegionMap
+    if(this_klass->is_subtype_for_bda()) {
+      ((ParallelScavengeHeap*)Universe::heap())->old_gen()->region_map()->add_entry(this_klass());
+    }
+
     // preserve result across HandleMark
     preserve_this_klass = this_klass();
   }
@@ -5270,3 +5279,16 @@ char* ClassFileParser::skip_over_field_signature(char* signature,
   }
   return NULL;
 }
+
+// BDA specific calls
+// void
+// ClassFileParser::verify_bda_klass_method(Symbol* name, TRAPS)
+// {
+//   ResourceMark(THREAD);
+//   char* name_string = name->as_C_string();
+//   switch(name_string)
+//   {
+//   case "put":
+
+//   }
+// }

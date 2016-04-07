@@ -348,7 +348,7 @@ void
 print_initial_summary_data(ParallelCompactData& summary_data,
                            SpaceInfo* space_info) {
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  unsigned int id = PSParallelCompact::old_space_other_id;
+  unsigned int id = PSParallelCompact::old_space_id;
 #else
   unsigned int id = PSParallelCompact::old_space_id;
 #endif
@@ -508,13 +508,14 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
 #endif // HASH_MARK else HEADER_MARK
 #endif // HASH_MARK || HEADER_MARK
 
+  // BDA TODO: Find all 0x1 and switch with the proper values!
   if (beg_region == end_region) {
     // All in one region.
     _region_data[beg_region].add_live_obj(len);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    if(r == region_hashmap)
+    if(r == BDARegion(0x1))
       _region_data[beg_region].incr_hashmap_counter(len);
-    else if(r == region_hashtable)
+    else if(r == BDARegion(0x1))
       _region_data[beg_region].incr_hashtable_counter(len);
 #endif
     return;
@@ -524,9 +525,9 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   const size_t beg_ofs = region_offset(addr);
   _region_data[beg_region].add_live_obj(RegionSize - beg_ofs);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  if(r == region_hashmap)
+  if(r == BDARegion(0x1))
     _region_data[beg_region].incr_hashmap_counter(RegionSize - beg_ofs);
-  else if(r == region_hashtable)
+  else if(r == BDARegion(0x1))
     _region_data[beg_region].incr_hashtable_counter(RegionSize - beg_ofs);
 #endif
 
@@ -535,9 +536,9 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
     _region_data[region].set_partial_obj_size(RegionSize);
     _region_data[region].set_partial_obj_addr(addr);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    if(r == region_hashmap)
+    if(r == BDARegion(0x1))
       _region_data[region].incr_hashmap_counter(RegionSize);
-    else if(r == region_hashtable)
+    else if(r == BDARegion(0x1))
       _region_data[region].incr_hashtable_counter(RegionSize);
 #endif
   }
@@ -817,12 +818,12 @@ ParallelCompactData::summarize_parse_region(
     if(_region_data[cur_region].partial_obj_size() > 0) {
       PSParallelCompact::SpaceId previous_id =
         PSParallelCompact::space_id(_region_data[cur_region - 1].destination());
-      if(previous_id == PSParallelCompact::old_space_other_id) {
+      if(previous_id == PSParallelCompact::old_space_id) {
         target_end = target0_end;
         target_next = target0_next;
         dest_addr = &dest0;
       }
-      else if(previous_id == PSParallelCompact::old_space_hashmap_id) {
+      else if(previous_id == PSParallelCompact::old_space_id) {
         target_end = target1_end;
         target_next = target1_next;
         dest_addr = &dest1;
@@ -1110,19 +1111,6 @@ void PSParallelCompact::initialize_space_info()
   PSYoungGen* young_gen = heap->young_gen();
 
   _space_info[old_space_id].set_space(heap->old_gen()->object_space());
-
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-    BDCMutableSpace* old_space = (BDCMutableSpace*)heap->old_gen()->object_space();
-    _space_info[old_space_other_id].set_space(old_space->region_for(region_other));
-    _space_info[old_space_hashmap_id].set_space(old_space->region_for(region_hashmap));
-    _space_info[old_space_hashtable_id].set_space(old_space->region_for(region_hashtable));
-    // Set the object start array to all segments
-    _space_info[old_space_other_id].set_start_array(heap->old_gen()->start_array());
-    _space_info[old_space_hashmap_id].set_start_array(heap->old_gen()->start_array());
-    _space_info[old_space_hashtable_id].set_start_array(heap->old_gen()->start_array());
-#endif
-
-  _space_info[old_space_id].set_space(heap->old_gen()->object_space());
   _space_info[eden_space_id].set_space(young_gen->eden_space());
   _space_info[from_space_id].set_space(young_gen->from_space());
   _space_info[to_space_id].set_space(young_gen->to_space());
@@ -1247,7 +1235,7 @@ void PSParallelCompact::post_compact()
   GCTraceTime tm("post compact", print_phases(), true, &_gc_timer, _gc_tracer.gc_id());
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int id = old_space_other_id; id < last_space_id; ++id)
+  for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #else
   for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif
@@ -1259,9 +1247,9 @@ void PSParallelCompact::post_compact()
   }
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  HeapWord* max = MAX3(_space_info[old_space_other_id].new_top(),
-                       _space_info[old_space_hashmap_id].new_top(),
-                       _space_info[old_space_hashtable_id].new_top());
+  HeapWord* max = MAX3(_space_info[old_space_id].new_top(),
+                       _space_info[old_space_id].new_top(),
+                       _space_info[old_space_id].new_top());
   _space_info[old_space_id].set_new_top(max);
   _space_info[old_space_id].publish_new_top();
 #endif
@@ -1903,7 +1891,7 @@ PSParallelCompact::provoke_split(bool & max_compaction)
 void PSParallelCompact::summarize_spaces_quick()
 {
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int i = old_space_other_id; i < last_space_id; ++i)
+  for (unsigned int i = old_space_id; i < last_space_id; ++i)
 #else
   for (unsigned int i = 0; i < last_space_id; ++i)
 #endif
@@ -2008,9 +1996,9 @@ PSParallelCompact::summarize_space(SpaceId id, bool maximum_compaction)
   assert(id < last_space_id, "id out of range");
 #if defined(HASH_MARK) || defined(HEADER_MARK)
   assert(_space_info[id].dense_prefix() == _space_info[id].space()->bottom() ||
-         ParallelOldGCSplitALot && (id == old_space_other_id ||
-                                    id == old_space_hashmap_id ||
-                                    id == old_space_hashtable_id),
+         ParallelOldGCSplitALot && (id == old_space_id ||
+                                    id == old_space_id ||
+                                    id == old_space_id),
          "should have been reset in summarize_spaces_quick()");
 #else
   assert(_space_info[id].dense_prefix() == _space_info[id].space()->bottom() ||
@@ -2123,48 +2111,48 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
   }
 
   // The amount of live data that will end up in old space (assuming it fits).
-  size_t old_space_total_live = 0;
+  size_t old_space_id_live = 0;
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int id = old_space_other_id; id < last_space_id; ++id)
+  for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #else
   for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif
   {
-    old_space_total_live += pointer_delta(_space_info[id].new_top(),
+    old_space_id_live += pointer_delta(_space_info[id].new_top(),
                                           _space_info[id].space()->bottom());
   }
 
   MutableSpace* const old_space = _space_info[old_space_id].space();
   const size_t old_capacity = old_space->capacity_in_words();
-  if (old_space_total_live > old_capacity) {
+  if (old_space_id_live > old_capacity) {
     // XXX - should also try to expand
     maximum_compaction = true;
   }
 #ifndef PRODUCT
-  if (ParallelOldGCSplitALot && old_space_total_live < old_capacity) {
+  if (ParallelOldGCSplitALot && old_space_id_live < old_capacity) {
     provoke_split(maximum_compaction);
   }
 #endif // #ifndef PRODUCT
 
   // Old generations.
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  summarize_space(old_space_other_id, maximum_compaction);
-  summarize_space(old_space_hashmap_id, maximum_compaction);
-  summarize_space(old_space_hashtable_id, maximum_compaction);
+  summarize_space(old_space_id, maximum_compaction);
+  summarize_space(old_space_id, maximum_compaction);
+  summarize_space(old_space_id, maximum_compaction);
 
   // Summarize the remaining spaces in the young gen. We observe that the eden
   // and from space (the old to-space in case a scavenge happened) should only
   // be promoted through scavenging. Therefore, those two spaces are compacted
   // into their space and the to-space (the old from) promotes to the old-gen.
-  SpaceId dst0_space_id = old_space_other_id;
+  SpaceId dst0_space_id = old_space_id;
   HeapWord* dst0_space_end = _space_info[dst0_space_id].space()->end();
   HeapWord** new_top0_addr = _space_info[dst0_space_id].new_top_addr();
 
-  SpaceId dst1_space_id = old_space_hashmap_id;
+  SpaceId dst1_space_id = old_space_id;
   HeapWord* dst1_space_end = _space_info[dst1_space_id].space()->end();
   HeapWord** new_top1_addr = _space_info[dst1_space_id].new_top_addr();
 
-  SpaceId dst2_space_id = old_space_hashtable_id;
+  SpaceId dst2_space_id = old_space_id;
   HeapWord* dst2_space_end = _space_info[dst2_space_id].space()->end();
   HeapWord** new_top2_addr = _space_info[dst2_space_id].new_top_addr();
   for (unsigned int id = to_space_id; id < last_space_id; ++id)
@@ -2575,9 +2563,9 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
   _gc_timer.register_gc_end();
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  _gc_tracer.report_dense_prefix(dense_prefix(old_space_other_id));
-  _gc_tracer.report_dense_prefix(dense_prefix(old_space_hashmap_id));
-  _gc_tracer.report_dense_prefix(dense_prefix(old_space_hashtable_id));
+  _gc_tracer.report_dense_prefix(dense_prefix(old_space_id));
+  _gc_tracer.report_dense_prefix(dense_prefix(old_space_id));
+  _gc_tracer.report_dense_prefix(dense_prefix(old_space_id));
 #else
   _gc_tracer.report_dense_prefix(dense_prefix(old_space_id));
 #endif
@@ -2854,7 +2842,7 @@ void PSParallelCompact::enqueue_region_draining_tasks(GCTaskQueue* q,
   // id + 1 is used to test termination so unsigned  can
   // be used with an old_space_id == 0.
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int id = to_space_id; id + 1 > old_space_other_id; --id)
+  for (unsigned int id = to_space_id; id + 1 > old_space_id; --id)
 #else
   for (unsigned int id = to_space_id; id + 1 > old_space_id; --id)
 #endif
@@ -2910,7 +2898,7 @@ void PSParallelCompact::enqueue_dense_prefix_tasks(GCTaskQueue* q,
   // will work on the dense prefix.
   unsigned int space_id;
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (space_id = old_space_other_id; space_id < last_space_id; ++ space_id)
+  for (space_id = old_space_id; space_id < last_space_id; ++ space_id)
 #else
   for (space_id = old_space_id; space_id < last_space_id; ++ space_id)
 #endif
@@ -3009,7 +2997,7 @@ void PSParallelCompact::write_block_fill_histogram(outputStream* const out)
   ParallelCompactData& sd = summary_data();
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int id = old_space_other_id; id < last_space_id; ++id)
+  for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #else
   for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif
@@ -3064,7 +3052,7 @@ void PSParallelCompact::compact() {
 #ifdef  ASSERT
     // Verify that all regions have been processed before the deferred updates.
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    for (unsigned int id = old_space_other_id; id < last_space_id; ++id)
+    for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #else
     for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif
@@ -3079,7 +3067,7 @@ void PSParallelCompact::compact() {
     GCTraceTime tm_du("deferred updates", print_phases(), true, &_gc_timer, _gc_tracer.gc_id());
     ParCompactionManager* cm = ParCompactionManager::manager_array(0);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    for (unsigned int id = old_space_other_id; id < last_space_id; ++id)
+    for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #else
     for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif
@@ -3202,7 +3190,7 @@ PSParallelCompact::SpaceId PSParallelCompact::space_id(HeapWord* addr) {
   assert(Universe::heap()->is_in_reserved(addr), "addr not in the heap");
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int id = old_space_other_id; id < last_space_id; ++id)
+  for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #else
   for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif

@@ -139,17 +139,18 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
         new_obj = (oop) _old_lab.allocate(new_obj_size);
       }
 #elif defined(HEADER_MARK)
-      if (o->region()->is_hashmap_oop())
-        new_obj = (oop) _hashmap_old_lab.allocate(new_obj_size);
-      else if (o->region()->is_hashtable_oop())
-        new_obj = (oop) _hashtable_old_lab.allocate(new_obj_size);
-      else if (o->region()->is_other_oop())
-        new_obj = (oop) _old_lab.allocate(new_obj_size);
-      else {
-        // The header is none of the above and it is being scavenged...
-        // weird kind of oop
-        o->set_region(regionMarkDesc::encode_pointer_as_other(0x0));
-      }
+      // BDA TODO: Adapt this code and the above for the new, variable, bdaregions
+      // if (o->region()->is_hashmap_oop())
+      //   new_obj = (oop) _hashmap_old_lab.allocate(new_obj_size);
+      // else if (o->region()->is_hashtable_oop())
+      //   new_obj = (oop) _hashtable_old_lab.allocate(new_obj_size);
+      // else if (o->region()->is_other_oop())
+      //   new_obj = (oop) _old_lab.allocate(new_obj_size);
+      // else {
+      //   // The header is none of the above and it is being scavenged...
+      //   // weird kind of oop
+      //   o->set_region(regionMarkDesc::encode_pointer_as_other(0x0));
+      // }
 #else
       new_obj = (oop) _old_lab.allocate(new_obj_size);
 #endif
@@ -180,12 +181,13 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
 #endif
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-              if(thr->alloc_region() == region_hashmap) {
+              // BDA TODO: Adapt this code to the new bdaregions (0x1 is a placeholder value)
+              if(thr->alloc_region() == BDARegion(0x1)) {
                 _hashmap_old_lab.flush();
                 _hashmap_old_lab.initialize(MemRegion(lab_base, OldPLABSize));
                 // Now try the collections old plab again
                 new_obj = (oop) _hashmap_old_lab.allocate(new_obj_size);
-              } else if(thr->alloc_region() == region_hashtable) {
+              } else if(thr->alloc_region() == BDARegion(0x1)) {
                 _hashtable_old_lab.flush();
                 _hashtable_old_lab.initialize(MemRegion(lab_base, OldPLABSize));
                 // Now try the collections old plab again
@@ -257,11 +259,12 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       // overwrite with a filler object.
       if (new_obj_is_tenured) {
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-        if (thr->alloc_region() == region_hashmap) {
+        // BDA TODO: Adapt this code to the new bdaregions (0x1 is a placeholder value)
+        if (thr->alloc_region() == BDARegion(0x1)) {
           if(!_hashmap_old_lab.unallocate_object((HeapWord*)new_obj, new_obj_size)) {
             CollectedHeap::fill_with_object((HeapWord*)new_obj, new_obj_size);
           }
-        } else if(thr->alloc_region() == region_hashtable) {
+        } else if(thr->alloc_region() == BDARegion(0x1)) {
           if(!_hashtable_old_lab.unallocate_object((HeapWord*)new_obj, new_obj_size)) {
             CollectedHeap::fill_with_object((HeapWord*)new_obj, new_obj_size);
           }

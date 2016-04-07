@@ -6,6 +6,7 @@
 #include "oops/oop.inline.hpp"
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
+
 // Forward declarations
 class ParallelScavengeHeap;
 
@@ -39,12 +40,13 @@ BDCMutableSpace::BDCMutableSpace(size_t alignment) : MutableSpace(alignment) {
   _collections = new (ResourceObj::C_HEAP, mtGC) GrowableArray<CGRPSpace*>(0, true);
   _page_size = os::vm_page_size();
 
-  // initializing the array of collection types
-  // maybe a prettier way of doing this...
+  // Initializing the array of collection types
   // It must be done in the constructor due to the resize calls
-  collections()->append(new CGRPSpace(alignment, region_other));
-  collections()->append(new CGRPSpace(alignment, region_hashmap));
-  collections()->append(new CGRPSpace(alignment, region_hashtable));
+  BDARegion region = BDARegion((intptr_t)BDARegionDesc::region_start);
+  for(int i = 0; i < BDARegionsN; i++)  {
+    collections()->append(new CGRPSpace(alignment, region));
+    region = BDARegion((intptr_t)region << BDARegionDesc::region_shift);
+  }
 }
 
 BDCMutableSpace::~BDCMutableSpace() {
@@ -938,10 +940,10 @@ BDCMutableSpace::print_current_space_layout(bool descriptive,
       MutableSpace* spc = grp->space();
       BDARegion region = grp->coll_type();
       gclog_or_tty->print_cr("Region for objects %s :: From 0x%x to 0x%x top 0x%x",
-                    toString(region),
-                    spc->bottom(),
-                    spc->end(),
-                    spc->top());
+                             region->toString(),
+                             spc->bottom(),
+                             spc->end(),
+                             spc->top());
       gclog_or_tty->print_cr("\t Fillings (words): Capacity %d :: Used space %d :: Free space %d",
                     spc->capacity_in_words(),
                     spc->used_in_words(),
@@ -962,10 +964,10 @@ BDCMutableSpace::print_current_space_layout(bool descriptive,
       MutableSpace* spc = grp->space();
       BDARegion region = grp->coll_type();
       gclog_or_tty->print_cr("Region for objects %s :: From 0x%x to 0x%x top 0x%x",
-                    toString(region),
-                    spc->bottom(),
-                    spc->end(),
-                    spc->top());
+                             region->toString(),
+                             spc->bottom(),
+                             spc->end(),
+                             spc->top());
       gclog_or_tty->print_cr("\t Fillings (words): Capacity %d :: Used space %d :: Free space %d",
                     spc->capacity_in_words(),
                     spc->used_in_words(),

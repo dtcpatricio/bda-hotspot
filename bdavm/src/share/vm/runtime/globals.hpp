@@ -3949,6 +3949,12 @@ class CommandLineFlags {
   product(bool, UseBDA, false,                                              \
                "Use Big-data collections spaces")                           \
                                                                             \
+  product(intx, BDARegionsN, 3,                                             \
+               "Number of BDA-region spaces (default to 3)")                \
+                                                                            \
+  product(ccstrlist, BDAKlasses, "",                                        \
+               "The list of BDA Classes")                                   \
+                                                                            \
   product(intx, BDAThreshold, 100,                                          \
                "Threshold percentage for the decision on promotion")        \
                                                                             \

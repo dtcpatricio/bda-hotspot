@@ -304,7 +304,6 @@ class ConstantPool : public Metadata {
     assert(is_within_bounds(which), "index out of bounds");
     return (Symbol**) &base()[which];
   }
-
   void symbol_at_put(int which, Symbol* s) {
     assert(s->refcount() != 0, "should have nonzero refcount");
     tag_at_put(which, JVM_CONSTANT_Utf8);

@@ -1,53 +1,116 @@
+#include "precompiled.hpp"
 #include "oops/klassRegionMap.hpp"
+#include "utilities/hashtable.inline.hpp"
+#include "memory/allocation.hpp"
 
-#include <cmath>
+// Static definition
 
-KlassRegionMap::KlassRegionMap(int table_size) {
-  _region_table = new (ResourceObj::C_HEAP, mtGC) GrowableArray<char>(table_size, true);
-  for(int i = 0; i < table_size; ++i) {
-    _region_table->push((char)no_region);
-  }
+GrowableArray<char*>* KlassRegionMap::_bda_class_names;
+
+// KlassRegion Hashtables definition
+
+KlassRegionHashtable::KlassRegionHashtable(int table_size)
+  : Hashtable<BDARegionDesc*, mtGC>(table_size, sizeof(KlassRegionEntry)) {
 }
 
-KlassRegionMap::~KlassRegionMap() {
-  delete _region_table;
-}
+void
+KlassRegionHashtable::add_entry(Klass* k, BDARegionDesc* region)
+{
+  unsigned int compressed_ptr = (unsigned int)Klass::encode_klass_not_null(k);
+  KlassRegionEntry* entry = (KlassRegionEntry*)Hashtable<BDARegionDesc*, mtGC>::new_entry(compressed_ptr, region);
 
-int
-KlassRegionMap::compute_hash(intptr_t k) {
-  // Following Knuths suggestion
-  double a = (sqrt(5) - 1) / 2;
-  // 64 or 32
-  uint w = 8 << LogHeapWordSize;
-  uint seed = floor(pow(2,a) * a);
-  uint mult = k * seed;
-  uint n_low_bits = 24;
-  uint hash = mult >> (w - n_low_bits);
-
-  // uint low_bits = mask_bits(k, right_n_bits(n_low_bits));
-  // uint mix = floor(seed * (1 << n_low_bits));
-  // uint mult = low_bits * mix;
-  // uint hash = mult >> (24 - 16);
-  return hash;
+  BasicHashtable<mtGC>::add_entry(hash_to_index(compressed_ptr), entry);
 }
 
 BDARegion
-KlassRegionMap::region_for_klass(Klass* k) {
-  //uint hash = compute_hash((intptr_t)k);
-  // Following Knuths suggestion
-  double a = (sqrt(5) - 1) / 2;
-  // 64 or 32
-  uint w = 8 << LogHeapWordSize;
-  uintptr_t seed = floor(pow(2,w) * a);
-  uintptr_t mult = (intptr_t)k * seed;
-  uint n_low_bits = 24;
-  uintptr_t hash = mult >> n_low_bits;
-  volatile int index = hash % table()->length();
-  if(table()->at(index) == (char)no_region) {
-    BDARegion region = k->is_subtype_for_bda();
-    (table()->at(index)) = (char)region;
-    return region;
-  } else {
-    return (BDARegion)(table()->at(index));
+KlassRegionHashtable::get_region(Klass* k)
+{
+  int i = hash_to_index((unsigned int)Klass::encode_klass_not_null(k));
+  return BDARegion(bucket(i)->literal());
+}
+
+// KlassRegionMap definition
+
+KlassRegionMap::KlassRegionMap(int table_size)
+{
+  _region_map = new KlassRegionHashtable(table_size);
+  _next_region = BDARegionDesc::region_start;
+  _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<char*>(table_size, true);
+  parse_from_string(BDAKlasses, KlassRegionMap::parse_from_line);
+}
+
+KlassRegionMap::~KlassRegionMap()
+{
+  delete _region_map;
+}
+
+void
+KlassRegionMap::parse_from_string(const char* line, void (*parse_line)(char*))
+{
+  char buffer[256];
+  char delimiter = ',';
+  const char* c = line;
+  int i = *c++;
+  int pos = 0;
+  while(i != '\0') {
+    if(i == delimiter) {
+      buffer[pos++] = '\0';
+      parse_line(buffer);
+      pos = 0;
+    } else {
+      buffer[pos++] = i;
+    }
+    i = *c++;
   }
+  // save the last one
+  buffer[pos] = '\0';
+  parse_line(buffer);
+}
+
+void
+KlassRegionMap::parse_from_line(char* line)
+{
+  // Accept dots '.' and slashes '/' but not mixed.
+  // Method names are to be accepted in the future
+  char delimiter;
+  char buffer[64];
+  char* str;
+  bool delimiter_found = false;
+  int i = 0;
+  for(char* c = line; *c != '\0'; c++) {
+    if(*c == '.' && !delimiter_found) {
+      delimiter_found = true;
+      delimiter = '.';
+    } else if (*c == '/' && !delimiter_found) {
+      delimiter_found = true;
+      delimiter = '.';
+    }
+    if(*c == '/' || *c == '.')
+      buffer[i++] = delimiter;
+    else
+      buffer[i++] = *c;
+  }
+  buffer[i] = '\0';
+  str = NEW_C_HEAP_ARRAY(char, i + 1, mtGC);
+  strcpy(str, buffer);
+  _bda_class_names->push(str);
+}
+
+bool
+KlassRegionMap::is_bda_type(const char* name)
+{
+  return _bda_class_names->find(name);
+}
+
+void
+KlassRegionMap::add_entry(Klass* k)
+{
+  _region_map->add_entry(k, BDARegion(_next_region));
+  _next_region <<= BDARegionDesc::region_shift;
+}
+
+BDARegion
+KlassRegionMap::region_for_klass(Klass* k)
+{
+  _region_map->get_region(k);
 }

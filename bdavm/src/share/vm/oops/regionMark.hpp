@@ -59,35 +59,19 @@ public:
   // ---------------------------------------
 
   bool is_noregion_oop() const {
-    return mask_bits(value(), right_n_bits(region_bits)) == no_region;
+    return mask_bits(value(), right_n_bits(region_bits)) == BDARegionDesc::no_region;
   }
 
   regionMark set_noregion() const {
-    return regionMark((value() & ~region_mask_in_place) | no_region);
+    return regionMark((value() & ~region_mask_in_place) | BDARegionDesc::no_region);
   }
 
   bool is_other_oop() const {
-    return mask_bits(value(), right_n_bits(region_bits)) == region_other;
+    return mask_bits(value(), right_n_bits(region_bits)) == BDARegionDesc::region_start;
   }
 
   regionMark set_other() {
-    return regionMark((value() & ~region_mask_in_place) | region_other);
-  }
-
-  bool is_hashmap_oop() const {
-    return mask_bits(value(), right_n_bits(region_bits)) == region_hashmap;
-  }
-
-  regionMark set_hashmap() {
-    return regionMark((value() & ~region_mask_in_place) | region_hashmap);
-  }
-
-  bool is_hashtable_oop() const {
-    return mask_bits(value(), right_n_bits(region_bits)) == region_hashtable;
-  }
-
-  regionMark set_hashtable() {
-    return regionMark((value() & ~region_mask_in_place) | region_hashtable);
+    return regionMark((value() & ~region_mask_in_place) | BDARegionDesc::region_start);
   }
 
   // inline statics in order to construct this
@@ -97,19 +81,11 @@ public:
 
   inline static regionMark encode_pointer_as_other(void* p) { return regionMark(p)->set_other(); }
 
-  inline static regionMark encode_pointer_as_hashmap(void* p) { return regionMark(p)->set_hashmap(); }
-
-  inline static regionMark encode_pointer_as_hashtable(void* p) { return regionMark(p)->set_hashtable(); }
-
   inline static regionMark encode_pointer_as_noregion(void* p) { return regionMark(p)->set_noregion(); }
 
   inline static regionMark encode_pointer_as_region(BDARegion r, void* p) {
-    if(r == region_other)
+    if(r == BDARegion(BDARegionDesc::region_start))
       return encode_pointer_as_other(p);
-    else if(r == region_hashmap)
-      return encode_pointer_as_hashmap(p);
-    else if(r == region_hashtable)
-      return encode_pointer_as_hashtable(p);
     else
       return encode_pointer_as_noregion(p);
   }

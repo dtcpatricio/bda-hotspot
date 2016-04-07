@@ -50,19 +50,19 @@ public:
 
 private:
   // This class defines the addressable space of the BDCMutableSpace
-  // (and that of a PLAB)for a particular collection type, or none at all.
+  // (and that of a PLAB) for a particular collection type, or none at all.
   class CGRPSpace : public CHeapObj<mtGC> {
 
     enum CollectionShiftConstants {
-      collection_shift               = 1,
-      collection_offset              = 0x1
+      region_shift               = 1,
+      region_start               = 0x1, // the first region is the general one
+      no_region                  = 0x0 // helper value
     };
-
     BDARegion _coll_type;
     MutableSpace* _space;
 
   public:
-    CGRPSpace(size_t alignment, BDARegion coll_type) : _coll_type(coll_type) {
+    CGRPSpace(size_t alignment, BDARegion region) : _coll_type(region) {
       _space = new MutableSpace(alignment);
     }
     ~CGRPSpace() {

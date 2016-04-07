@@ -36,6 +36,9 @@ bdavm/run/scratch/
 ## ignore all class files from possible javac compilations
 *.class
 
+## ignore emacs created files .el
+*.el
+
 ## finally ignore the Global Tags' files
 GTAGS
 GRTAGS

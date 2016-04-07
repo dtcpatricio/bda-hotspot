@@ -196,17 +196,18 @@ void PSPromotionManager::reset() {
   _young_lab.initialize(MemRegion(lab_base, (size_t)0));
   _young_gen_is_full = false;
 
+  // BDA TODO: switch the placeholder 0x1 to the corrent values/calls
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  lab_base = old_gen()->object_space()->top_specific(region_other);
-  Thread::current()->set_alloc_region(region_other);
+  lab_base = old_gen()->object_space()->top_specific(BDARegion(BDARegionDesc::region_start));
+  Thread::current()->set_alloc_region(BDARegion(0x1));
   _old_lab.initialize(MemRegion(lab_base, (size_t)0));
 
-  lab_base = old_gen()->object_space()->top_specific(region_hashmap);
-  Thread::current()->set_alloc_region(region_hashmap);
+  lab_base = old_gen()->object_space()->top_specific(BDARegion(0x1));
+  Thread::current()->set_alloc_region(BDARegion(0x1));
   _hashmap_old_lab.initialize(MemRegion(lab_base, (size_t)0));
 
-  lab_base = old_gen()->object_space()->top_specific(region_hashtable);
-  Thread::current()->set_alloc_region(region_hashtable);
+  lab_base = old_gen()->object_space()->top_specific(BDARegion(0x1));
+  Thread::current()->set_alloc_region(BDARegion(0x1));
   _hashtable_old_lab.initialize(MemRegion(lab_base, (size_t)0));
 #else
   lab_base = old_gen()->object_space()->top();

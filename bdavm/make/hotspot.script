@@ -161,7 +161,7 @@ init_gdb() {
 cd `pwd`
 handle SIGUSR1 nostop noprint
 handle SIGUSR2 nostop noprint
-handle SIGSEGV nostop
+handle SIGSEGV nostop noprint
 set args $JPARMS
 file $LAUNCHER
 directory $GDBSRCDIR

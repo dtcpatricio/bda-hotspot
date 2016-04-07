@@ -976,20 +976,10 @@ class PSParallelCompact : AllStatic {
   typedef ParallelCompactData::RegionData RegionData;
   typedef ParallelCompactData::BlockData BlockData;
 
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  // This alteration is needed to cope with the segments in the old space.
-  // We leave the old_space_id since it is useful in size/capacity computations.
-  typedef enum {
-    old_space_id,
-    old_space_other_id, old_space_hashmap_id, old_space_hashtable_id,
-    eden_space_id, from_space_id, to_space_id, last_space_id
-  } SpaceId;
-#else
   typedef enum {
     old_space_id, eden_space_id,
     from_space_id, to_space_id, last_space_id
   } SpaceId;
-#endif
 
  public:
   // Inline closure decls
@@ -1604,16 +1594,8 @@ public:
     ParMarkBitMapClosure(PSParallelCompact::mark_bitmap(), cm),
     _start_array(PSParallelCompact::start_array(space_id))
   {
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-    // A patch to save possible failed assert
-      assert(space_id == PSParallelCompact::old_space_other_id ||
-             space_id == PSParallelCompact::old_space_hashmap_id ||
-             space_id == PSParallelCompact::old_space_hashtable_id,
-             "cannot use FillClosure in the young gen");
-#else
       assert(space_id == PSParallelCompact::old_space_id,
              "cannot use FillClosure in the young gen");
-#endif
   }
 
   virtual IterationStatus do_addr(HeapWord* addr, size_t size) {

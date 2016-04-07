@@ -32,7 +32,7 @@
 #include "gc_implementation/shared/spaceCounters.hpp"
 #include "gc_implementation/shared/bdcMutableSpace.hpp"
 #include "runtime/safepoint.hpp"
-#ifdef HASH_MARK
+#if defined(HASH_MARK) || defined(HEADER_MARK)
 # include "oops/klassRegionMap.hpp"
 #endif
 
@@ -61,7 +61,7 @@ class PSOldGen : public CHeapObj<mtGC> {
   const size_t _min_gen_size;
   const size_t _max_gen_size;
 
-#ifdef HASH_MARK
+#if defined(HASH_MARK) || defined(HEADER_MARK)
   // Information about the placement of klasses in regions for the BDA Allocators
   KlassRegionMap*          _region_map;
 #endif
@@ -148,7 +148,7 @@ class PSOldGen : public CHeapObj<mtGC> {
   PSMarkSweepDecorator* object_mark_sweep() const { return _object_mark_sweep; }
   ObjectStartArray*     start_array()             { return &_start_array; }
   PSVirtualSpace*       virtual_space() const     { return _virtual_space;}
-#ifdef HASH_MARK
+#if defined(HASH_MARK) || defined(HEADER_MARK)
   KlassRegionMap*        region_map() const        { return _region_map; }
 #endif
 
