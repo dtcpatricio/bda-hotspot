@@ -748,8 +748,9 @@ Klass::is_subtype_for_bda()
     if ( k == _primary_super_limit )
       return false;
     if(this->primary_super_of_depth(k) != NULL &&
-       KlassRegionMap::is_bda_type(this->primary_super_of_depth(k)->signature_name())) {
+       KlassRegionMap::is_bda_type(this->primary_super_of_depth(k)->external_name())) {
       return true;
     }
   }
+  return false;
 }

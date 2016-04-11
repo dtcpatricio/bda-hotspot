@@ -83,7 +83,7 @@ KlassRegionMap::parse_from_line(char* line)
       delimiter = '.';
     } else if (*c == '/' && !delimiter_found) {
       delimiter_found = true;
-      delimiter = '.';
+      delimiter = '/';
     }
     if(*c == '/' || *c == '.')
       buffer[i++] = delimiter;
@@ -99,7 +99,12 @@ KlassRegionMap::parse_from_line(char* line)
 bool
 KlassRegionMap::is_bda_type(const char* name)
 {
-  return _bda_class_names->find(name);
+  if(_bda_class_names->find((char*)name, KlassRegionMap::equals) >= 0)
+  {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 void
