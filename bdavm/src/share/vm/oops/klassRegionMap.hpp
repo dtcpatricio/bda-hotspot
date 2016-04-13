@@ -51,12 +51,13 @@ private:
 public:
   static GrowableArray<char*>* _bda_class_names;
 
+  static int number_bdaregions();
   static bool is_bda_type(const char* name);
   static bool equals(void* class_name, char* value) {
     return strcmp((char*)class_name, value) == 0;
   }
 
-  KlassRegionMap(int table_size);
+  KlassRegionMap();
   ~KlassRegionMap();
 
   void add_entry(Klass* k);

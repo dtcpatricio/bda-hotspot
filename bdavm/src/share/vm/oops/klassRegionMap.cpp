@@ -31,12 +31,12 @@ KlassRegionHashtable::get_region(Klass* k)
 
 // KlassRegionMap definition
 
-KlassRegionMap::KlassRegionMap(int table_size)
+KlassRegionMap::KlassRegionMap()
 {
-  _region_map = new KlassRegionHashtable(table_size);
   _next_region = BDARegionDesc::region_start;
-  _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<char*>(table_size, true);
+  _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<char*>();  
   parse_from_string(BDAKlasses, KlassRegionMap::parse_from_line);
+  _region_map = new KlassRegionHashtable(_bda_class_names->length());
 }
 
 KlassRegionMap::~KlassRegionMap()
@@ -118,4 +118,11 @@ BDARegion
 KlassRegionMap::region_for_klass(Klass* k)
 {
   _region_map->get_region(k);
+}
+
+int
+KlassRegionMap::number_bdaregions()
+{
+  assert(_bda_class_names != NULL, "KlassRegionMap has not been initialized yet");
+  return _bda_class_names->length();
 }

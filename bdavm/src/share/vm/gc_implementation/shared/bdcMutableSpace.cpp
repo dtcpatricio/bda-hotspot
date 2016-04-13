@@ -4,6 +4,7 @@
 #include "memory/resourceArea.hpp"
 #include "runtime/thread.hpp"
 #include "oops/oop.inline.hpp"
+#include "oops/klassRegionMap.hpp"
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
@@ -40,10 +41,14 @@ BDCMutableSpace::BDCMutableSpace(size_t alignment) : MutableSpace(alignment) {
   _collections = new (ResourceObj::C_HEAP, mtGC) GrowableArray<CGRPSpace*>(0, true);
   _page_size = os::vm_page_size();
 
-  // Initializing the array of collection types
-  // It must be done in the constructor due to the resize calls
+  // Initializing the array of collection types.
+  // It must be done in the constructor due to the resize calls.
+  // The number of regions must always include at least one region (the general one).
+  // It is implied that the KlassRegionMap must be initialized before since it parses
+  // the BDAKlasses string.
+  int n_regions = KlassRegionMap::number_bdaregions() + 1;
   BDARegion region = BDARegion((intptr_t)BDARegionDesc::region_start);
-  for(int i = 0; i < BDARegionsN; i++)  {
+  for(int i = 0; i < n_regions; i++)  {
     collections()->append(new CGRPSpace(alignment, region));
     region = BDARegion((intptr_t)region << BDARegionDesc::region_shift);
   }
@@ -73,7 +78,7 @@ void BDCMutableSpace::initialize(MemRegion mr, bool clear_space, bool mangle_spa
   set_end(end);
 
   size_t space_size = pointer_delta(end, bottom);
-  initialize_regions_evenly(0, collections()->length() - 1, bottom, end, space_size);
+  initialize_regions(space_size, bottom, end);
 
   // always clear space for new allocations
   clear(mangle_space);
@@ -308,6 +313,7 @@ BDCMutableSpace::move_space_resize(MutableSpace* spc,
                   SpaceDecorator::DontMangle);
 }
 
+// deprecated
 void
 BDCMutableSpace::initialize_regions_evenly(int from_id, int to_id,
                                            HeapWord* start_limit,
@@ -338,6 +344,40 @@ BDCMutableSpace::initialize_regions_evenly(int from_id, int to_id,
     tail = start + chunk;
   }
   assert(blocks_left <= 0, "some blocks are left for use");
+}
+
+void
+BDCMutableSpace::initialize_regions(size_t space_size,
+                                    HeapWord* start,
+                                    HeapWord* end)                                    
+{
+  assert(space_size % MinRegionSize == 0, "space_size not region aligned");
+  
+  const int bda_nregions = collections()->length() - 1;
+  size_t bda_space = (size_t)round_to(space_size / BDARegionRatio, MinRegionSize);
+  size_t bda_region_sz = (size_t)round_to(bda_space / bda_nregions, MinRegionSize);
+
+  // just in case some one abuses of the ratio
+  int k = 1;
+  while(bda_region_sz < MinRegionSize) {
+    bda_space = (size_t)round_to(space_size / BDARegionRatio - k, MinRegionSize);
+    bda_region_sz = (size_t)round_to(bda_space / bda_nregions, MinRegionSize);
+    k++;
+  }
+
+  HeapWord *aux_start, *aux_end = end;
+  for(int reg = collections()->length() - 1; reg > 0; reg--) {
+    aux_start = aux_end - bda_region_sz;
+    assert(pointer_delta(aux_end, aux_start) % page_size() == 0, "region size not page aligned");
+    collections()->at(reg)->space()->initialize(MemRegion(aux_start, aux_end),
+                                                SpaceDecorator::Clear,
+                                                SpaceDecorator::Mangle);
+    aux_end = aux_start;
+  }
+
+  collections()->at(0)->space()->initialize(MemRegion(start, space_size - bda_space),
+                                            SpaceDecorator::Clear,
+                                            SpaceDecorator::Mangle);
 }
 
 void

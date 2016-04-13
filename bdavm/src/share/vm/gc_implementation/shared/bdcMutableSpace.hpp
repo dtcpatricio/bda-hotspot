@@ -90,6 +90,10 @@ protected:
   // Expanding funtions
   void expand_region_to_neighbour(int i, size_t sz);
   bool try_fitting_on_neighbour(int moved_id);
+  void initialize_regions(size_t space_size,
+                          HeapWord* start,
+                          HeapWord* end);
+  // deprecated
   void initialize_regions_evenly(int from_id, int to_id,
                                  HeapWord* start_limit,
                                  HeapWord* end_limit,

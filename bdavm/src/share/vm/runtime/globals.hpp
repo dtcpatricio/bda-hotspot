@@ -3949,11 +3949,12 @@ class CommandLineFlags {
   product(bool, UseBDA, false,                                              \
                "Use Big-data collections spaces")                           \
                                                                             \
-  product(intx, BDARegionsN, 3,                                             \
-               "Number of BDA-region spaces (default to 3)")                \
-                                                                            \
   product(ccstrlist, BDAKlasses, "",                                        \
                "The list of BDA Classes")                                   \
+                                                                            \
+  product(intx, BDARegionRatio, 5,                                          \
+               "Ratio for the size of the BDARegions on the heap, "         \
+               "defaults to 5 and is the minimum")                          \
                                                                             \
   product(intx, BDAThreshold, 100,                                          \
                "Threshold percentage for the decision on promotion")        \
@@ -3969,15 +3970,6 @@ class CommandLineFlags {
                                                                             \
   product(uintx, BDAMinOldPLABSize, 1024,                                   \
           "Minimum size for the old gen promotion LAB (in HeapWords)")      \
-                                                                            \
-  product(uintx, BDAKlassHashArray, 200,                                    \
-          "The size of the Klass HashArray on BDA")                         \
-                                                                            \
-  product(ccstr, BDAKlass1, "java/util/HashMap",                            \
-          "Define the Klass of objects saved in the first BDA-region")      \
-                                                                            \
-  product(ccstr, BDAKlass2, "java/util/Hashtable",                          \
-          "Define the Klass of objects saved in the second BDA-region")     \
 
 /*
  *  Macros for factoring of globals

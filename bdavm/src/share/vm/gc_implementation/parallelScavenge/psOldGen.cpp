@@ -129,7 +129,7 @@ void PSOldGen::initialize_work(const char* perf_data_name, int level) {
   // Klass Regions Map
   //
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  _region_map = new KlassRegionMap(BDARegionsN);
+  _region_map = new KlassRegionMap();
 #endif
 
   //
