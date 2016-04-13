@@ -34,7 +34,7 @@ KlassRegionHashtable::get_region(Klass* k)
 KlassRegionMap::KlassRegionMap()
 {
   _next_region = BDARegionDesc::region_start;
-  _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<char*>();  
+  _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<char*>(0,true);  
   parse_from_string(BDAKlasses, KlassRegionMap::parse_from_line);
   _region_map = new KlassRegionHashtable(_bda_class_names->length());
 }
