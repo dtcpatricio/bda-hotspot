@@ -33,8 +33,8 @@ BDACardTableHelper::BDACardTableHelper(BDCMutableSpace* sp) {
 
 BDACardTableHelper::~BDACardTableHelper()
 {
-  FREE_RESOURCE_ARRAY(HeapWord*, _tops[0], _length);
-  FREE_RESOURCE_ARRAY(MutableSpace*, _spaces[0], _length);
+  FREE_RESOURCE_ARRAY(HeapWord*, _tops, _length);
+  FREE_RESOURCE_ARRAY(MutableSpace*, _spaces, _length);
 }
 
 BDCMutableSpace::BDCMutableSpace(size_t alignment) : MutableSpace(alignment) {

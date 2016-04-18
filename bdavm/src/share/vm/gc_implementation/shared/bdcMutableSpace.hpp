@@ -50,7 +50,7 @@ public:
 
 private:
   // This class defines the addressable space of the BDCMutableSpace
-  // (and that of a PLAB) for a particular collection type, or none at all.
+  // for a particular collection type, or none at all.
   class CGRPSpace : public CHeapObj<mtGC> {
 
     enum CollectionShiftConstants {
