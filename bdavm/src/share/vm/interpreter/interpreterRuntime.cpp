@@ -702,17 +702,6 @@ IRT_ENTRY(void, InterpreterRuntime::resolve_invoke(JavaThread* thread, Bytecodes
     assert(receiver.is_null() ||
            !Universe::heap()->is_in_reserved(receiver->klass()),
            "sanity check");
-
-    // BDA DEBUG --- to break and parse the current stack frame
-    if(strstr(m()->name()->as_C_string(), "myput"))  {
-      char buf[O_BUFLEN];
-      frame f = last_frame(thread);
-      intptr_t* locals_addr = f.interpreter_frame_local_at(0);
-      tty->print_cr("Invoking myput from VM");
-      f.print_value_on(tty, (JavaThread*)THREAD);
-      f.interpreter_frame_print_on(tty);
-      print_native_stack(tty, f, THREAD, buf, sizeof(buf));
-    }
   }
 
   // resolve method

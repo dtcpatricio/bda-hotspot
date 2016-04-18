@@ -18,8 +18,9 @@ private:
 public:
   // Constants used for shifting the word to figure out the region
   // to where it allocs
+  // FIXME: Unsure at the moment
   enum {
-    region_bits = 4
+    region_bits = 32
   };
 
   enum {
@@ -91,9 +92,10 @@ public:
   }
 
   // general inlines
-  inline void* decode_pointer() { return clear_region_bits(); } // it can recover the address of an object
+  // FIXME: Unsure at the moment
+  inline void* clear_pointer() { return clear_region_bits(); } // it can recover the address of an object
 
-  inline BDARegion decode_pointer_as_region() { return (BDARegion)value(); }
+  inline BDARegion decode_pointer() { return (BDARegion)value(); }
 };
 
 #endif // SHARE_VM_OOPS_REGIONMARK_HPP

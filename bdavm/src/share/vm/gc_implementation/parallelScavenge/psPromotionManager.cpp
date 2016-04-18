@@ -158,10 +158,6 @@ PSPromotionManager::PSPromotionManager() {
 
   // We set the old lab's start array.
   _old_lab.set_start_array(old_gen()->start_array());
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  _hashmap_old_lab.set_start_array(old_gen()->start_array());
-  _hashtable_old_lab.set_start_array(old_gen()->start_array());
-#endif
 
   uint queue_size;
   claimed_stack_depth()->initialize();
@@ -196,23 +192,8 @@ void PSPromotionManager::reset() {
   _young_lab.initialize(MemRegion(lab_base, (size_t)0));
   _young_gen_is_full = false;
 
-  // BDA TODO: switch the placeholder 0x1 to the corrent values/calls
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  lab_base = old_gen()->object_space()->top_specific(BDARegion(BDARegionDesc::region_start));
-  Thread::current()->set_alloc_region(BDARegion(0x1));
-  _old_lab.initialize(MemRegion(lab_base, (size_t)0));
-
-  lab_base = old_gen()->object_space()->top_specific(BDARegion(0x1));
-  Thread::current()->set_alloc_region(BDARegion(0x1));
-  _hashmap_old_lab.initialize(MemRegion(lab_base, (size_t)0));
-
-  lab_base = old_gen()->object_space()->top_specific(BDARegion(0x1));
-  Thread::current()->set_alloc_region(BDARegion(0x1));
-  _hashtable_old_lab.initialize(MemRegion(lab_base, (size_t)0));
-#else
   lab_base = old_gen()->object_space()->top();
   _old_lab.initialize(MemRegion(lab_base, (size_t)0));
-#endif
 
   _old_gen_is_full = false;
 
@@ -267,19 +248,13 @@ void PSPromotionManager::flush_labs() {
   if (!_young_lab.is_flushed())
     _young_lab.flush();
 
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+  // Dummy value to enable the flushing of all labs in the group
+  Thread::current()->set_alloc_region(BDARegionDesc::no_region);
+#endif
   assert(!_old_lab.is_flushed() || _old_gen_is_full, "Sanity");
   if (!_old_lab.is_flushed())
     _old_lab.flush();
-
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  assert(!_hashmap_old_lab.is_flushed(), "Sanity");
-  if (!_hashmap_old_lab.is_flushed())
-    _hashmap_old_lab.flush();
-
-  assert(!_hashtable_old_lab.is_flushed(), "Sanity");
-  if (!_hashtable_old_lab.is_flushed())
-    _hashtable_old_lab.flush();
-#endif
 
   // Let PSScavenge know if we overflowed
   if (_young_gen_is_full) {

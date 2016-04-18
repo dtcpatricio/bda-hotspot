@@ -381,4 +381,5 @@ template class BasicHashtable<mtCode>;
 template class BasicHashtable<mtInternal>;
 #if defined(HEADER_MARK) || defined(HASH_MARK)
 template class Hashtable<BDARegionDesc*, mtGC>;
+template class HashtableEntry<BDARegionDesc*, mtGC>;
 #endif

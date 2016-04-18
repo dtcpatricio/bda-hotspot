@@ -33,6 +33,9 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/taskqueue.hpp"
 
+#if defined(HASH_MARK) || defined(HEADER_MARK)
+#include "gc_implementation/parallelScavenge/bdaOldPromotionLAB.hpp"
+#endif
 //
 // psPromotionManager is used by a single thread to manage object survival
 // during a scavenge. The promotion manager contains thread local data only.
@@ -76,10 +79,10 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
 #endif // TASKQUEUE_STATS
 
   PSYoungPromotionLAB                 _young_lab;
+#if !defined(HASH_MARK) && !defined(HEADER_MARK)
   PSOldPromotionLAB                   _old_lab;
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  PSOldPromotionLAB                   _hashmap_old_lab;
-  PSOldPromotionLAB                   _hashtable_old_lab;
+#else
+  BDAOldPromotionLAB                  _old_lab;
 #endif
   bool                                _young_gen_is_full;
   bool                                _old_gen_is_full;

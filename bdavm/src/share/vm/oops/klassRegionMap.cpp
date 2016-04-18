@@ -5,7 +5,8 @@
 
 // Static definition
 
-GrowableArray<char*>* KlassRegionMap::_bda_class_names;
+GrowableArray<char*>* KlassRegionMap::_bda_class_names = NULL;
+KlassRegionHashtable* KlassRegionMap::_region_map = NULL;
 
 // KlassRegion Hashtables definition
 
@@ -25,7 +26,18 @@ KlassRegionHashtable::add_entry(Klass* k, BDARegionDesc* region)
 BDARegion
 KlassRegionHashtable::get_region(Klass* k)
 {
+  // Give the default entry for the general types initialized at vm startup,
+  // i.e. before any entry is added when loading classes
+  if(!number_of_entries())
+    return BDARegion(BDARegionDesc::region_start);
+
   int i = hash_to_index((unsigned int)Klass::encode_klass_not_null(k));
+  KlassRegionEntry* entry = (KlassRegionEntry*)bucket(i);
+  // this can happen with vm loaded classes, i.e. those that do not rely on the
+  // classFileParser for loading the .class
+  if(entry == NULL) {
+    this->add_entry(k, BDARegion(BDARegionDesc::region_start));
+  }
   return BDARegion(bucket(i)->literal());
 }
 
@@ -36,7 +48,9 @@ KlassRegionMap::KlassRegionMap()
   _next_region = BDARegionDesc::region_start;
   _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<char*>(0,true);  
   parse_from_string(BDAKlasses, KlassRegionMap::parse_from_line);
-  _region_map = new KlassRegionHashtable(_bda_class_names->length());
+
+  int table_size = _bda_class_names->length() << log2_intptr(sizeof(KlassRegionEntry));
+  _region_map = new KlassRegionHashtable(table_size);
 }
 
 KlassRegionMap::~KlassRegionMap()
@@ -110,8 +124,18 @@ KlassRegionMap::is_bda_type(const char* name)
 void
 KlassRegionMap::add_entry(Klass* k)
 {
-  _region_map->add_entry(k, BDARegion(_next_region));
-  _next_region <<= BDARegionDesc::region_shift;
+  ResourceMark rm(Thread::current());
+  for(int index = 0; index <= (int)k->super_depth(); ++index) {
+    if ( index == (int)Klass::primary_super_limit() ) {
+      return add_other_entry(k);
+    } else if( k->primary_super_of_depth(index) != NULL &&
+               is_bda_type(k->primary_super_of_depth(index)->external_name())) {
+      // If this is a bda_type (i.e. an interesting class) add to the hashtable
+      // as a BDARegion with non-uniform id.
+      return add_region_entry(k);
+    }
+  }
+  add_other_entry(k);
 }
 
 BDARegion

@@ -4242,9 +4242,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
 
     // BDA --- check if this is one of our special klasses and, if so, set
     // the klass and region on the KlassRegionMap
-    if(this_klass->is_subtype_for_bda()) {
-      ((ParallelScavengeHeap*)Universe::heap())->old_gen()->region_map()->add_entry(this_klass());
-    }
+    ((ParallelScavengeHeap*)Universe::heap())->old_gen()->region_map()->add_entry(this_klass());
 
     // preserve result across HandleMark
     preserve_this_klass = this_klass();

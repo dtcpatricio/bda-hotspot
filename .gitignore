@@ -39,6 +39,9 @@ bdavm/run/scratch/
 ## ignore emacs created files .el
 *.el
 
+## ignore .ede file for emacs
+*.ede 
+
 ## finally ignore the Global Tags' files
 GTAGS
 GRTAGS

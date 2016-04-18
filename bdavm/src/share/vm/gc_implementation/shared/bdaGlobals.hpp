@@ -2,15 +2,12 @@
 #define SHARE_VM_GC_IMPLEMENTATION_SHARED_BDAGLOBALS_HPP
 
 #include <stdint.h>
-// It starts with an enum that tries to define the kinds of collections it
-// supports.
-
-// enum BDARegion {
-//   no_region = 0x0,
-//   region_other = 0x1,
-//   region_hashmap = 0x2,
-//   region_hashtable = 0x4
-// };
+/*
+ * BDARegionDesc implments basic functions to mask out region identifiers
+ * as also helps assigning them. BDARegionDesc is always passed as a pointer
+ * or as a BDARegion (see typedef below). This ensures that it is always the
+ * width of a machine pointer (generally, 64bit).
+ */
 typedef class BDARegionDesc* BDARegion;
 
 class BDARegionDesc {
@@ -47,6 +44,10 @@ public:
     } else {
       return container;
     }
+  }
+
+  bool is_null_region() const {
+    return value() == no_region;
   }
 
   inline static BDARegion encode_as_element(void* p) { return BDARegion(p)->set_element(); }

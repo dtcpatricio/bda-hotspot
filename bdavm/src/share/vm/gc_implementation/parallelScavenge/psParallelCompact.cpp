@@ -504,7 +504,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   // There must be a better way of doing this...
   r = PSParallelCompact::gc_heap()->old_gen()->region_map()->region_for_klass(klass);
 #elif defined(HEADER_MARK)
-  r = ((oop)addr)->region()->decode_pointer_as_region();
+  r = ((oop)addr)->region()->decode_pointer();
 #endif // HASH_MARK else HEADER_MARK
 #endif // HASH_MARK || HEADER_MARK
 
