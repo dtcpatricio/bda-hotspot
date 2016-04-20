@@ -82,18 +82,6 @@ class MutableSpace: public ImmutableSpace {
   // Returns a subregion containing all objects in this space.
   MemRegion used_region() { return MemRegion(bottom(), top()); }
 
-  // ---------- BIGDATA AWARE ALLOCATORS SUPPORT VIRTUALS ----------------
-  // Returns a subregion containing all objects in the space.
-  // Used in the Big Data Aware mutable space
-  virtual MemRegion used_region(BDARegion type) {
-    return MemRegion(bottom(), top());
-  }
-  // Helper methods for scavenging (for the mutableSpace it returns _top)
-  virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) { return _top; }
-  // For Big Data implementations. On other cases it is return like top()
-  virtual HeapWord* top_specific(BDARegion type) { return top(); }
-  // ----------- END OF BIGDATA AWARE ALLOCATORS SUPPORT VIRTUALS ---------
-
   static const bool SetupPages = true;
   static const bool DontSetupPages = false;
 
@@ -152,6 +140,20 @@ class MutableSpace: public ImmutableSpace {
   void oop_iterate_no_header(OopClosure* cl);
   void object_iterate(ObjectClosure* cl);
 
+  // ---------- BIGDATA AWARE ALLOCATORS SUPPORT VIRTUALS ----------------
+  // Returns a subregion containing all objects in the space.
+  // Used in the Big Data Aware mutable space
+  virtual MemRegion used_region(BDARegion type) {
+    return MemRegion(bottom(), top());
+  }
+  // Helper methods for scavenging (for the mutableSpace it returns _top)
+  virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) { return _top; }
+  // For Big Data implementations. On other cases it is return like top()
+  virtual HeapWord* top_specific(BDARegion type) { return top(); }
+  // Gets the number of bda_regions in the heap (it eases casting)
+  virtual int num_bda_regions() { return 0; }
+  // ----------- END OF BIGDATA AWARE ALLOCATORS SUPPORT VIRTUALS ---------
+  
   // Debugging
   virtual void print() const;
   virtual void print_on(outputStream* st) const;

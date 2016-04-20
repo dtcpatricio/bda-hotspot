@@ -102,8 +102,8 @@ ParallelCompactData::RegionData::dc_claimed = 0x8U << dc_shift;
 const ParallelCompactData::RegionData::region_sz_t
 ParallelCompactData::RegionData::dc_completed = 0xcU << dc_shift;
 
-SpaceInfo PSParallelCompact::_space_info[PSParallelCompact::last_space_id];
-bool      PSParallelCompact::_print_phases = false;
+SpaceInfo* PSParallelCompact::_space_info = NULL;
+bool       PSParallelCompact::_print_phases = false;
 
 ReferenceProcessor* PSParallelCompact::_ref_processor = NULL;
 Klass*              PSParallelCompact::_updated_int_array_klass_obj = NULL;
@@ -196,7 +196,12 @@ void PSParallelCompact::print_region_ranges()
   tty->print_cr("space  bottom     top        end        new_top");
   tty->print_cr("------ ---------- ---------- ---------- ----------");
 
-  for (unsigned int id = 0; id < last_space_id; ++id) {
+#ifdef HEADER_MARK
+  for (unsigned int id = 0; id < bda_last_space_id; ++id)
+#else
+  for (unsigned int id = 0; id < last_space_id; ++id)
+#endif
+  {
     const MutableSpace* space = _space_info[id].space();
     tty->print_cr("%u %s "
                   SIZE_FORMAT_W(10) " " SIZE_FORMAT_W(10) " "
@@ -256,7 +261,12 @@ void
 print_generic_summary_data(ParallelCompactData& summary_data,
                            SpaceInfo* space_info)
 {
-  for (unsigned int id = 0; id < PSParallelCompact::last_space_id; ++id) {
+#ifdef HEADER_MARK
+  for (unsigned int id = 0; id < PSParallelCompact::bda_last_space_id; ++id)
+#else
+  for (unsigned int id = 0; id < PSParallelCompact::last_space_id; ++id)
+#endif
+  {
     const MutableSpace* space = space_info[id].space();
     print_generic_summary_data(summary_data, space->bottom(),
                                MAX2(space->top(), space_info[id].new_top()));
@@ -346,12 +356,9 @@ print_initial_summary_data(ParallelCompactData& summary_data,
 
 void
 print_initial_summary_data(ParallelCompactData& summary_data,
-                           SpaceInfo* space_info) {
-#if defined(HASH_MARK) || defined(HEADER_MARK)
+                           SpaceInfo* space_info)
+{
   unsigned int id = PSParallelCompact::old_space_id;
-#else
-  unsigned int id = PSParallelCompact::old_space_id;
-#endif
   const MutableSpace* space;
   do {
     space = space_info[id].space();
@@ -361,7 +368,12 @@ print_initial_summary_data(ParallelCompactData& summary_data,
   do {
     space = space_info[id].space();
     print_generic_summary_data(summary_data, space->bottom(), space->top());
-  } while (++id < PSParallelCompact::last_space_id);
+  }
+#ifdef HEADER_MARK
+  while (++id < PSParallelCompact::bda_last_space_id);
+#else
+  while (++id < PSParallelCompact::last_space_id);
+#endif
 }
 #endif  // #ifndef PRODUCT
 
@@ -1105,16 +1117,31 @@ bool PSParallelCompact::initialize() {
 
 void PSParallelCompact::initialize_space_info()
 {
-  memset(&_space_info, 0, sizeof(_space_info));
+  //memset(&_space_info, 0, sizeof(_space_info));
 
   ParallelScavengeHeap* heap = gc_heap();
   PSYoungGen* young_gen = heap->young_gen();
+
+  int nbda = heap->old_gen()->object_space()->num_bda_regions();
+  int sz_spaceinfo = nbda + PSParallelCompact::last_space_id;
+  _space_info = new (ResourceObj::C_HEAP, mtGC) SpaceInfo[sz_spaceinfo];
 
   _space_info[old_space_id].set_space(heap->old_gen()->object_space());
   _space_info[eden_space_id].set_space(young_gen->eden_space());
   _space_info[from_space_id].set_space(young_gen->from_space());
   _space_info[to_space_id].set_space(young_gen->to_space());
 
+#ifdef HEADER_MARK
+  BDCMutableSpace* bda_space = (BDCMutableSpace*)heap->old_gen()->object_space();
+  for(int idx = 1; idx <= nbda; ++idx) {
+    _space_info[to_space_id + idx].set_space(
+      bda_space->collections()->at(idx)->space());
+    _space_info[to_space_id + idx].set_start_array(heap->old_gen()->start_array());
+  }
+  // A hacky way to avoid serious change of code on for loops since they rely on this
+  // value to stop
+  bda_last_space_id = (unsigned int)sz_spaceinfo;
+#endif
   _space_info[old_space_id].set_start_array(heap->old_gen()->start_array());
 }
 
@@ -1235,7 +1262,7 @@ void PSParallelCompact::post_compact()
   GCTraceTime tm("post compact", print_phases(), true, &_gc_timer, _gc_tracer.gc_id());
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int id = old_space_id; id < last_space_id; ++id)
+  for (unsigned int id = old_space_id; id < bda_last_space_id; ++id)
 #else
   for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif
@@ -1245,14 +1272,6 @@ void PSParallelCompact::post_compact()
     // Update top().  Must be done after clearing the bitmap and summary data.
     _space_info[id].publish_new_top();
   }
-
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  HeapWord* max = MAX3(_space_info[old_space_id].new_top(),
-                       _space_info[old_space_id].new_top(),
-                       _space_info[old_space_id].new_top());
-  _space_info[old_space_id].set_new_top(max);
-  _space_info[old_space_id].publish_new_top();
-#endif
 
   MutableSpace* const eden_space = _space_info[eden_space_id].space();
   MutableSpace* const from_space = _space_info[from_space_id].space();
@@ -1891,7 +1910,7 @@ PSParallelCompact::provoke_split(bool & max_compaction)
 void PSParallelCompact::summarize_spaces_quick()
 {
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int i = old_space_id; i < last_space_id; ++i)
+  for (unsigned int i = 0; i < bda_last_space_id; ++i)
 #else
   for (unsigned int i = 0; i < last_space_id; ++i)
 #endif
@@ -1993,14 +2012,16 @@ PSParallelCompact::clear_source_region(HeapWord* beg_addr, HeapWord* end_addr)
 void
 PSParallelCompact::summarize_space(SpaceId id, bool maximum_compaction)
 {
-  assert(id < last_space_id, "id out of range");
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  assert(_space_info[id].dense_prefix() == _space_info[id].space()->bottom() ||
-         ParallelOldGCSplitALot && (id == old_space_id ||
-                                    id == old_space_id ||
-                                    id == old_space_id),
-         "should have been reset in summarize_spaces_quick()");
+  assert(id < bda_last_space_id, "id out of range");
+  // FIXME: We cannot assert this for now
+  // assert(_space_info[id].dense_prefix() == _space_info[id].space()->bottom() ||
+  //        ParallelOldGCSplitALot && (id == old_space_id ||
+  //                                   id == old_space_id ||
+  //                                   id == old_space_id),
+  //        "should have been reset in summarize_spaces_quick()");
 #else
+  assert(id < last_space_id, "id out of range");
   assert(_space_info[id].dense_prefix() == _space_info[id].space()->bottom() ||
          ParallelOldGCSplitALot && id == old_space_id,
          "should have been reset in summarize_spaces_quick()");
@@ -2113,13 +2134,13 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
   // The amount of live data that will end up in old space (assuming it fits).
   size_t old_space_id_live = 0;
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int id = old_space_id; id < last_space_id; ++id)
+  for (unsigned int id = old_space_id; id < bda_last_space_id; ++id)
 #else
   for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif
   {
     old_space_id_live += pointer_delta(_space_info[id].new_top(),
-                                          _space_info[id].space()->bottom());
+                                       _space_info[id].space()->bottom());
   }
 
   MutableSpace* const old_space = _space_info[old_space_id].space();
@@ -3189,8 +3210,8 @@ PSParallelCompact::update_and_deadwood_in_dense_prefix(ParCompactionManager* cm,
 PSParallelCompact::SpaceId PSParallelCompact::space_id(HeapWord* addr) {
   assert(Universe::heap()->is_in_reserved(addr), "addr not in the heap");
 
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int id = old_space_id; id < last_space_id; ++id)
+#ifdef HEADER_MARK
+  for (unsigned int id = old_space_id; id < bda_last_space_id; ++id)
 #else
   for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif
@@ -3201,12 +3222,20 @@ PSParallelCompact::SpaceId PSParallelCompact::space_id(HeapWord* addr) {
   }
 
   assert(false, "no space contains the addr");
+#ifdef HEADER_MARK
+  return SpaceId(bda_last_space_id);
+#else
   return last_space_id;
+#endif
 }
 
 void PSParallelCompact::update_deferred_objects(ParCompactionManager* cm,
                                                 SpaceId id) {
+#ifdef HEADER_MARK
+  assert(id < bda_last_space_id, "bad space id");
+#else
   assert(id < last_space_id, "bad space id");
+#endif
 
   ParallelCompactData& sd = summary_data();
   const SpaceInfo* const space_info = _space_info + id;
@@ -3409,7 +3438,11 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
 
   // Switch to a new source space and find the first non-empty region.
   unsigned int space_id = src_space_id + 1;
+#ifdef HEADER_MARK
+  assert(space_id < bda_last_space_id, "not enough spaces");
+#else
   assert(space_id < last_space_id, "not enough spaces");
+#endif
 
   HeapWord* const destination = closure.destination();
 
@@ -3446,7 +3479,12 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
         }
       }
     }
-  } while (++space_id < last_space_id);
+  }
+#ifdef HEADER_MARK
+  while (++space_id < bda_last_space_id);
+#else
+  while (++space_id < last_space_id);
+#endif
 
   assert(false, "no source region was found");
   return 0;

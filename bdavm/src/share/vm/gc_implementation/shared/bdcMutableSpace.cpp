@@ -1023,3 +1023,85 @@ BDCMutableSpace::verify() {
     ms->verify();
   }
 }
+
+
+// FIXME: NOT IN USE NOW. IF IT HAS TO BE UNCOMMENT AND IMPLEMENT. THIS WAS
+// THE ALTERNATIVE TO PUT SpaceInfo AS A POINTER TYPE AND DYNAMICALLY ALLOCATE
+// IT IN THE CHEAP.
+/* ---------- Support for the Parallel Compact GC -------------- */
+// void
+// BDCMutableSpace::set_dense_prefix(HeapWord* addr)
+// {
+//   for(int i = 0; i < _collections->length(); i++) {
+//     CGRPSpace* grp = _collections->at(i);
+//     if ( grp->space()->contains(addr) ) {
+//       grp->set_dense_prefix(addr);
+//     }
+//   }
+// }
+
+// void
+// BDCMutableSpace::set_min_dense_prefix(HeapWord* addr)
+// {
+//   for(int i = 0; i < _collections->length(); i++) {
+//     CGRPSpace* grp = _collections->at(i);
+//     if ( grp->space()->contains(addr) ) {
+//       grp->set_min_dense_prefix(addr);
+//     }
+//   }
+// }
+
+// void
+// BDCMutableSpace::set_new_top(HeapWord* addr)
+// {
+//   for(int i = 0; i < _collections->length(); i++) {
+//     CGRPSpace* grp = _collections->at(i);
+//     if ( grp->space()->contains(addr) ) {
+//       grp->set_new_top(addr);
+//     }
+//   }
+// }
+
+// HeapWord*
+// BDCMutableSpace::dense_prefix(HeapWord* addr)
+// {
+//   for(int i = 0; i < _collections->length(); i++) {
+//     CGRPSpace* grp = _collections->at(i);
+//     if ( grp->space()->contains(addr) ) {
+//       grp->dense_prefix();
+//     }
+//   }
+// }
+
+// HeapWord*
+// BDCMutableSpace::min_dense_prefix(HeapWord* addr)
+// {
+//   for(int i = 0; i < _collections->length(); i++) {
+//     CGRPSpace* grp = _collections->at(i);
+//     if ( grp->space()->contains(addr) ) {
+//       grp->min_dense_prefix();
+//     }
+//   }
+// }
+
+// HeapWord*
+// BDCMutableSpace::new_top(HeapWord* addr)
+// {
+//   for(int i = 0; i < _collections->length(); i++) {
+//     CGRPSpace* grp = _collections->at(i);
+//     if ( grp->space()->contains(addr) ) {
+//       grp->new_top();
+//     }
+//   }
+// }
+
+// HeapWord**
+// BDCMutableSpace::new_top_addr(HeapWord* addr)
+// {
+//   for(int i = 0; i < _collections->length(); i++) {
+//     CGRPSpace* grp = _collections->at(i);
+//     if ( grp->space()->contains(addr) ) {
+//       grp->new_top(addr);
+//     }
+//   }
+// }

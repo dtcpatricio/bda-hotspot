@@ -166,7 +166,7 @@ inline bool SplitInfo::is_split(size_t region_idx) const
   return _src_region_idx == region_idx && is_valid();
 }
 
-class SpaceInfo
+class SpaceInfo : public ResourceObj
 {
  public:
   MutableSpace* space() const { return _space; }
@@ -1040,11 +1040,11 @@ class PSParallelCompact : AllStatic {
   static ParMarkBitMap        _mark_bitmap;
   static ParallelCompactData  _summary_data;
   static IsAliveClosure       _is_alive_closure;
-  static SpaceInfo            _space_info[last_space_id];
+  static SpaceInfo*           _space_info;
   static bool                 _print_phases;
   static AdjustPointerClosure _adjust_pointer_closure;
   static AdjustKlassClosure   _adjust_klass_closure;
-
+  
   // Reference processing (used in ...follow_contents)
   static ReferenceProcessor*  _ref_processor;
 
@@ -1063,7 +1063,12 @@ class PSParallelCompact : AllStatic {
 
  public:
   static ParallelOldTracer* gc_tracer() { return &_gc_tracer; }
-
+#ifdef HEADER_MARK
+  // This is analogous to the last_space_id, but it compensates such that it adds
+  // the number of bda_regions (which is the number of regions in old gen minus 1
+  static unsigned int         bda_last_space_id;
+#endif
+  
  private:
 
   static void initialize_space_info();
