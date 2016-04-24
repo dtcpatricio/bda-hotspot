@@ -105,6 +105,11 @@ ParallelCompactData::RegionData::dc_completed = 0xcU << dc_shift;
 SpaceInfo* PSParallelCompact::_space_info = NULL;
 bool       PSParallelCompact::_print_phases = false;
 
+#ifdef HEADER_MARK
+unsigned int  PSParallelCompact::bda_last_space_id = 0;
+BDASummaryMap PSParallelCompact::_summary_map;
+#endif
+
 ReferenceProcessor* PSParallelCompact::_ref_processor = NULL;
 Klass*              PSParallelCompact::_updated_int_array_klass_obj = NULL;
 
@@ -409,7 +414,11 @@ bool ParallelCompactData::initialize(MemRegion covered_region)
   assert((region_size & RegionSizeOffsetMask) == 0,
          "region size not a multiple of RegionSize");
 
-  bool result = initialize_region_data(region_size) && initialize_block_data();
+  bool result = initialize_region_data(region_size) && initialize_block_data()
+#ifdef HEADER_MARK
+    && initialize_counter_data()
+#endif
+    ;
   return result;
 }
 
@@ -467,6 +476,20 @@ bool ParallelCompactData::initialize_block_data()
   return false;
 }
 
+#ifdef HEADER_MARK
+bool
+ParallelCompactData::initialize_counter_data()
+{
+  assert(_region_count != 0 && _block_count != 0, "region and block data must "
+         "be initialized first");
+  // const size_t count = _region_count;
+  const int count = ((BDCMutableSpace*)ParallelScavengeHeap::old_gen()->object_space())->collections()->length();
+  _bda_counters = new BDADataCounters(count);
+  _counter_data = _bda_counters->initialize_counter_data(_region_count);
+  return true;
+}
+#endif
+
 void ParallelCompactData::clear()
 {
   memset(_region_data, 0, _region_vspace->committed_size());
@@ -509,15 +532,8 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   DEBUG_ONLY(Atomic::inc_ptr(&add_obj_count);)
   DEBUG_ONLY(Atomic::add_ptr(len, &add_obj_size);)
 
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  Klass* klass = ((oop)addr)->klass();
-  BDARegion r;
-#if defined(HASH_MARK)
-  // There must be a better way of doing this...
-  r = PSParallelCompact::gc_heap()->old_gen()->region_map()->region_for_klass(klass);
-#elif defined(HEADER_MARK)
-  r = ((oop)addr)->region()->decode_pointer();
-#endif // HASH_MARK else HEADER_MARK
+#ifdef HEADER_MARK
+  BDARegion r = ((oop)addr)->region()->decode_pointer();
 #endif // HASH_MARK || HEADER_MARK
 
   // BDA TODO: Find all 0x1 and switch with the proper values!
@@ -525,10 +541,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
     // All in one region.
     _region_data[beg_region].add_live_obj(len);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    if(r == BDARegion(0x1))
-      _region_data[beg_region].incr_hashmap_counter(len);
-    else if(r == BDARegion(0x1))
-      _region_data[beg_region].incr_hashtable_counter(len);
+    _counter_data[beg_region].incr_counter(r->space_id());
 #endif
     return;
   }
@@ -537,10 +550,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   const size_t beg_ofs = region_offset(addr);
   _region_data[beg_region].add_live_obj(RegionSize - beg_ofs);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  if(r == BDARegion(0x1))
-    _region_data[beg_region].incr_hashmap_counter(RegionSize - beg_ofs);
-  else if(r == BDARegion(0x1))
-    _region_data[beg_region].incr_hashtable_counter(RegionSize - beg_ofs);
+  _counter_data[beg_region].incr_counter(r->space_id());
 #endif
 
   // Middle regions--completely spanned by this object.
@@ -548,10 +558,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
     _region_data[region].set_partial_obj_size(RegionSize);
     _region_data[region].set_partial_obj_addr(addr);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    if(r == BDARegion(0x1))
-      _region_data[region].incr_hashmap_counter(RegionSize);
-    else if(r == BDARegion(0x1))
-      _region_data[region].incr_hashtable_counter(RegionSize);
+    _counter_data[region].incr_counter(r->space_id());
 #endif
   }
 
@@ -560,8 +567,8 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   _region_data[end_region].set_partial_obj_size(end_ofs + 1);
   _region_data[end_region].set_partial_obj_addr(addr);
 
-  // No need to update counter here because the destination will always
-  // be the same as the previous region
+  // On BDA, there is no need to update counter here because the destination
+  // will always be the same as the previous region
 }
 
 void
@@ -798,12 +805,7 @@ ParallelCompactData::summarize_parse_region(
   SplitInfo& split_info,
   HeapWord* source_beg, HeapWord* source_end,
   HeapWord** source_next,
-  HeapWord* target0_beg, HeapWord* target0_end,
-  HeapWord** target0_next,
-  HeapWord* target1_beg, HeapWord* target1_end,
-  HeapWord** target1_next,
-  HeapWord* target2_beg, HeapWord* target2_end,
-  HeapWord** target2_next)
+  BDASummaryMap summary_map)
 {
   if (TraceParallelOldGCSummaryPhase) {
     // HeapWord* const source_next_val = source_next == NULL ? NULL : *source_next;
@@ -816,7 +818,8 @@ ParallelCompactData::summarize_parse_region(
   size_t cur_region = addr_to_region_idx(source_beg);
   const size_t end_region = addr_to_region_idx(region_align_up(source_end));
   // Placeholder value for the empty regions
-  HeapWord **dest_addr = &target0_beg;
+  HeapWord **dest_addr = summary_map.next_addr_at(PSParallelCompact::old_space_id);
+  // HeapWord **dest_addr = &target0_beg;
   // A patch of code to deal with empty regions
   // if(source_beg >= source_end) {
   //   _region_data[cur_region].set_destination(*dest_addr);
@@ -824,63 +827,27 @@ ParallelCompactData::summarize_parse_region(
   //   return true;
   // }
 
-  HeapWord *dest0 = target0_beg, *dest1 = target1_beg, *dest2 = target2_beg;
+  // HeapWord *dest0 = target0_beg, *dest1 = target1_beg, *dest2 = target2_beg;
   while (cur_region < end_region) {
     HeapWord *target_end, **target_next;
     if(_region_data[cur_region].partial_obj_size() > 0) {
       PSParallelCompact::SpaceId previous_id =
         PSParallelCompact::space_id(_region_data[cur_region - 1].destination());
-      if(previous_id == PSParallelCompact::old_space_id) {
-        target_end = target0_end;
-        target_next = target0_next;
-        dest_addr = &dest0;
-      }
-      else if(previous_id == PSParallelCompact::old_space_id) {
-        target_end = target1_end;
-        target_next = target1_next;
-        dest_addr = &dest1;
-      }
-      else {
-        target_end = target2_end;
-        target_next = target2_next;
-        dest_addr = &dest2;
+      if(previous_id > PSParallelCompact::old_space_id) {
+        target_end = summary_map.end_at(previous_id - PSParallelCompact::last_space_id);
+        target_next = summary_map.next_addr_at(previous_id - PSParallelCompact::last_space_id);
+        dest_addr = target_next;
       }
     } else {
-      int hashmap_ctr = _region_data[cur_region].hashmap_count();
-      int hashtable_ctr = _region_data[cur_region].hashtable_count();
-      if(hashmap_ctr == 0 && hashtable_ctr == 0) {
-        target_end = target0_end;
-      } else if(hashtable_ctr == 0) {
-        target_end = target1_end;
-      } else if(hashmap_ctr == 0) {
-        target_end = target2_end;
-      } else {
-        size_t hashmap_ts = _region_data[cur_region].hashmap_size();
-        size_t hashtable_ts = _region_data[cur_region].hashtable_size();
-        float avg_hashmap_el = hashmap_ts / hashmap_ctr;
-        float avg_hashtable_el = hashtable_ts / hashtable_ctr;
+      int target_id = _bda_counters->most_counts_id(cur_region);
 
-        float ratio = hashmap_ctr > hashtable_ctr ?
-          (float)hashtable_ctr / hashmap_ctr :
-          (float)hashmap_ctr / hashtable_ctr;
+      target_end = summary_map.end_at(target_id);
 
-        if(ratio <= (float)BDAThreshold / 100) {
-          target_end = hashmap_ctr > hashtable_ctr ?
-            target1_end : target2_end;
-        } else {
-          target_end = avg_hashmap_el > avg_hashtable_el ?
-            target1_end : target2_end;
-        }
-      }
+      target_next = summary_map.next_addr_at(target_id);
 
-      target_next = target_end == target0_end ? target0_next :
-        target_end == target1_end ? target1_next :
-        target2_next;
-
-      dest_addr = target_end == target0_end ? &dest0 :
-        target_end == target1_end ? &dest1 :
-        &dest2;
+      dest_addr = target_next;
     }
+        
 
     // The destination can now be set
     _region_data[cur_region].set_destination(*dest_addr);
@@ -894,16 +861,16 @@ ParallelCompactData::summarize_parse_region(
         assert(source_next != NULL, "source_next is NULL when splitting");
         // Ugly ugly way... we could change the summarize, but I guess this
         // will do for now
-        if(target_next == target0_next) {
-          *target1_next = dest1;
-          *target2_next = dest2;
-        } else if(target_next == target1_next) {
-          *target0_next = dest0;
-          *target2_next = dest2;
-        } else {
-          *target0_next = dest0;
-          *target1_next = dest1;
-        }
+        // if(target_next == target0_next) {
+        //   *target1_next = dest1;
+        //   *target2_next = dest2;
+        // } else if(target_next == target1_next) {
+        //   *target0_next = dest0;
+        //   *target2_next = dest2;
+        // } else {
+        //   *target0_next = dest0;
+        //   *target1_next = dest1;
+        // }
         *source_next = summarize_split_space(cur_region, split_info, *dest_addr,
                                              target_end, target_next);
         return false;
@@ -960,9 +927,7 @@ ParallelCompactData::summarize_parse_region(
     ++cur_region;
   }
 
-  *target0_next = dest0;
-  *target1_next = dest1;
-  *target2_next = dest2;
+  // TODO: UPDATE THE NEXT TOP POINTERS HERE!!
   return true;
 }
 #endif
@@ -1096,6 +1061,15 @@ bool PSParallelCompact::initialize() {
   initialize_space_info();
   initialize_dead_wood_limiter();
 
+#ifdef HEADER_MARK
+  if (!_summary_map.initialize((BDCMutableSpace*)heap->old_gen()->object_space())) {
+    vm_shutdown_during_initialization(
+      err_msg("Unable to initialize the required structures to have a successful "
+              "summary phase on a bda gc"));
+    return false;
+  }
+#endif
+
   if (!_mark_bitmap.initialize(mr)) {
     vm_shutdown_during_initialization(
       err_msg("Unable to allocate " SIZE_FORMAT "KB bitmaps for parallel "
@@ -1126,6 +1100,8 @@ void PSParallelCompact::initialize_space_info()
   int sz_spaceinfo = nbda + PSParallelCompact::last_space_id;
   _space_info = new (ResourceObj::C_HEAP, mtGC) SpaceInfo[sz_spaceinfo];
 
+  memset(_space_info, 0, sizeof(SpaceInfo) * sz_spaceinfo);
+  
   _space_info[old_space_id].set_space(heap->old_gen()->object_space());
   _space_info[eden_space_id].set_space(young_gen->eden_space());
   _space_info[from_space_id].set_space(young_gen->from_space());
@@ -1133,6 +1109,9 @@ void PSParallelCompact::initialize_space_info()
 
 #ifdef HEADER_MARK
   BDCMutableSpace* bda_space = (BDCMutableSpace*)heap->old_gen()->object_space();
+  // redefine old_space_id --- could be done earlier but its pretty irrelevant
+  // because it avoids crazy code
+  _space_info[old_space_id].set_space(bda_space->collections()->at(0)->space());
   for(int idx = 1; idx <= nbda; ++idx) {
     _space_info[to_space_id + idx].set_space(
       bda_space->collections()->at(idx)->space());
@@ -2156,29 +2135,28 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
 #endif // #ifndef PRODUCT
 
   // Old generations.
+  summarize_space(old_space_id, maximum_compaction);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  summarize_space(old_space_id, maximum_compaction);
-  summarize_space(old_space_id, maximum_compaction);
-  summarize_space(old_space_id, maximum_compaction);
-
+  for (unsigned int id = last_space_id; id < bda_last_space_id; ++id) {
+    summarize_space(SpaceId(id), maximum_compaction);    
+  }
   // Summarize the remaining spaces in the young gen. We observe that the eden
   // and from space (the old to-space in case a scavenge happened) should only
   // be promoted through scavenging. Therefore, those two spaces are compacted
   // into their space and the to-space (the old from) promotes to the old-gen.
-  SpaceId dst0_space_id = old_space_id;
-  HeapWord* dst0_space_end = _space_info[dst0_space_id].space()->end();
-  HeapWord** new_top0_addr = _space_info[dst0_space_id].new_top_addr();
 
-  SpaceId dst1_space_id = old_space_id;
-  HeapWord* dst1_space_end = _space_info[dst1_space_id].space()->end();
-  HeapWord** new_top1_addr = _space_info[dst1_space_id].new_top_addr();
+  // Maintain the correct placement! If a bdaregion's index is 1 then it should be
+  // at pos 1 (2nd) in the array. That is what the offset of last_space_id is doing.
+  _summary_map.set_end_word(old_space_id, _space_info[old_space_id].space()->end());
+  _summary_map.set_next_addr(old_space_id, _space_info[old_space_id].new_top_addr());
 
-  SpaceId dst2_space_id = old_space_id;
-  HeapWord* dst2_space_end = _space_info[dst2_space_id].space()->end();
-  HeapWord** new_top2_addr = _space_info[dst2_space_id].new_top_addr();
+  for (unsigned int id = last_space_id + 1; id <= bda_last_space_id; ++id) {
+    _summary_map.set_end_word(id - last_space_id, _space_info[id-1].space()->end());
+    _summary_map.set_next_addr(id - last_space_id, _space_info[id-1].new_top_addr());
+  }
+
   for (unsigned int id = to_space_id; id < last_space_id; ++id)
 #else
-  summarize_space(old_space_id, maximum_compaction);
   // Summarize the remaining spaces in the young gen.  The initial target space
   // is the old gen.  If a space does not fit entirely into the target, then the
   // remainder is compacted into the space itself and that space becomes the new
@@ -2194,24 +2172,14 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
     const size_t live = pointer_delta(_space_info[id].new_top(),
                                       space->bottom());
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    size_t available = pointer_delta(dst0_space_end, *new_top0_addr);
-    if(pointer_delta(dst1_space_end, *new_top1_addr))
-      available = pointer_delta(dst1_space_end, *new_top1_addr);
-    if(pointer_delta(dst2_space_end, *new_top2_addr))
-      available = pointer_delta(dst2_space_end, *new_top2_addr);
-
+    // TODO: COMPUTE THE AVAILABLE SPACE HERE?
     if (live > 0) {
         HeapWord* next_src_addr = NULL;
         bool done = _summary_data.summarize_parse_region(
           _space_info[id].split_info(),
           space->bottom(), space->top(),
           &next_src_addr,
-          *new_top0_addr, dst0_space_end,
-          new_top0_addr,
-          *new_top1_addr, dst1_space_end,
-          new_top1_addr,
-          *new_top2_addr, dst2_space_end,
-          new_top2_addr);
+          _summary_map);
         if(done) {
           assert(done, "space must fit into old gen");
           // this means that the space ended up fitting after all
@@ -2583,12 +2551,11 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
 
   _gc_timer.register_gc_end();
 
+  _gc_tracer.report_dense_prefix(dense_prefix(old_space_id));
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  _gc_tracer.report_dense_prefix(dense_prefix(old_space_id));
-  _gc_tracer.report_dense_prefix(dense_prefix(old_space_id));
-  _gc_tracer.report_dense_prefix(dense_prefix(old_space_id));
-#else
-  _gc_tracer.report_dense_prefix(dense_prefix(old_space_id));
+  for (unsigned int id = last_space_id; id < bda_last_space_id; ++id) {
+    _gc_tracer.report_dense_prefix(dense_prefix(SpaceId(id)));
+  }
 #endif
 
   _gc_tracer.report_gc_end(_gc_timer.gc_end(), _gc_timer.time_partitions());
@@ -2862,8 +2829,8 @@ void PSParallelCompact::enqueue_region_draining_tasks(GCTaskQueue* q,
   which = 0;
   // id + 1 is used to test termination so unsigned  can
   // be used with an old_space_id == 0.
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int id = to_space_id; id + 1 > old_space_id; --id)
+#ifdef HEADER_MARK
+  for (unsigned int id = bda_last_space_id - 1; id + 1 > old_space_id; --id)
 #else
   for (unsigned int id = to_space_id; id + 1 > old_space_id; --id)
 #endif
@@ -2919,7 +2886,7 @@ void PSParallelCompact::enqueue_dense_prefix_tasks(GCTaskQueue* q,
   // will work on the dense prefix.
   unsigned int space_id;
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (space_id = old_space_id; space_id < last_space_id; ++ space_id)
+  for (space_id = old_space_id; space_id < bda_last_space_id; ++ space_id)
 #else
   for (space_id = old_space_id; space_id < last_space_id; ++ space_id)
 #endif
@@ -3018,7 +2985,7 @@ void PSParallelCompact::write_block_fill_histogram(outputStream* const out)
   ParallelCompactData& sd = summary_data();
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  for (unsigned int id = old_space_id; id < last_space_id; ++id)
+  for (unsigned int id = old_space_id; id < bda_last_space_id; ++id)
 #else
   for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif
@@ -3073,7 +3040,7 @@ void PSParallelCompact::compact() {
 #ifdef  ASSERT
     // Verify that all regions have been processed before the deferred updates.
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    for (unsigned int id = old_space_id; id < last_space_id; ++id)
+    for (unsigned int id = old_space_id; id < bda_last_space_id; ++id)
 #else
     for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif
@@ -3088,7 +3055,7 @@ void PSParallelCompact::compact() {
     GCTraceTime tm_du("deferred updates", print_phases(), true, &_gc_timer, _gc_tracer.gc_id());
     ParCompactionManager* cm = ParCompactionManager::manager_array(0);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    for (unsigned int id = old_space_id; id < last_space_id; ++id)
+    for (unsigned int id = old_space_id; id < bda_last_space_id; ++id)
 #else
     for (unsigned int id = old_space_id; id < last_space_id; ++id)
 #endif

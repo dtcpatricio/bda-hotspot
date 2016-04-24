@@ -794,32 +794,7 @@ BDCMutableSpace::unsafe_max_tlab_alloc(Thread *thr) const {
 }
 
 HeapWord* BDCMutableSpace::allocate(size_t size) {
-  // Thread* thr = Thread::current();
-  // CollectionType type2aloc = thr->alloc_region();
-  // // should we sanitize here the type2aloc in case it has wrong values
-
-  // int i = 0;//= collections()->find(&type2aloc, CGRPSpace::equals);
-
-  // // default to the no-collection space
-  // if(i == -1) {
-  //   i = 0;
-  // }
-
-  // CGRPSpace* cs = collections()->at(i);
-
-  // HeapWord *cs_top = cs->top();
-  // HeapWord *cs_end = cs->end();
-  // HeapWord *region_top = top();
-  // HeapWord *region_end = end();
-
-  // MutableSpace::set_top(cs_top);
-  // MutableSpace::set_end(cs_end);
-
   HeapWord *obj = cas_allocate(size);
-
-  // MutableSpace::set_end(region_end);
-  // update_top();
-
   return obj;
 }
 
@@ -849,20 +824,6 @@ HeapWord* BDCMutableSpace::cas_allocate(size_t size) {
   }
 
   assert(obj <= ms->top() && obj + size <= top(), "Incorrect push of the space's top");
-
-  // Not needed!
-  // if(obj != NULL) {
-  //   size_t remainder = pointer_delta(ms->end(), obj + size);
-  //   if (remainder < CollectedHeap::min_fill_size() && remainder > 0) {
-  //     if (ms->cas_deallocate(obj, size)) {
-  //       // We were the last to allocate and created a fragment less than
-  //       // a minimal object.
-  //       return NULL;
-  //     } else {
-  //       guarantee(false, "Deallocation should always succeed");
-  //     }
-  //   }
-  // }
 
   return obj;
 }

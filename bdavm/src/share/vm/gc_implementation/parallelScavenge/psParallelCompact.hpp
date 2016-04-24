@@ -34,6 +34,10 @@
 #include "memory/sharedHeap.hpp"
 #include "oops/oop.hpp"
 
+#ifdef HEADER_MARK
+#include "gc_implementation/parallelScavenge/bdaParallelCompact.hpp"
+#endif
+
 class ParallelScavengeHeap;
 class PSAdaptiveSizePolicy;
 class PSYoungGen;
@@ -233,20 +237,13 @@ public:
   static const size_t BlocksPerRegion;
   static const size_t Log2BlocksPerRegion;
 
+#ifdef HEADER_MARK
+  typedef BDADataCounters::CounterData CounterData;
+#endif
+  
   class RegionData
   {
   public:
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-    // The count of hashmap related objects found in the region
-    int hashmap_count() const { return _hashmap_ctr; }
-    // The count of hashtable related objects found in the region
-    int hashtable_count() const { return _hashtable_ctr; }
-    // The sum of the size of all hashmap based elements found in the region
-    size_t hashmap_size() const { return _hashmap_total_size; }
-    // The sum of the size of all hashtable based elements found in the region
-    size_t hashtable_size() const { return _hashtable_total_size; }
-#endif
-
     // Destination address of the region.
     HeapWord* destination() const { return _destination; }
 
@@ -340,12 +337,6 @@ public:
     inline void decrement_destination_count();
     inline bool claim();
 
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-    // These are also atomic
-    inline jint incr_hashmap_counter(size_t sz);
-    inline jint incr_hashtable_counter(size_t sz);
-#endif
-
   private:
     // The type used to represent object sizes within a region.
     typedef uint region_sz_t;
@@ -366,12 +357,6 @@ public:
     region_sz_t          _partial_obj_size;
     region_sz_t volatile _dc_and_los;
     bool                 _blocks_filled;
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-    int                  _hashmap_ctr;
-    int                  _hashtable_ctr;
-    size_t               _hashmap_total_size;
-    size_t               _hashtable_total_size;
-#endif
 
 #ifdef ASSERT
     size_t               _blocks_filled_count;   // Number of block table fills.
@@ -437,18 +422,12 @@ public:
                  HeapWord** target_next);
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  bool summarize_parse_region(
-    SplitInfo& split_info,
-    HeapWord* source_beg, HeapWord* source_end,
-    HeapWord** source_next,
-    HeapWord* target0_beg, HeapWord* target0_end,
-    HeapWord** target0_next,
-    HeapWord* target1_beg, HeapWord* target1_end,
-    HeapWord** target1_next,
-    HeapWord* target2_beg, HeapWord* target2_end,
-    HeapWord** target2_next);
+  bool summarize_parse_region(SplitInfo& split_info,
+                              HeapWord* source_beg, HeapWord* source_end,
+                              HeapWord** source_next,
+                              BDASummaryMap summary_map);
 #endif
-
+  
   void clear();
   void clear_range(size_t beg_region, size_t end_region);
   void clear_range(HeapWord* beg, HeapWord* end) {
@@ -502,6 +481,9 @@ public:
 private:
   bool initialize_block_data();
   bool initialize_region_data(size_t region_size);
+#ifdef HEADER_MARK
+  bool initialize_counter_data();
+#endif
   PSVirtualSpace* create_vspace(size_t count, size_t element_size);
 
 private:
@@ -518,6 +500,11 @@ private:
   PSVirtualSpace* _block_vspace;
   BlockData*      _block_data;
   size_t          _block_count;
+  
+#ifdef HEADER_MARK
+  BDADataCounters* _bda_counters;
+  CounterData*     _counter_data;
+#endif
 };
 
 inline uint
@@ -614,26 +601,6 @@ inline void ParallelCompactData::RegionData::add_live_obj(size_t words)
   assert(words <= (size_t)los_mask - live_obj_size(), "overflow");
   Atomic::add((int) words, (volatile int*) &_dc_and_los);
 }
-
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-inline jint
-ParallelCompactData::RegionData::incr_hashmap_counter(size_t sz)
-{
-  assert(_hashmap_ctr >= 0, "value cannot be less than 0");
-  assert(_hashmap_total_size >= 0, "total size cannot be less than 0");
-  Atomic::inc((volatile int*)&_hashmap_ctr);
-  return Atomic::add((jint)sz, (volatile int*)&_hashmap_total_size);
-}
-
-inline jint
-ParallelCompactData::RegionData::incr_hashtable_counter(size_t sz)
-{
-  assert(_hashtable_ctr >= 0, "value cannot be less than 0");
-  assert(_hashtable_total_size >= 0, "total size cannot be less than 0");
-  Atomic::inc((volatile int*)&_hashtable_ctr);
-  return Atomic::add((jint)sz, (volatile int*)&_hashtable_total_size);
-}
-#endif
 
 inline void ParallelCompactData::RegionData::set_highest_ref(HeapWord* addr)
 {
@@ -1044,7 +1011,11 @@ class PSParallelCompact : AllStatic {
   static bool                 _print_phases;
   static AdjustPointerClosure _adjust_pointer_closure;
   static AdjustKlassClosure   _adjust_klass_closure;
-  
+
+#ifdef HEADER_MARK
+  // Map to hold some data during summary of the bda spaces
+  static BDASummaryMap        _summary_map;
+#endif
   // Reference processing (used in ...follow_contents)
   static ReferenceProcessor*  _ref_processor;
 
@@ -1489,22 +1460,38 @@ PSParallelCompact::is_in(oop* p, HeapWord* beg_addr, HeapWord* end_addr) {
 }
 
 inline MutableSpace* PSParallelCompact::space(SpaceId id) {
+#ifdef HEADER_MARK
+  assert(id < bda_last_space_id, "id out of range");
+#else
   assert(id < last_space_id, "id out of range");
+#endif
   return _space_info[id].space();
 }
 
 inline HeapWord* PSParallelCompact::new_top(SpaceId id) {
+#ifdef HEADER_MARK
+  assert(id < bda_last_space_id, "id out of range");
+#else
   assert(id < last_space_id, "id out of range");
+#endif
   return _space_info[id].new_top();
 }
 
 inline HeapWord* PSParallelCompact::dense_prefix(SpaceId id) {
+#ifdef HEADER_MARK
+  assert(id < bda_last_space_id, "id out of range");
+#else
   assert(id < last_space_id, "id out of range");
+#endif
   return _space_info[id].dense_prefix();
 }
 
 inline ObjectStartArray* PSParallelCompact::start_array(SpaceId id) {
+#ifdef HEADER_MARK
+  assert(id < bda_last_space_id, "id out of range");
+#else
   assert(id < last_space_id, "id out of range");
+#endif
   return _space_info[id].start_array();
 }
 

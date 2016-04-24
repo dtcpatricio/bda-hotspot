@@ -46,6 +46,14 @@ public:
     }
   }
 
+  int space_id() const {
+    int id = 0; uintptr_t v = value();
+    while(v != region_start) {
+      v >>= 1; ++id;
+    }
+    return id;
+  }
+
   bool is_null_region() const {
     return value() == no_region;
   }
