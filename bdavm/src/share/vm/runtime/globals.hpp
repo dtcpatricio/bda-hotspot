@@ -3959,7 +3959,7 @@ class CommandLineFlags {
   product(intx, BDAThreshold, 100,                                          \
                "Threshold percentage for the decision on promotion")        \
                                                                             \
-  product(bool, BDAPrintRegions, false,                                     \
+  product(bool, BDAPrintAfterGC, false,                                     \
                "Print big-data aware space after compacting GC")            \
                                                                             \
   product(bool, BDAPrintDescriptive, false,                                 \

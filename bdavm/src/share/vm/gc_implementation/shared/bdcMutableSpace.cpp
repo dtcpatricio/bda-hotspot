@@ -964,8 +964,8 @@ BDCMutableSpace::print_current_space_layout(bool descriptive,
       CGRPSpace* grp = collections()->at(j);
       MutableSpace* spc = grp->space();
       BDARegion region = grp->coll_type();
-      gclog_or_tty->print_cr("Region for objects %s :: From 0x%x to 0x%x top 0x%x",
-                             region->toString(),
+      gclog_or_tty->print_cr("Region for objects %x :: From 0x%x to 0x%x top 0x%x",
+                             (uintptr_t)region,
                              spc->bottom(),
                              spc->end(),
                              spc->top());

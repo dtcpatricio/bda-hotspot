@@ -2492,7 +2492,7 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
     // Print the Old Generation regions, whether descriptively or not.
-    if(UseBDA && BDAPrintRegions) {
+    if(UseBDA && BDAPrintAfterGC) {
       ((BDCMutableSpace*)(old_gen->object_space()))->print_current_space_layout(
         BDAPrintDescriptive, BDAPrintOnlyCollections);
     }
