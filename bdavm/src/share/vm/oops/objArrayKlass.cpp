@@ -58,6 +58,9 @@
 #include "gc_implementation/parallelScavenge/psScavenge.inline.hpp"
 #include "oops/oop.pcgc.inline.hpp"
 #endif // INCLUDE_ALL_GCS
+#ifdef HEADER_MARK
+#include "gc_implementation/shared/bdaGlobals.inline.hpp"
+#endif
 
 ObjArrayKlass* ObjArrayKlass::allocate(ClassLoaderData* loader_data, int n, KlassHandle klass_handle, Symbol* name, TRAPS) {
   assert(ObjArrayKlass::header_size() <= InstanceKlass::header_size(),
@@ -412,6 +415,36 @@ void ObjArrayKlass::initialize(TRAPS) {
   bottom_klass()->initialize(THREAD);  // dispatches to either InstanceKlass or TypeArrayKlass
 }
 
+#ifdef HEADER_MARK // For BDAVM Macro --- TODO: Embed the do_reigon on do_oop
+#define ObjArrayKlass_SPECIALIZED_BDA_OOP_ITERATE(T, a, p, do_oop,  \
+                                              do_region)        \
+  {                                                             \
+    T* p         = (T*)(a)->base();                             \
+    T* const end = p + (a)->length();                           \
+    while (p < end) {                                           \
+      do_region;                                                \
+      do_oop;                                                   \
+      p++;                                                      \
+    }                                                           \
+  }
+
+#define ObjArrayKlass_SPECIALIZED_BOUNDED_BDA_OOP_ITERATE(T, a, p, low, high, do_oop, \
+                                                          do_region)    \
+  {                                                                     \
+    T* const l = (T*)(low);                                             \
+    T* const h = (T*)(high);                                            \
+    T* p       = (T*)(a)->base();                                       \
+    T* end     = p + (a)->length();                                     \
+    if (p < l) p = l;                                                   \
+    if (end > h) end = h;                                               \
+    while (p < end) {                                                   \
+      do_region;                                                        \
+      do_oop;                                                           \
+      ++p;                                                              \
+    }                                                                   \
+  }
+#endif // HEADER_MARK
+
 #define ObjArrayKlass_SPECIALIZED_OOP_ITERATE(T, a, p, do_oop) \
 {                                   \
   T* p         = (T*)(a)->base();   \
@@ -435,6 +468,30 @@ void ObjArrayKlass::initialize(TRAPS) {
     ++p;                            \
   }                                 \
 }
+
+
+#ifdef HEADER_MARK // For BDAVM
+#define ObjArrayKlass_BDA_OOP_ITERATE(a, p, do_oop, do_region)           \
+  if (UseCompressedOops) {                                               \
+    ObjArrayKlass_SPECIALIZED_BDA_OOP_ITERATE(narrowOop,                 \
+                                              a, p, do_oop, do_region)   \
+      } else {                                                           \
+    ObjArrayKlass_SPECIALIZED_BDA_OOP_ITERATE(oop,                       \
+                                              a, p, do_oop, do_region)   \
+      }
+
+#define ObjArrayKlass_BOUNDED_BDA_OOP_ITERATE(a, p, low, high, do_oop,     \
+                                              do_region)                   \
+  if (UseCompressedOops) {                                                 \
+    ObjArrayKlass_SPECIALIZED_BOUNDED_BDA_OOP_ITERATE(narrowOop,           \
+                                                  a, p, low, high, do_oop, \
+                                                  do_region)               \
+      } else {                                                             \
+    ObjArrayKlass_SPECIALIZED_BOUNDED_BDA_OOP_ITERATE(oop,                 \
+                                                  a, p, low, high, do_oop, \
+                                                  do_region)               \
+      }
+#endif
 
 #define ObjArrayKlass_OOP_ITERATE(a, p, do_oop)      \
   if (UseCompressedOops) {                           \
@@ -572,11 +629,21 @@ int ObjArrayKlass::oop_adjust_pointers(oop obj) {
 #if INCLUDE_ALL_GCS
 void ObjArrayKlass::oop_push_contents(PSPromotionManager* pm, oop obj) {
   assert(obj->is_objArray(), "obj must be obj array");
+#ifdef HEADER_MARK
+  bdareg_t r = obj->region();
+  ObjArrayKlass_BDA_OOP_ITERATE( \
+    objArrayOop(obj), p, \
+    if (PSScavenge::should_scavenge(p)) { \
+      pm->claim_or_forward_depth(p); \
+    }, \
+    BDARegion::encode_oop_element(p, r))
+#else
   ObjArrayKlass_OOP_ITERATE( \
     objArrayOop(obj), p, \
     if (PSScavenge::should_scavenge(p)) { \
       pm->claim_or_forward_depth(p); \
     })
+#endif // HEADER_MARK
 }
 
 int ObjArrayKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) {

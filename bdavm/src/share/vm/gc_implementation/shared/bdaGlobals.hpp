@@ -35,7 +35,7 @@ public:
   static const bdareg_t  no_region = 0x0;
   static const bdareg_t  region_start = 0x1;
   static const int       other_mask = 0x1;
-  static const uintptr_t container_mask = (1UL << 63) - 1UL;
+  static const uintptr_t container_mask = (1UL << 63) - 2UL;
   static const uint      badheap_mask = (1L << 32) - 1L;
 
   BDARegion() { _value = no_region; }
@@ -45,10 +45,13 @@ public:
   bool operator==(const BDARegion& comp)  {
     return value() == comp.value();
   }
+
+  
   
   BDARegion mask_out_element() const {
     return BDARegion(value() & container_mask);
   }
+
 
   void set_element() {
     _value = _value | 0x1;
@@ -75,18 +78,20 @@ public:
   bool is_null_region() const {
     return value() == no_region;
   }
-  bool is_bad_region() const {
-    return (value() & badheap_mask) == badHeapWord;
-  }
+  // bool is_bad_region() const {
+  //   return (value() & badheap_mask) == badHeapWord;
+  // }
 
-  inline static BDARegion encode_as_element(void* p) { return BDARegion((bdareg_t)p | 0x1); }
-
+  static bool is_element(bdareg_t v) { return (v & ~container_mask) == region_start; }
+  static bool is_bad_region(bdareg_t v) { return (v & badheap_mask) == badHeapWord; }
 
   // Print support (nothing for now...)
   void print() {
 
   }
 
+  template <class T> static inline void encode_oop_element(T* p, bdareg_t r);
+  
   // This method is still a bit insane...
   inline const char* toString()
     {

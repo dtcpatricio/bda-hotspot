@@ -77,6 +77,9 @@
 #ifdef COMPILER1
 #include "c1/c1_Compiler.hpp"
 #endif
+#ifdef HEADER_MARK
+#include "gc_implementation/shared/bdaGlobals.inline.hpp"
+#endif
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
@@ -2323,19 +2326,19 @@ void InstanceKlass::oop_follow_contents(ParCompactionManager* cm,
   PSParallelCompact::follow_klass(cm, obj->klass());
   // Only mark the header and let the scan of the meta-data mark
   // everything else.
-// #ifdef HEADER_MARK // BDAVM Macro
-//   regionMark r = obj->region();
-//   InstanceKlass_BDA_OOP_MAP_ITERATE( \
-//     obj, \
-//     PSParallelCompact::mark_and_push(cm, p), \
-//     regionMarkDesc::encode_as_element(p, r), \
-//     assert_is_in)
-// #else //
+#ifdef HEADER_MARK // BDAVM Macro
+  bdareg_t r = obj->region();
+  InstanceKlass_BDA_OOP_MAP_ITERATE( \
+    obj, \
+    PSParallelCompact::mark_and_push(cm, p), \
+    BDARegion::encode_oop_element(p, r), \
+    assert_is_in)
+#else //
   InstanceKlass_OOP_MAP_ITERATE( \
     obj, \
     PSParallelCompact::mark_and_push(cm, p), \
     assert_is_in)
-//#endif
+#endif
 }
 #endif // INCLUDE_ALL_GCS
 
@@ -2416,23 +2419,23 @@ int InstanceKlass::oop_adjust_pointers(oop obj) {
 
 #if INCLUDE_ALL_GCS
 void InstanceKlass::oop_push_contents(PSPromotionManager* pm, oop obj) {
-// #ifdef HEADER_MARK // BDAVM Macro call
-//   regionMark r = obj->region();
-//   InstanceKlass_BDA_OOP_MAP_REVERSE_ITERATE( \
-//     obj, \
-//     if (PSScavenge::should_scavenge(p)) { \
-//       pm->claim_or_forward_depth(p); \
-//     }, \
-//     regionMarkDesc::encode_as_element(p, r), \
-//     assert_nothing )
-// #else
+#ifdef HEADER_MARK // BDAVM Macro call --- TODO: See if it can be put under the "if"
+  bdareg_t r = obj->region();
+  InstanceKlass_BDA_OOP_MAP_REVERSE_ITERATE( \
+    obj, \
+    if (PSScavenge::should_scavenge(p)) { \
+      pm->claim_or_forward_depth(p); \
+    }, \
+    BDARegion::encode_oop_element(p, r), \
+    assert_nothing )
+#else
   InstanceKlass_OOP_MAP_REVERSE_ITERATE( \
     obj, \
     if (PSScavenge::should_scavenge(p)) { \
       pm->claim_or_forward_depth(p); \
     }, \
     assert_nothing )
-//#endif
+#endif
 }
 
 int InstanceKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) {
