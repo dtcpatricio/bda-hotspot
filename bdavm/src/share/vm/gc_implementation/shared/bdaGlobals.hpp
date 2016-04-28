@@ -73,7 +73,10 @@ public:
   }
 
   bool is_null_region() const {
-    return value() == no_region || (value() & badheap_mask) == badHeapWord;
+    return value() == no_region;
+  }
+  bool is_bad_region() const {
+    return (value() & badheap_mask) == badHeapWord;
   }
 
   inline static BDARegion encode_as_element(void* p) { return BDARegion((bdareg_t)p | 0x1); }
