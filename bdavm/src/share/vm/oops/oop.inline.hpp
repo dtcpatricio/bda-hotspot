@@ -112,7 +112,7 @@ inline void oopDesc::set_klass(Klass* k) {
   assert(Universe::is_bootstrapping() || k != NULL, "must be a real Klass*");
   assert(Universe::is_bootstrapping() || k->is_klass(), "not a Klass*");
 #ifdef HEADER_MARK
-  set_region(regionMark(KlassRegionMap::region_for_klass(k)));
+  set_region(KlassRegionMap::region_for_klass(k));
 #endif
   if (UseCompressedClassPointers) {
     *compressed_klass_addr() = Klass::encode_klass_not_null(k);

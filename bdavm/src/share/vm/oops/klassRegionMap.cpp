@@ -11,45 +11,55 @@ KlassRegionHashtable* KlassRegionMap::_region_map = NULL;
 // KlassRegion Hashtables definition
 
 KlassRegionHashtable::KlassRegionHashtable(int table_size)
-  : Hashtable<BDARegionDesc*, mtGC>(table_size, sizeof(KlassRegionEntry)) {
+  : Hashtable<bdareg_t, mtGC>(table_size, sizeof(KlassRegionEntry)) {
 }
 
 void
-KlassRegionHashtable::add_entry(Klass* k, BDARegionDesc* region)
+KlassRegionHashtable::add_entry(Klass* k, bdareg_t region)
 {
-  unsigned int compressed_ptr = (unsigned int)Klass::encode_klass_not_null(k);
-  KlassRegionEntry* entry = (KlassRegionEntry*)Hashtable<BDARegionDesc*, mtGC>::new_entry(compressed_ptr, region);
+  unsigned int compressed_ptr;
+  if(UseCompressedClassPointers) {
+    compressed_ptr = (unsigned int)Klass::encode_klass_not_null(k);
+  } else {
+    compressed_ptr = (uintptr_t)k & 0xFFFFFFFF;
+  }
+  KlassRegionEntry* entry = (KlassRegionEntry*)Hashtable<bdareg_t, mtGC>::new_entry(compressed_ptr, region);
 
   BasicHashtable<mtGC>::add_entry(hash_to_index(compressed_ptr), entry);
 }
 
-BDARegion
+bdareg_t
 KlassRegionHashtable::get_region(Klass* k)
 {
   // Give the default entry for the general types initialized at vm startup,
   // i.e. before any entry is added when loading classes
   if(!number_of_entries())
-    return BDARegion(BDARegionDesc::region_start);
+    return BDARegion::region_start;
 
-  int i = hash_to_index((unsigned int)Klass::encode_klass_not_null(k));
+  int i;
+  if (UseCompressedClassPointers) {
+    i = hash_to_index((unsigned int)Klass::encode_klass_not_null(k));
+  } else {
+    i = hash_to_index((uintptr_t)k & 0xFFFFFFFF);
+  }
   KlassRegionEntry* entry = (KlassRegionEntry*)bucket(i);
   // this can happen with vm loaded classes, i.e. those that do not rely on the
   // classFileParser for loading the .class
   if(entry == NULL) {
-    this->add_entry(k, BDARegion(BDARegionDesc::region_start));
+    this->add_entry(k, BDARegion::region_start);
   }
-  return BDARegion(bucket(i)->literal());
+  return bucket(i)->literal();
 }
 
 // KlassRegionMap definition
 
 KlassRegionMap::KlassRegionMap()
 {
-  _next_region = BDARegionDesc::region_start;
+  _next_region = BDARegion::region_start;
   _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<char*>(0,true);  
   parse_from_string(BDAKlasses, KlassRegionMap::parse_from_line);
 
-  int table_size = _bda_class_names->length() << log2_intptr(sizeof(KlassRegionEntry));
+  int table_size = 4096;//_bda_class_names->length() << log2_intptr(sizeof(KlassRegionEntry));
   _region_map = new KlassRegionHashtable(table_size);
 }
 
@@ -138,7 +148,7 @@ KlassRegionMap::add_entry(Klass* k)
   add_other_entry(k);
 }
 
-BDARegion
+bdareg_t
 KlassRegionMap::region_for_klass(Klass* k)
 {
   _region_map->get_region(k);

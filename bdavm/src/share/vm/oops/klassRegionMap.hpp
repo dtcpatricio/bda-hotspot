@@ -12,28 +12,28 @@
 
 class KlassRegionEntry;
 
-class KlassRegionHashtable : public Hashtable<BDARegionDesc*, mtGC> {
+class KlassRegionHashtable : public Hashtable<bdareg_t, mtGC> {
 
 public:
   KlassRegionHashtable(int table_size);
 
   void add_entry(int index, KlassRegionEntry* entry) {
-    Hashtable<BDARegionDesc*, mtGC>::add_entry(index, (HashtableEntry<BDARegionDesc*, mtGC>*)entry);
+    Hashtable<bdareg_t, mtGC>::add_entry(index, (HashtableEntry<bdareg_t, mtGC>*)entry);
   }
 
-  void add_entry(Klass* k, BDARegion region_id);
-  BDARegion get_region(Klass* k);
+  void add_entry(Klass* k, bdareg_t region_id);
+  bdareg_t get_region(Klass* k);
 };
 
-class KlassRegionEntry : public HashtableEntry<BDARegionDesc*, mtGC> {
+class KlassRegionEntry : public HashtableEntry<bdareg_t, mtGC> {
 
 public:
   KlassRegionEntry* next() const {
-    return (KlassRegionEntry*)HashtableEntry<BDARegionDesc*, mtGC>::next();
+    return (KlassRegionEntry*)HashtableEntry<bdareg_t, mtGC>::next();
   }
 
   KlassRegionEntry** next_addr() {
-    return (KlassRegionEntry**)HashtableEntry<BDARegionDesc*, mtGC>::next_addr();
+    return (KlassRegionEntry**)HashtableEntry<bdareg_t, mtGC>::next_addr();
   }
 };
 
@@ -44,7 +44,7 @@ public:
  */
 class KlassRegionMap : public CHeapObj<mtGC> {
 private:
-  volatile uintptr_t _next_region;
+  volatile bdareg_t _next_region;
   static KlassRegionHashtable* _region_map;
 
   // parse the command line string BDAKlasses="..."
@@ -69,19 +69,19 @@ public:
   // adds an entry for one of the bda spaces
   inline void add_region_entry(Klass* k);
   // an accessor for the region_map which is used by set_klass(k) to assign a bda space
-  static BDARegion region_for_klass(Klass* k);
+  static bdareg_t region_for_klass(Klass* k);
 };
 
 // Inline definition
 inline void
 KlassRegionMap::add_other_entry(Klass* k) {
-  _region_map->add_entry(k, BDARegion(BDARegionDesc::region_start));
+  _region_map->add_entry(k, BDARegion::region_start);
 }
 
 inline void
 KlassRegionMap::add_region_entry(Klass* k) {
-  _next_region <<= BDARegionDesc::region_shift;
-  _region_map->add_entry(k, BDARegion(_next_region));
+  _next_region <<= BDARegion::region_shift;
+  _region_map->add_entry(k, _next_region);
 }
 
 #endif // SHARE_VM_OOPS_KLASSREGIONMAP_HPP

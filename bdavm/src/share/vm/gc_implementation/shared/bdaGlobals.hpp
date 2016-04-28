@@ -2,20 +2,29 @@
 #define SHARE_VM_GC_IMPLEMENTATION_SHARED_BDAGLOBALS_HPP
 
 #include <stdint.h>
+#include "utilities/globalDefinitions.hpp"
 /*
  * BDARegionDesc implments basic functions to mask out region identifiers
  * as also helps assigning them. BDARegionDesc is always passed as a pointer
  * or as a BDARegion (see typedef below). This ensures that it is always the
  * width of a machine pointer (generally, 64bit).
  */
-typedef class BDARegionDesc* BDARegion;
+//typedef class BDARegionDesc* BDARegion;
+#ifdef _LP64
+typedef uint64_t bdareg_t;
+#else
+typedef uint32_t bdareg_t;
+#endif
 
-class BDARegionDesc {
+class BDARegion {
 
 private:
-  uintptr_t value() const { return (uintptr_t)this; }
+  bdareg_t _value;
 
 public:
+
+  bdareg_t value() const { return _value; }
+  
   enum BDAType {
     other = 1,
     container = 2,
@@ -23,17 +32,26 @@ public:
   };
 
   static const int       region_shift = 1;
-  static const uintptr_t no_region = 0x0;
-  static const uintptr_t region_start = 0x1;
+  static const bdareg_t  no_region = 0x0;
+  static const bdareg_t  region_start = 0x1;
   static const int       other_mask = 0x1;
   static const uintptr_t container_mask = (1UL << 63) - 1UL;
+  static const uint      badheap_mask = (1L << 32) - 1L;
 
+  BDARegion() { _value = no_region; }
+  BDARegion(bdareg_t v) { _value = v; }
+  BDARegion(const BDARegion& region) { _value = region.value(); }
+
+  bool operator==(const BDARegion& comp)  {
+    return value() == comp.value();
+  }
+  
   BDARegion mask_out_element() const {
     return BDARegion(value() & container_mask);
   }
 
-  BDARegion set_element() {
-    return BDARegion(value() | 0x1);
+  void set_element() {
+    _value = _value | 0x1;
   }
 
   BDAType get_bda_type() const {
@@ -47,7 +65,7 @@ public:
   }
 
   int space_id() const {
-    int id = 0; uintptr_t v = value();
+    int id = 0; bdareg_t v = value();
     while(v != region_start) {
       v >>= 1; ++id;
     }
@@ -55,10 +73,10 @@ public:
   }
 
   bool is_null_region() const {
-    return value() == no_region;
+    return value() == no_region || (value() & badheap_mask) == badHeapWord;
   }
 
-  inline static BDARegion encode_as_element(void* p) { return BDARegion(p)->set_element(); }
+  inline static BDARegion encode_as_element(void* p) { return BDARegion((bdareg_t)p | 0x1); }
 
 
   // Print support (nothing for now...)

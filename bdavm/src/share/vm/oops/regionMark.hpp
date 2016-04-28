@@ -6,10 +6,10 @@
 
 // This class implements a word that contains information to where the object (oop)
 // is allocated in the Big Data allocators (bdcMutableSpace regions).
-// It is implemented just as a markOopDesc and, in the future, it could be integrated
-// into it through the unused bits (see markOop.hpp).
 
-class regionMarkDesc : public oopDesc {
+// FIXME: TRYING TO DEPRECATE THIS CLASS
+
+class regionMarkDesc VALUE_OBJ_CLASS_SPEC {
 
 private:
   // Conversion
@@ -20,11 +20,9 @@ public:
   // to where it allocs
   // FIXME: Unsure at the moment
   enum {
-    region_bits = 32
-  };
-
-  enum {
-    region_shift = 0
+    region_shift = 0,
+    region_bits = 32,
+    element_bit = 0x1
   };
 
   enum {
@@ -60,42 +58,50 @@ public:
   // ---------------------------------------
 
   bool is_noregion_oop() const {
-    return mask_bits(value(), right_n_bits(region_bits)) == BDARegionDesc::no_region;
+    return mask_bits(value(), right_n_bits(region_bits)) == BDARegion::no_region;
   }
 
   regionMark set_noregion() const {
-    return regionMark((value() & ~region_mask_in_place) | BDARegionDesc::no_region);
+    return regionMark((value() & ~region_mask_in_place) | BDARegion::no_region);
   }
 
   bool is_other_oop() const {
-    return mask_bits(value(), right_n_bits(region_bits)) == BDARegionDesc::region_start;
+    return mask_bits(value(), right_n_bits(region_bits)) == BDARegion::region_start;
   }
 
   regionMark set_other() {
-    return regionMark((value() & ~region_mask_in_place) | BDARegionDesc::region_start);
+    return regionMark((value() & ~region_mask_in_place) | BDARegion::region_start);
   }
+
+  inline regionMark encode_element() { return regionMark(value() | element_bit); }
 
   // inline statics in order to construct this
   inline static regionMark encode_pointer_as_container(void* p) { return regionMark(p)->set_container(); }
 
   inline static regionMark encode_pointer_as_element(void* p) { return regionMark(p)->set_element(); }
-
+    
   inline static regionMark encode_pointer_as_other(void* p) { return regionMark(p)->set_other(); }
 
   inline static regionMark encode_pointer_as_noregion(void* p) { return regionMark(p)->set_noregion(); }
 
   inline static regionMark encode_pointer_as_region(BDARegion r, void* p) {
-    if(r == BDARegion(BDARegionDesc::region_start))
+    if(r == BDARegion(BDARegion::region_start))
       return encode_pointer_as_other(p);
     else
       return encode_pointer_as_noregion(p);
   }
 
+
+  // Templates for the iteration macros
+  template <class T> static inline void encode_as_element(T* p, regionMark r);
+
+  
   // general inlines
   // FIXME: Unsure at the moment
   inline void* clear_pointer() { return clear_region_bits(); } // it can recover the address of an object
 
   inline BDARegion decode_pointer() { return (BDARegion)value(); }
+  
 };
 
 #endif // SHARE_VM_OOPS_REGIONMARK_HPP

@@ -194,7 +194,7 @@ void PSPromotionManager::reset() {
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
   // Dummy value to enable the flushing of all labs in the group
-  Thread::current()->set_alloc_region(BDARegionDesc::no_region);
+  Thread::current()->set_alloc_region(BDARegion::no_region);
 #endif
   lab_base = old_gen()->object_space()->top();
   _old_lab.initialize(MemRegion(lab_base, (size_t)0));
@@ -254,7 +254,7 @@ void PSPromotionManager::flush_labs() {
 
 #if defined(HASH_MARK) || defined(HEADER_MARK)
   // Dummy value to enable the flushing of all labs in the group
-  Thread::current()->set_alloc_region(BDARegionDesc::no_region);
+  Thread::current()->set_alloc_region(BDARegion::no_region);
 #endif
   assert(!_old_lab.is_flushed() || _old_gen_is_full, "Sanity");
   if (!_old_lab.is_flushed())

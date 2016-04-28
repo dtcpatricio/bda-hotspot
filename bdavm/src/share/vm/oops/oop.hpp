@@ -64,7 +64,7 @@ class oopDesc {
  private:
   volatile markOop  _mark;
 #ifdef HEADER_MARK
-  volatile regionMark _region;
+  volatile bdareg_t _region;
 #endif
   union _metadata {
     Klass*      _klass;
@@ -90,9 +90,10 @@ class oopDesc {
 
 #ifdef HEADER_MARK
   // Big Data alloc support
-  regionMark  region() const      { return _region; }
-  regionMark* region_addr() const { return (regionMark*)&_region; }
-  void set_region(volatile regionMark r) { _region = r; }
+  bdareg_t    region() const      { return _region; }
+  bdareg_t*   region_addr()       { return (bdareg_t*)&_region; }
+  void set_region(volatile bdareg_t r) { _region = r; }
+  inline bool update_region() { return true; } // default for now
   // ---- End of Big Data alloc support ----
 #endif
 

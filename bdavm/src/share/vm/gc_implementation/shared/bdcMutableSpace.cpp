@@ -47,10 +47,10 @@ BDCMutableSpace::BDCMutableSpace(size_t alignment) : MutableSpace(alignment) {
   // It is implied that the KlassRegionMap must be initialized before since it parses
   // the BDAKlasses string.
   int n_regions = KlassRegionMap::number_bdaregions() + 1;
-  BDARegion region = BDARegion((intptr_t)BDARegionDesc::region_start);
+  bdareg_t region = BDARegion::region_start;
   for(int i = 0; i < n_regions; i++)  {
     collections()->append(new CGRPSpace(alignment, region));
-    region = BDARegion((intptr_t)region << BDARegionDesc::region_shift);
+    region <<= BDARegion::region_shift;
   }
 }
 
@@ -752,7 +752,7 @@ BDCMutableSpace::free_in_bytes(int grp) const {
 size_t
 BDCMutableSpace::capacity_in_words(Thread *thr) const {
   guarantee(thr != NULL, "No thread");
-  BDARegion ctype = thr->alloc_region();
+  bdareg_t ctype = thr->alloc_region();
   int i = collections()->find(&ctype, CGRPSpace::equals);
   if( i == -1 )
     i = 0;
@@ -763,7 +763,7 @@ BDCMutableSpace::capacity_in_words(Thread *thr) const {
 size_t
 BDCMutableSpace::tlab_capacity(Thread *thr) const {
   guarantee(thr != NULL, "No thread");
-  BDARegion ctype = thr->alloc_region();
+  bdareg_t ctype = thr->alloc_region();
   int i = collections()->find(&ctype, CGRPSpace::equals);
   if( i == -1 )
     i = 0;
@@ -774,7 +774,7 @@ BDCMutableSpace::tlab_capacity(Thread *thr) const {
 size_t
 BDCMutableSpace::tlab_used(Thread *thr) const {
   guarantee(thr != NULL, "No thread");
-  BDARegion ctype = thr->alloc_region();
+  bdareg_t ctype = thr->alloc_region();
   int i = collections()->find(&ctype, CGRPSpace::equals);
   if( i == -1 )
     i = 0;
@@ -785,7 +785,7 @@ BDCMutableSpace::tlab_used(Thread *thr) const {
 size_t
 BDCMutableSpace::unsafe_max_tlab_alloc(Thread *thr) const {
   guarantee(thr != NULL, "No thread");
-  BDARegion ctype = thr->alloc_region();
+  bdareg_t ctype = thr->alloc_region();
   int i = collections()->find(&ctype, CGRPSpace::equals);
   if( i == -1 )
     i = 0;
@@ -800,7 +800,7 @@ HeapWord* BDCMutableSpace::allocate(size_t size) {
 
 HeapWord* BDCMutableSpace::cas_allocate(size_t size) {
   Thread* thr = Thread::current();
-  BDARegion type2aloc = thr->alloc_region();
+  bdareg_t type2aloc = thr->alloc_region();
 
   int i = collections()->find(&type2aloc, CGRPSpace::equals);
 
@@ -941,7 +941,7 @@ BDCMutableSpace::print_current_space_layout(bool descriptive,
       MutableSpace* spc = grp->space();
       BDARegion region = grp->coll_type();
       gclog_or_tty->print_cr("Region for objects %s :: From 0x%x to 0x%x top 0x%x",
-                             region->toString(),
+                             region.toString(),
                              spc->bottom(),
                              spc->end(),
                              spc->top());
@@ -965,7 +965,7 @@ BDCMutableSpace::print_current_space_layout(bool descriptive,
       MutableSpace* spc = grp->space();
       BDARegion region = grp->coll_type();
       gclog_or_tty->print_cr("Region for objects %x :: From 0x%x to 0x%x top 0x%x",
-                             (uintptr_t)region,
+                             region.value(),
                              spc->bottom(),
                              spc->end(),
                              spc->top());

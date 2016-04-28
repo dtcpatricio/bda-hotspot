@@ -89,10 +89,10 @@ private:
     };
     
     MutableSpace* _space;
-    BDARegion _coll_type;    
+    bdareg_t      _coll_type;    
 
   public:
-    CGRPSpace(size_t alignment, BDARegion region) : _coll_type(region) {
+    CGRPSpace(size_t alignment, bdareg_t region) : _coll_type(region) {
       _space = new MutableSpace(alignment);
     }
     ~CGRPSpace() {
@@ -100,10 +100,10 @@ private:
     }
 
     static bool equals(void* group_type, CGRPSpace* s) {
-      return *(BDARegion*)group_type == s->coll_type();
+      return *(bdareg_t*)group_type == s->coll_type();
     }
 
-    BDARegion coll_type() const { return _coll_type; }
+    bdareg_t      coll_type() const { return _coll_type; }
     MutableSpace* space() const { return _space; }
     
   };
@@ -151,7 +151,7 @@ public:
   void set_page_size(size_t page_size) { _page_size = page_size; }
   size_t page_size() const { return _page_size; }
   GrowableArray<CGRPSpace*>* collections() const { return _collections; }
-  MutableSpace* region_for(BDARegion region) const {
+  MutableSpace* region_for(bdareg_t region) const {
     int i = _collections->find(&region, CGRPSpace::equals);
     return _collections->at(i)->space();
   }
@@ -180,12 +180,12 @@ public:
   bool adjust_layout(bool force);
   size_t compute_avg_freespace();
 
-  virtual HeapWord *top_specific(BDARegion type) {
+  virtual HeapWord *top_specific(bdareg_t type) {
     int i = _collections->find(&type, CGRPSpace::equals);
     return _collections->at(i)->space()->top();
   }
 
-  virtual MemRegion used_region(BDARegion type) {
+  virtual MemRegion used_region(bdareg_t type) {
     int i = _collections->find(&type, CGRPSpace::equals);
     return _collections->at(i)->space()->used_region();
   }

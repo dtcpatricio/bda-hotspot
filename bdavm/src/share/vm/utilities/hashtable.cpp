@@ -311,19 +311,19 @@ template <MEMFLAGS F> void BasicHashtable<F>::copy_buckets(char** top, char* end
 
 #ifndef PRODUCT
 
-template <class T, MEMFLAGS F> void Hashtable<T, F>::print() {
-  ResourceMark rm;
+// template <class T, MEMFLAGS F> void Hashtable<T, F>::print() {
+//   ResourceMark rm;
 
-  for (int i = 0; i < BasicHashtable<F>::table_size(); i++) {
-    HashtableEntry<T, F>* entry = bucket(i);
-    while(entry != NULL) {
-      tty->print("%d : ", i);
-      entry->literal()->print();
-      tty->cr();
-      entry = entry->next();
-    }
-  }
-}
+//   for (int i = 0; i < BasicHashtable<F>::table_size(); i++) {
+//     HashtableEntry<T, F>* entry = bucket(i);
+//     while(entry != NULL) {
+//       tty->print("%d : ", i);
+//       entry->literal()->print();
+//       tty->cr();
+//       entry = entry->next();
+//     }
+//   }
+// }
 
 
 template <MEMFLAGS F> void BasicHashtable<F>::verify() {
@@ -380,6 +380,6 @@ template class BasicHashtable<mtSymbol>;
 template class BasicHashtable<mtCode>;
 template class BasicHashtable<mtInternal>;
 #if defined(HEADER_MARK) || defined(HASH_MARK)
-template class Hashtable<BDARegionDesc*, mtGC>;
-template class HashtableEntry<BDARegionDesc*, mtGC>;
+template class Hashtable<bdareg_t, mtGC>;
+template class HashtableEntry<bdareg_t, mtGC>;
 #endif
