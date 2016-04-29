@@ -721,7 +721,7 @@ protected:
 
  public:
   // Big Data allocators support
-  bool is_subtype_for_bda();
+  // bool is_subtype_for_bda();
 };
 
 #endif // SHARE_VM_OOPS_KLASS_HPP

@@ -5,8 +5,9 @@
 
 // Static definition
 
-GrowableArray<char*>* KlassRegionMap::_bda_class_names = NULL;
+GrowableArray<KlassRegionMap::KlassRegionEl*>* KlassRegionMap::_bda_class_names = NULL;
 KlassRegionHashtable* KlassRegionMap::_region_map = NULL;
+volatile bdareg_t KlassRegionMap::_next_region = BDARegion::region_start;
 
 // KlassRegion Hashtables definition
 
@@ -56,7 +57,7 @@ KlassRegionHashtable::get_region(Klass* k)
 KlassRegionMap::KlassRegionMap()
 {
   _next_region = BDARegion::region_start;
-  _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<char*>(0,true);  
+  _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<KlassRegionEl*>(0,true);  
   parse_from_string(BDAKlasses, KlassRegionMap::parse_from_line);
 
   int table_size = 4096;//_bda_class_names->length() << log2_intptr(sizeof(KlassRegionEntry));
@@ -117,18 +118,29 @@ KlassRegionMap::parse_from_line(char* line)
   buffer[i] = '\0';
   str = NEW_C_HEAP_ARRAY(char, i + 1, mtGC);
   strcpy(str, buffer);
-  _bda_class_names->push(str);
+
+  // construct the object and push while shifting the _next_region value
+  KlassRegionEl* el = new KlassRegionEl(str, _next_region <<= BDARegion::region_shift);
+  _bda_class_names->push(el);
 }
 
 bool
 KlassRegionMap::is_bda_type(const char* name)
 {
-  if(_bda_class_names->find((char*)name, KlassRegionMap::equals) >= 0)
+  if(_bda_class_names->find((char*)name, KlassRegionEl::equals_name) >= 0)
   {
     return true;
   } else {
     return false;
   }
+}
+
+bdareg_t
+KlassRegionMap::bda_type(const char* name)
+{
+  int i = _bda_class_names->find((char*)name, KlassRegionEl::equals_name);
+  assert(i >= 0 && i < _bda_class_names->length(), "index out of bounds");
+  return _bda_class_names->at(i)->region_id();
 }
 
 void
@@ -142,7 +154,8 @@ KlassRegionMap::add_entry(Klass* k)
                is_bda_type(k->primary_super_of_depth(index)->external_name())) {
       // If this is a bda_type (i.e. an interesting class) add to the hashtable
       // as a BDARegion with non-uniform id.
-      return add_region_entry(k);
+      bdareg_t region = bda_type(k->primary_super_of_depth(index)->external_name());
+      return add_region_entry(k, region);
     }
   }
   add_other_entry(k);

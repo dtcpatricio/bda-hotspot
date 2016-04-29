@@ -740,17 +740,17 @@ void TestKlass_test() {
 
 /////////////// Big Data Allocators support functions /////////////////
 
-bool
-Klass::is_subtype_for_bda()
-{
-  ResourceMark rm(Thread::current());
-  for(int k = 0; k <= (int)this->super_depth(); ++k) {
-    if ( k == _primary_super_limit )
-      return false;
-    if(this->primary_super_of_depth(k) != NULL &&
-       KlassRegionMap::is_bda_type(this->primary_super_of_depth(k)->external_name())) {
-      return true;
-    }
-  }
-  return false;
-}
+// bool
+// Klass::is_subtype_for_bda()
+// {
+//   ResourceMark rm(Thread::current());
+//   for(int k = 0; k <= (int)this->super_depth(); ++k) {
+//     if ( k == _primary_super_limit )
+//       return false;
+//     if(this->primary_super_of_depth(k) != NULL &&
+//        KlassRegionMap::is_bda_type(this->primary_super_of_depth(k)->external_name())) {
+//       return true;
+//     }
+//   }
+//   return false;
+// }
