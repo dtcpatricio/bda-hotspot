@@ -3470,7 +3470,9 @@ void PSParallelCompact::fill_region(ParCompactionManager* cm, size_t region_idx)
   SpaceId dest_space_id = space_id(dest_addr);
   ObjectStartArray* start_array = _space_info[dest_space_id].start_array();
   HeapWord* new_top = _space_info[dest_space_id].new_top();
+#ifdef HEADER_MARK
   assert(dest_addr < new_top, "sanity");
+#endif
   const size_t words = MIN2(pointer_delta(new_top, dest_addr), RegionSize);
 
   // Get the source region and related info.
