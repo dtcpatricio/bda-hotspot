@@ -51,6 +51,11 @@ public:
   BDARegion mask_out_element() const {
     return BDARegion(value() & container_mask);
   }
+  static bdareg_t mask_out_element(bdareg_t value) {
+    // We can't mask-out a region_start because it'd turn it into a no-region
+    if(value != region_start) return (value & container_mask);
+    return region_start;
+  }
 
 
   void set_element() {

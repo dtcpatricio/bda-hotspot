@@ -25,7 +25,7 @@ BDAOldPromotionLAB::initialize(MemRegion words)
       el->lab()->initialize(MemRegion(top - words.word_size(), words.word_size()));
     }
   } else {
-    bdareg_t type = Thread::current()->alloc_region();
+    bdareg_t type = BDARegion::mask_out_element(Thread::current()->alloc_region());
     int i = labs()->find(&type, LABGroup::equals);
     if (i == -1 ) {
       i = 0;
@@ -47,7 +47,7 @@ void
 BDAOldPromotionLAB::set_start_array(ObjectStartArray* start_array)
 {
   PSOldPromotionLAB::set_start_array(start_array);
-  int nregions = KlassRegionMap::number_bdaregions();
+  int nregions = KlassRegionMap::number_bdaregions() + 1;
   _bda_labs = new (ResourceObj::C_HEAP, mtGC)GrowableArray<LABGroup*>(nregions, true);
   for(int i = 0; i < nregions; ++i) {
     _bda_labs->push(new LABGroup(_next_region, start_array));
@@ -66,7 +66,7 @@ BDAOldPromotionLAB::flush()
     }
   } else {
     //BDARegion type = BDARegion(Thread::current()->alloc_region());
-    bdareg_t type = Thread::current()->alloc_region();
+    bdareg_t type = BDARegion::mask_out_element(Thread::current()->alloc_region());
     int i = labs()->find(&type, LABGroup::equals);
     if (i == -1 )
       i = 0;
@@ -81,7 +81,7 @@ HeapWord*
 BDAOldPromotionLAB::allocate(size_t size)
 {
   //BDARegion type = BDARegion(Thread::current()->alloc_region());
-  bdareg_t type = Thread::current()->alloc_region();
+  bdareg_t type = BDARegion::mask_out_element(Thread::current()->alloc_region());
   int i = labs()->find(&type, LABGroup::equals);
   if (i == -1 )
     i = 0;
@@ -95,7 +95,7 @@ bool
 BDAOldPromotionLAB::unallocate_object(HeapWord* obj, size_t obj_size)
 {
   //BDARegion type = BDARegion(Thread::current()->alloc_region());
-  bdareg_t type = Thread::current()->alloc_region();
+  bdareg_t type = BDARegion::mask_out_element(Thread::current()->alloc_region());
   int i = labs()->find(&type, LABGroup::equals);
   if (i == -1 )
     i = 0;
