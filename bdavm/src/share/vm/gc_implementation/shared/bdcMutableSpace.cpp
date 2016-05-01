@@ -375,7 +375,7 @@ BDCMutableSpace::initialize_regions(size_t space_size,
     aux_end = aux_start;
   }
 
-  collections()->at(0)->space()->initialize(MemRegion(start, space_size - bda_space),
+  collections()->at(0)->space()->initialize(MemRegion(start, aux_end),
                                             SpaceDecorator::Clear,
                                             SpaceDecorator::Mangle);
 }
