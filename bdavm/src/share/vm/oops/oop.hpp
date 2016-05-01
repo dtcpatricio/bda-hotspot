@@ -90,10 +90,10 @@ class oopDesc {
 
 #ifdef HEADER_MARK
   // Big Data alloc support
-  bdareg_t    region() const      { return _region; }
-  bdareg_t*   region_addr()       { return (bdareg_t*)&_region; }
-  void set_region(volatile bdareg_t r) { _region = r; }
-  inline bool update_region() { return true; } // default for now
+  volatile bdareg_t region()   { return _region; }
+  bdareg_t*         region_addr()       { return (bdareg_t*)&_region; }
+  volatile void     set_region(volatile bdareg_t r) { _region = bdareg_t(r); }
+  inline bool       update_region()     { return true; } // default for now
   // ---- End of Big Data alloc support ----
 #endif
 
