@@ -533,7 +533,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   DEBUG_ONLY(Atomic::add_ptr(len, &add_obj_size);)
 
 #ifdef HEADER_MARK
-  BDARegion r = ((oop)addr)->region();
+  bdareg_t r = ((oop)addr)->region();
 #endif // HASH_MARK || HEADER_MARK
 
   // BDA TODO: Find all 0x1 and switch with the proper values!
@@ -541,7 +541,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
     // All in one region.
     _region_data[beg_region].add_live_obj(len);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    _counter_data[beg_region].incr_counter(r.space_id());
+    _counter_data[beg_region].incr_counter(BDARegion(r).space_id());
 #endif
     return;
   }
@@ -550,7 +550,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   const size_t beg_ofs = region_offset(addr);
   _region_data[beg_region].add_live_obj(RegionSize - beg_ofs);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  _counter_data[beg_region].incr_counter(r.space_id());
+  _counter_data[beg_region].incr_counter(BDARegion(r).space_id());
 #endif
 
   // Middle regions--completely spanned by this object.
@@ -558,7 +558,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
     _region_data[region].set_partial_obj_size(RegionSize);
     _region_data[region].set_partial_obj_addr(addr);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    _counter_data[region].incr_counter(r.space_id());
+    _counter_data[region].incr_counter(BDARegion(r).space_id());
 #endif
   }
 
@@ -3470,9 +3470,7 @@ void PSParallelCompact::fill_region(ParCompactionManager* cm, size_t region_idx)
   SpaceId dest_space_id = space_id(dest_addr);
   ObjectStartArray* start_array = _space_info[dest_space_id].start_array();
   HeapWord* new_top = _space_info[dest_space_id].new_top();
-#ifdef HEADER_MARK
   assert(dest_addr < new_top, "sanity");
-#endif
   const size_t words = MIN2(pointer_delta(new_top, dest_addr), RegionSize);
 
   // Get the source region and related info.

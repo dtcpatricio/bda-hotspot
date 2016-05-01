@@ -945,7 +945,8 @@ class PSParallelCompact : AllStatic {
 
   typedef enum {
     old_space_id, eden_space_id,
-    from_space_id, to_space_id, last_space_id
+    from_space_id, to_space_id, last_space_id,
+    bda_space1, bda_space2, bda_space3
   } SpaceId;
 
  public:
