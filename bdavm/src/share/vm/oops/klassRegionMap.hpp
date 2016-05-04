@@ -27,6 +27,9 @@ public:
 
 class KlassRegionEntry : public HashtableEntry<bdareg_t, mtGC> {
 
+private:
+  Klass* _klass; // actual klass for conflict resolution
+  
 public:
   KlassRegionEntry* next() const {
     return (KlassRegionEntry*)HashtableEntry<bdareg_t, mtGC>::next();
@@ -35,6 +38,9 @@ public:
   KlassRegionEntry** next_addr() {
     return (KlassRegionEntry**)HashtableEntry<bdareg_t, mtGC>::next_addr();
   }
+
+  Klass* get_klass()         { return _klass; }
+  void   set_klass(Klass* k) { _klass = k; }
 };
 
 

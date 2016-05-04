@@ -24,7 +24,7 @@ KlassRegionHashtable::add_entry(Klass* k, bdareg_t region)
   } else {
     compressed_ptr = (uintptr_t)k & 0xFFFFFFFF;
   }
-  KlassRegionEntry* entry = (KlassRegionEntry*)Hashtable<bdareg_t, mtGC>::new_entry(compressed_ptr, region);
+  KlassRegionEntry* entry = (KlassRegionEntry*)Hashtable<bdareg_t, mtGC>::new_entry(compressed_ptr, region); entry->set_klass(k);
 
   BasicHashtable<mtGC>::add_entry(hash_to_index(compressed_ptr), entry);
 }
@@ -48,8 +48,20 @@ KlassRegionHashtable::get_region(Klass* k)
   // classFileParser for loading the .class
   if(entry == NULL) {
     this->add_entry(k, BDARegion::region_start);
+    return BDARegion::region_start;
+  } else if (entry->next() != NULL) {
+    KlassRegionEntry* next_entry = entry->next();
+    while (next_entry->get_klass() != k) {
+      next_entry = next_entry->next();
+      if(next_entry == NULL) {
+        this->add_entry(k, BDARegion::region_start);
+        return BDARegion::region_start;
+      }
+      assert(next_entry != NULL, "klass pointer placed incorrectly");
+    }
+    return next_entry->literal();
   }
-  return bucket(i)->literal();
+  return entry->literal();
 }
 
 // KlassRegionMap definition
@@ -147,6 +159,10 @@ void
 KlassRegionMap::add_entry(Klass* k)
 {
   ResourceMark rm(Thread::current());
+  // Debug purposes
+  if (strstr(k->external_name(), "CompactBuffer")) {
+    tty->print_cr("Found CompactBuffer!");
+  }
   for(int index = 0; index <= (int)k->super_depth(); ++index) {
     if ( index == (int)Klass::primary_super_limit() ) {
       return add_other_entry(k);
