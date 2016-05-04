@@ -35,7 +35,9 @@ BDADataCounters::most_counts_id(size_t region_idx)
 {
   int* counters = _map[region_idx].counters();
   int max = 0, acc = 0;
-  for(int idx = 0; idx < _counter_sz; ++idx) {
+  // FIXME: Here idx is 1 in order to prefer targets with at least 1 object
+  // of the kind. In the future use heuristics!
+  for(int idx = 1; idx < _counter_sz; ++idx) {
     if (counters[idx] > acc) {
       max = idx;
       acc = counters[idx];

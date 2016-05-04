@@ -21,11 +21,11 @@ BDAOldPromotionLAB::initialize(MemRegion words)
     for(int i = 0; i < labs()->length(); ++i) {
       LABGroup* el = labs()->at(i);
       Thread::current()->set_alloc_region(el->type());
-      HeapWord* top = ParallelScavengeHeap::old_gen()->object_space()->top_specific(el->type());
+      HeapWord* top = ((BDCMutableSpace*)ParallelScavengeHeap::old_gen()->object_space())->top_specific(el->type());
       el->lab()->initialize(MemRegion(top - words.word_size(), words.word_size()));
     }
   } else {
-    bdareg_t type = BDARegion::mask_out_element(Thread::current()->alloc_region());
+    bdareg_t type = Thread::current()->alloc_region();
     int i = labs()->find(&type, LABGroup::equals);
     if (i == -1 ) {
       i = 0;
@@ -66,7 +66,7 @@ BDAOldPromotionLAB::flush()
     }
   } else {
     //BDARegion type = BDARegion(Thread::current()->alloc_region());
-    bdareg_t type = BDARegion::mask_out_element(Thread::current()->alloc_region());
+    bdareg_t type = Thread::current()->alloc_region();
     int i = labs()->find(&type, LABGroup::equals);
     if (i == -1 )
       i = 0;
@@ -81,7 +81,7 @@ HeapWord*
 BDAOldPromotionLAB::allocate(size_t size)
 {
   //BDARegion type = BDARegion(Thread::current()->alloc_region());
-  bdareg_t type = BDARegion::mask_out_element(Thread::current()->alloc_region());
+  bdareg_t type = Thread::current()->alloc_region();
   int i = labs()->find(&type, LABGroup::equals);
   if (i == -1 )
     i = 0;
@@ -95,7 +95,7 @@ bool
 BDAOldPromotionLAB::unallocate_object(HeapWord* obj, size_t obj_size)
 {
   //BDARegion type = BDARegion(Thread::current()->alloc_region());
-  bdareg_t type = BDARegion::mask_out_element(Thread::current()->alloc_region());
+  bdareg_t type = Thread::current()->alloc_region();
   int i = labs()->find(&type, LABGroup::equals);
   if (i == -1 )
     i = 0;

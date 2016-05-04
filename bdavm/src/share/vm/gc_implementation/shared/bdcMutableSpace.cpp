@@ -940,7 +940,7 @@ BDCMutableSpace::print_current_space_layout(bool descriptive,
       CGRPSpace* grp = collections()->at(j);
       MutableSpace* spc = grp->space();
       BDARegion region = grp->coll_type();
-      gclog_or_tty->print_cr("Region for objects %s :: From 0x%x to 0x%x top 0x%x",
+      gclog_or_tty->print_cr("\nRegion for objects %s :: From 0x%x to 0x%x top 0x%x",
                              region.toString(),
                              spc->bottom(),
                              spc->end(),
@@ -964,15 +964,17 @@ BDCMutableSpace::print_current_space_layout(bool descriptive,
       CGRPSpace* grp = collections()->at(j);
       MutableSpace* spc = grp->space();
       BDARegion region = grp->coll_type();
-      gclog_or_tty->print_cr("Region for objects %x :: From 0x%x to 0x%x top 0x%x",
-                             region.value(),
+      gclog_or_tty->print("\nRegion for objects %x", region.value());
+      gclog_or_tty->print_cr(":: From 0x%x to 0x%x \t top 0x%x",
                              spc->bottom(),
                              spc->end(),
                              spc->top());
-      gclog_or_tty->print_cr("\t Fillings (words): Capacity %d :: Used space %d :: Free space %d",
-                    spc->capacity_in_words(),
-                    spc->used_in_words(),
-                    spc->free_in_words());
+      gclog_or_tty->print_cr("\t :: Fillings (words): Capacity " SIZE_FORMAT "K"
+                             "   :: Used space " SIZE_FORMAT "K"
+                             "   :: Free space " SIZE_FORMAT "K",
+                             spc->capacity_in_words() / K,
+                             spc->used_in_words() / K,
+                             spc->free_in_words() / K);
     }
   }
 }
@@ -984,85 +986,3 @@ BDCMutableSpace::verify() {
     ms->verify();
   }
 }
-
-
-// FIXME: NOT IN USE NOW. IF IT HAS TO BE UNCOMMENT AND IMPLEMENT. THIS WAS
-// THE ALTERNATIVE TO PUT SpaceInfo AS A POINTER TYPE AND DYNAMICALLY ALLOCATE
-// IT IN THE CHEAP.
-/* ---------- Support for the Parallel Compact GC -------------- */
-// void
-// BDCMutableSpace::set_dense_prefix(HeapWord* addr)
-// {
-//   for(int i = 0; i < _collections->length(); i++) {
-//     CGRPSpace* grp = _collections->at(i);
-//     if ( grp->space()->contains(addr) ) {
-//       grp->set_dense_prefix(addr);
-//     }
-//   }
-// }
-
-// void
-// BDCMutableSpace::set_min_dense_prefix(HeapWord* addr)
-// {
-//   for(int i = 0; i < _collections->length(); i++) {
-//     CGRPSpace* grp = _collections->at(i);
-//     if ( grp->space()->contains(addr) ) {
-//       grp->set_min_dense_prefix(addr);
-//     }
-//   }
-// }
-
-// void
-// BDCMutableSpace::set_new_top(HeapWord* addr)
-// {
-//   for(int i = 0; i < _collections->length(); i++) {
-//     CGRPSpace* grp = _collections->at(i);
-//     if ( grp->space()->contains(addr) ) {
-//       grp->set_new_top(addr);
-//     }
-//   }
-// }
-
-// HeapWord*
-// BDCMutableSpace::dense_prefix(HeapWord* addr)
-// {
-//   for(int i = 0; i < _collections->length(); i++) {
-//     CGRPSpace* grp = _collections->at(i);
-//     if ( grp->space()->contains(addr) ) {
-//       grp->dense_prefix();
-//     }
-//   }
-// }
-
-// HeapWord*
-// BDCMutableSpace::min_dense_prefix(HeapWord* addr)
-// {
-//   for(int i = 0; i < _collections->length(); i++) {
-//     CGRPSpace* grp = _collections->at(i);
-//     if ( grp->space()->contains(addr) ) {
-//       grp->min_dense_prefix();
-//     }
-//   }
-// }
-
-// HeapWord*
-// BDCMutableSpace::new_top(HeapWord* addr)
-// {
-//   for(int i = 0; i < _collections->length(); i++) {
-//     CGRPSpace* grp = _collections->at(i);
-//     if ( grp->space()->contains(addr) ) {
-//       grp->new_top();
-//     }
-//   }
-// }
-
-// HeapWord**
-// BDCMutableSpace::new_top_addr(HeapWord* addr)
-// {
-//   for(int i = 0; i < _collections->length(); i++) {
-//     CGRPSpace* grp = _collections->at(i);
-//     if ( grp->space()->contains(addr) ) {
-//       grp->new_top(addr);
-//     }
-//   }
-// }
