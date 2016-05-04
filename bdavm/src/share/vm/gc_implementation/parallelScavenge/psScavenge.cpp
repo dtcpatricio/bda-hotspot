@@ -240,6 +240,14 @@ bool PSScavenge::invoke() {
     counters->update_full_follows_scavenge(ffs_val);
   }
 
+#ifdef HEADER_MARK
+  if (BDAPrintAfterMinorGC) {
+    ((BDCMutableSpace*)heap->old_gen()->object_space())->print_current_space_layout(
+                                              BDAPrintDescriptive,
+                                              BDAPrintOnlyCollections);
+  }
+#endif
+
   if (need_full_gc) {
     GCCauseSetter gccs(heap, GCCause::_adaptive_size_policy);
     CollectorPolicy* cp = heap->collector_policy();

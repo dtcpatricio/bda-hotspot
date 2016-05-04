@@ -3962,6 +3962,9 @@ class CommandLineFlags {
   product(bool, BDAPrintAfterGC, false,                                     \
                "Print big-data aware space after compacting GC")            \
                                                                             \
+  product(bool, BDAPrintAfterMinorGC, false,                                \
+                "Print big-data aware space after scavenge GC")             \
+                                                                            \
   product(bool, BDAPrintDescriptive, false,                                 \
                "Print big-data aware space in a descriptive manner")        \
                                                                             \

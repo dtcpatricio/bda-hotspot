@@ -404,7 +404,7 @@ void PSOldGen::resize(size_t desired_free_space) {
 // NOTE! This code should only be called by one thread and never during
 // parallel GC phases.
 bool PSOldGen::adjust_object_space() {
-  return ((BDCMutableSpace*)object_space())->adjust_layout(true);
+  return true; // FIXME: Experimental ((BDCMutableSpace*)object_space())->adjust_layout(true);
 }
 
 size_t PSOldGen::avg_freespace() {
