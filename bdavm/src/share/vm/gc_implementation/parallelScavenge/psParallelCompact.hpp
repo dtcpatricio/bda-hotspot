@@ -1587,8 +1587,14 @@ public:
     ParMarkBitMapClosure(PSParallelCompact::mark_bitmap(), cm),
     _start_array(PSParallelCompact::start_array(space_id))
   {
+#ifdef HEADER_MARK
+      assert(space_id == PSParallelCompact::old_space_id ||
+             space_id >= PSParallelCompact::last_space_id,
+             "cannot use FillClosure in the young gen");
+#else
       assert(space_id == PSParallelCompact::old_space_id,
              "cannot use FillClosure in the young gen");
+#endif
   }
 
   virtual IterationStatus do_addr(HeapWord* addr, size_t size) {

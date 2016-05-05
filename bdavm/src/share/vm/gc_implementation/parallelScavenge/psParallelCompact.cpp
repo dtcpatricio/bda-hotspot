@@ -3412,7 +3412,15 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
   // Switch to a new source space and find the first non-empty region.
   unsigned int space_id = src_space_id + 1;
 #ifdef HEADER_MARK
-  assert(space_id < bda_last_space_id, "not enough spaces");
+  // Since the bda-space ids are after the to_space_id (i.e from last_space_id up)
+  // then some adjustment is necessary in order to push the next_src_region down to
+  // the eden_space_id. This is only necessary if it is searching for regions after
+  // the last bda-space.
+  if (space_id == bda_last_space_id) {
+    space_id = PSParallelCompact::eden_space_id;
+  } else {
+    assert(space_id < bda_last_space_id, "not enough spaces");
+  }
 #else
   assert(space_id < last_space_id, "not enough spaces");
 #endif
