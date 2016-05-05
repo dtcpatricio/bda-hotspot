@@ -192,6 +192,7 @@ void PSParallelCompact::print_on_error(outputStream* st) {
 }
 
 #ifndef PRODUCT
+// Just pushing more values to the array for print-support.
 const char* PSParallelCompact::space_names[] = {
   "old ", "eden", "from", "to  "
 };
@@ -834,10 +835,14 @@ ParallelCompactData::summarize_parse_region(
       PSParallelCompact::SpaceId previous_id =
         PSParallelCompact::space_id(_region_data[cur_region - 1].destination());
       if(previous_id > PSParallelCompact::old_space_id) {
-        target_end = summary_map.end_at(previous_id - PSParallelCompact::last_space_id);
-        target_next = summary_map.next_addr_at(previous_id - PSParallelCompact::last_space_id);
-        dest_addr = target_next;
+        target_end = summary_map.end_at(previous_id - PSParallelCompact::last_space_id + 1);
+        target_next = summary_map.next_addr_at(previous_id - PSParallelCompact::last_space_id + 1);
+      } else {
+        assert(previous_id == PSParallelCompact::old_space_id, "should be old-id");
+        target_end = summary_map.end_at(previous_id);
+        target_next = summary_map.next_addr_at(previous_id);
       }
+      dest_addr = target_next;
     } else {
       int target_id = _bda_counters->most_counts_id(cur_region);
 
@@ -2155,7 +2160,7 @@ void PSParallelCompact::summary_phase(ParCompactionManager* cm,
     _summary_map.set_next_addr(id - last_space_id, _space_info[id-1].new_top_addr());
   }
 
-  for (unsigned int id = to_space_id; id < last_space_id; ++id)
+  for (unsigned int id = eden_space_id; id < last_space_id; ++id)
 #else
   // Summarize the remaining spaces in the young gen.  The initial target space
   // is the old gen.  If a space does not fit entirely into the target, then the
@@ -3174,6 +3179,7 @@ PSParallelCompact::update_and_deadwood_in_dense_prefix(ParCompactionManager* cm,
 // Return the SpaceId for the space containing addr.  If addr is not in the
 // heap, last_space_id is returned.  In debug mode it expects the address to be
 // in the heap and asserts such.
+
 PSParallelCompact::SpaceId PSParallelCompact::space_id(HeapWord* addr) {
   assert(Universe::heap()->is_in_reserved(addr), "addr not in the heap");
 
