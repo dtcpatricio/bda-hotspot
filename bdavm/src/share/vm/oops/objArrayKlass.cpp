@@ -630,7 +630,7 @@ int ObjArrayKlass::oop_adjust_pointers(oop obj) {
 void ObjArrayKlass::oop_push_contents(PSPromotionManager* pm, oop obj) {
   assert(obj->is_objArray(), "obj must be obj array");
 #ifdef HEADER_MARK
-  bdareg_t r = obj->region();
+  BDARegion* r = oopDesc::load_region_oop(obj);
   ObjArrayKlass_BDA_OOP_ITERATE( \
     objArrayOop(obj), p, \
     if (PSScavenge::should_scavenge(p)) { \

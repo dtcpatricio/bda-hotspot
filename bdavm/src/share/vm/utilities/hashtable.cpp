@@ -380,6 +380,6 @@ template class BasicHashtable<mtSymbol>;
 template class BasicHashtable<mtCode>;
 template class BasicHashtable<mtInternal>;
 #if defined(HEADER_MARK) || defined(HASH_MARK)
-template class Hashtable<bdareg_t, mtGC>;
-template class HashtableEntry<bdareg_t, mtGC>;
+template class Hashtable<BDARegion*, mtGC>;
+template class HashtableEntry<BDARegion*, mtGC>;
 #endif

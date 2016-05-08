@@ -65,6 +65,19 @@
 // Implementation of all inlined member functions defined in oop.hpp
 // We need a separate file to avoid circular references
 
+#ifdef HEADER_MARK
+inline BDARegion*
+oopDesc::load_region_oop(oop p)
+{
+  return (BDARegion* volatile)OrderAccess::load_ptr_acquire(p->region_addr());
+}
+inline void
+oopDesc::store_region_oop(BDARegion** v, BDARegion* r)
+{
+  OrderAccess::release_store_ptr((intptr_t**)v, (intptr_t*)r);
+}
+#endif
+
 inline void oopDesc::release_set_mark(markOop m) {
   OrderAccess::release_store_ptr(&_mark, m);
 }
@@ -112,7 +125,7 @@ inline void oopDesc::set_klass(Klass* k) {
   assert(Universe::is_bootstrapping() || k != NULL, "must be a real Klass*");
   assert(Universe::is_bootstrapping() || k->is_klass(), "not a Klass*");
 #ifdef HEADER_MARK
-  set_region(KlassRegionMap::region_for_klass(k));
+  *region_addr() = KlassRegionMap::region_for_klass(k);
 #endif
   if (UseCompressedClassPointers) {
     *compressed_klass_addr() = Klass::encode_klass_not_null(k);

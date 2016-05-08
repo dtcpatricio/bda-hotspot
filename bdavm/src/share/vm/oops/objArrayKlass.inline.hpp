@@ -92,7 +92,7 @@ void ObjArrayKlass::objarray_follow_contents(ParCompactionManager* cm, oop obj,
   T* const end = base + end_index;
 
 #ifdef HEADER_MARK // For BDAVM
-  bdareg_t r = obj->region();
+  BDARegion* r = oopDesc::load_region_oop(obj);
 #endif // HEADER_MARK
   // Push the non-NULL elements of the next stride on the marking stack.
   for (T* e = beg; e < end; e++) {

@@ -49,50 +49,16 @@ public:
   static const size_t MinRegionAddrMask;
 
 private:
-
-  // FIXME: NOT IN USE NOW. IF IT HAS TO BE UNCOMMENT AND IMPLEMENT. THIS WAS
-  // THE ALTERNATIVE TO PUT SpaceInfo AS A POINTER TYPE AND DYNAMICALLY ALLOCATE
-  // IT IN THE CHEAP.
-  // // This class implements the SpaceInfo information for the ParallelCompact GC
-  // // (see psParallelCompact.hpp). It provides a hidden mechanism to implement
-  // // the various fields of SpaceInfo concerning the dynamically created bda spaces.
-  // // Thus, it the modifications required on the ParallelCompact code are less severe,
-  // // since this class (and its outer class) manages calls and translates them onto
-  // // the spaces themselves. It is considered a ValueObj given that it is constant
-  // // and obligatory for each bda space.
-  // class BDAPSCompactData VALUE_OBJ_CLASS_SPEC {
-    
-  // private:
-  //   HeapWord*         _new_top;
-  //   HeapWord*         _min_dense_prefix;
-  //   HeapWord*         _dense_prefix;
-
-  // public:
-  //   void set_new_top(HeapWord* addr)          { _new_top = addr; }
-  //   void set_min_dense_prefix(HeapWord* addr) { _min_dense_prefix = addr; }
-  //   void set_dense_prefix(HeapWord* addr)     { _dense_prefix = addr; }
-
-  //   HeapWord* new_top() const { return _new_top; }
-  //   HeapWord** new_top_addr() { return &_new_top; }
-  //   HeapWord* min_dense_prefix() const { return _min_dense_prefix; }
-  //   HeapWord* dense_prefix() const { return _dense_prefix; }
-  // };
-  
+ 
   // This class defines the addressable space of the BDCMutableSpace
   // for a particular collection type, or none at all.
   class CGRPSpace : public CHeapObj<mtGC> {
-
-    enum CollectionShiftConstants {
-      region_shift               = 1,
-      region_start               = 0x1, // the first region is the general one
-      no_region                  = 0x0 // helper value
-    };
     
     MutableSpace* _space;
-    bdareg_t      _coll_type;    
+    BDARegion*    _coll_type;    
 
   public:
-    CGRPSpace(size_t alignment, bdareg_t region) : _coll_type(region) {
+    CGRPSpace(size_t alignment, BDARegion* region) : _coll_type(region) {
       _space = new MutableSpace(alignment);
     }
     ~CGRPSpace() {
@@ -100,10 +66,10 @@ private:
     }
 
     static bool equals(void* group_type, CGRPSpace* s) {
-      return *(bdareg_t*)group_type == s->coll_type();
+      return *(BDARegion**)group_type == s->coll_type();
     }
 
-    bdareg_t      coll_type() const { return _coll_type; }
+    BDARegion*    coll_type() const { return _coll_type; }
     MutableSpace* space() const { return _space; }
     
   };
@@ -151,7 +117,7 @@ public:
   void set_page_size(size_t page_size) { _page_size = page_size; }
   size_t page_size() const { return _page_size; }
   GrowableArray<CGRPSpace*>* collections() const { return _collections; }
-  MutableSpace* region_for(bdareg_t region) const {
+  MutableSpace* region_for(BDARegion* region) const {
     int i = _collections->find(&region, CGRPSpace::equals);
     return _collections->at(i)->space();
   }
@@ -180,12 +146,12 @@ public:
   bool adjust_layout(bool force);
   size_t compute_avg_freespace();
 
-  virtual HeapWord *top_specific(bdareg_t type) {
+  virtual HeapWord *top_specific(BDARegion* type) {
     int i = _collections->find(&type, CGRPSpace::equals);
     return _collections->at(i)->space()->top();
   }
 
-  virtual MemRegion used_region(bdareg_t type) {
+  virtual MemRegion used_region(BDARegion* type) {
     int i = _collections->find(&type, CGRPSpace::equals);
     return _collections->at(i)->space()->used_region();
   }

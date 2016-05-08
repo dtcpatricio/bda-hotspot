@@ -18,36 +18,35 @@ class BDAOldPromotionLAB : public PSOldPromotionLAB {
 private:
 
   class LABGroup : public CHeapObj<mtGC> {
-    bdareg_t           _type;
+    BDARegion*         _type;
     PSOldPromotionLAB* _lab;
 
   public:
-    LABGroup(bdareg_t type, ObjectStartArray* start_array) : _type(type) {
+    LABGroup(BDARegion* type, ObjectStartArray* start_array) : _type(type) {
       _lab = new PSOldPromotionLAB(start_array);
     }
     ~LABGroup() {
       delete _lab;
     }
 
-    bdareg_t           type() { return _type; }
+    BDARegion*         type() { return _type; }
     PSOldPromotionLAB* lab() { return _lab; }
 
     // Comparison function to be used as argument for find in array
     static bool equals(void* region, LABGroup* grp) {
-      return *(bdareg_t*)region == grp->type();
+      return *(BDARegion**)region == grp->type();
     }
   };
 
   
 
   GrowableArray<LABGroup*>* _bda_labs;
-  bdareg_t                  _next_region;  
 
 public:
   // The first constructor does not need initialization since it is the default for
   // value objects. The array of LABGroup objects is, therefore, initialized in
   // the set_start_array() method.
-  BDAOldPromotionLAB() : PSOldPromotionLAB(NULL), _next_region(BDARegion::region_start) {}
+  BDAOldPromotionLAB() : PSOldPromotionLAB(NULL) {}
   BDAOldPromotionLAB(ObjectStartArray* start_array);
 
   GrowableArray<LABGroup*>* labs() { return _bda_labs; }

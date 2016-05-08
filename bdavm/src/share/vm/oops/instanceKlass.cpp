@@ -2327,8 +2327,8 @@ void InstanceKlass::oop_follow_contents(ParCompactionManager* cm,
   // Only mark the header and let the scan of the meta-data mark
   // everything else.
 #ifdef HEADER_MARK // BDAVM Macro
-  bdareg_t r = obj->region();
-  InstanceKlass_BDA_OOP_MAP_ITERATE( \
+  BDARegion* r = oopDesc::load_region_oop(obj);
+  InstanceKlass_BDA_OOP_MAP_ITERATE(            \
     obj, \
     PSParallelCompact::mark_and_push(cm, p), \
     BDARegion::encode_oop_element(p, r), \
@@ -2420,7 +2420,7 @@ int InstanceKlass::oop_adjust_pointers(oop obj) {
 #if INCLUDE_ALL_GCS
 void InstanceKlass::oop_push_contents(PSPromotionManager* pm, oop obj) {
 #ifdef HEADER_MARK // BDAVM Macro call --- TODO: See if it can be put under the "if"
-  bdareg_t r = obj->region();
+  BDARegion* r = oopDesc::load_region_oop(obj);
   InstanceKlass_BDA_OOP_MAP_REVERSE_ITERATE( \
     obj, \
     if (PSScavenge::should_scavenge(p)) { \
@@ -2440,19 +2440,10 @@ void InstanceKlass::oop_push_contents(PSPromotionManager* pm, oop obj) {
 
 int InstanceKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) {
   int size = size_helper();
-// #ifdef HEADER_MARK // BDAVM Macro call
-//   regionMark r = obj->region();
-//   InstanceKlass_BDA_OOP_MAP_ITERATE( \
-//     obj, \
-//     PSParallelCompact::adjust_pointer(p), \
-//     regionMarkDesc::encode_as_element(p, r), \
-//     assert_is_in)
-// #else
   InstanceKlass_OOP_MAP_ITERATE( \
     obj, \
     PSParallelCompact::adjust_pointer(p), \
     assert_is_in)
-//#endif
   return size;
 }
 

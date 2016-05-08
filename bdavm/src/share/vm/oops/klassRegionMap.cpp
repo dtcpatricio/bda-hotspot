@@ -7,16 +7,18 @@
 
 GrowableArray<KlassRegionMap::KlassRegionEl*>* KlassRegionMap::_bda_class_names = NULL;
 KlassRegionHashtable* KlassRegionMap::_region_map = NULL;
+BDARegion* KlassRegionMap::_region_data = NULL;
+int        KlassRegionMap::_region_data_sz = 0;
 volatile bdareg_t KlassRegionMap::_next_region = BDARegion::region_start;
 
 // KlassRegion Hashtables definition
 
 KlassRegionHashtable::KlassRegionHashtable(int table_size)
-  : Hashtable<bdareg_t, mtGC>(table_size, sizeof(KlassRegionEntry)) {
+  : Hashtable<BDARegion*, mtGC>(table_size, sizeof(KlassRegionEntry)) {
 }
 
-void
-KlassRegionHashtable::add_entry(Klass* k, bdareg_t region)
+KlassRegionEntry*
+KlassRegionHashtable::add_entry(Klass* k, BDARegion* region)
 {
   unsigned int compressed_ptr;
   if(UseCompressedClassPointers) {
@@ -24,18 +26,20 @@ KlassRegionHashtable::add_entry(Klass* k, bdareg_t region)
   } else {
     compressed_ptr = (uintptr_t)k & 0xFFFFFFFF;
   }
-  KlassRegionEntry* entry = (KlassRegionEntry*)Hashtable<bdareg_t, mtGC>::new_entry(compressed_ptr, region); entry->set_klass(k);
+  KlassRegionEntry* entry = (KlassRegionEntry*)Hashtable<BDARegion*, mtGC>::new_entry(compressed_ptr, region); entry->set_klass(k);
 
   BasicHashtable<mtGC>::add_entry(hash_to_index(compressed_ptr), entry);
+
+  return entry;
 }
 
-bdareg_t
+BDARegion*
 KlassRegionHashtable::get_region(Klass* k)
 {
   // Give the default entry for the general types initialized at vm startup,
   // i.e. before any entry is added when loading classes
   if(!number_of_entries())
-    return BDARegion::region_start;
+    return KlassRegionMap::no_region_ptr();
 
   int i;
   if (UseCompressedClassPointers) {
@@ -47,19 +51,16 @@ KlassRegionHashtable::get_region(Klass* k)
   // this can happen with vm loaded classes, i.e. those that do not rely on the
   // classFileParser for loading the .class
   if(entry == NULL) {
-    this->add_entry(k, BDARegion::region_start);
-    return BDARegion::region_start;
+    entry = this->add_entry(k, KlassRegionMap::region_elem(BDARegion::region_start));
   } else if (entry->next() != NULL) {
-    KlassRegionEntry* next_entry = entry->next();
-    while (next_entry->get_klass() != k) {
-      next_entry = next_entry->next();
-      if(next_entry == NULL) {
-        this->add_entry(k, BDARegion::region_start);
-        return BDARegion::region_start;
+    while (entry->get_klass() != k) {
+      entry = entry->next();
+      if(entry == NULL) {
+        entry = this->add_entry(k,
+                                KlassRegionMap::region_start_ptr());
       }
-      assert(next_entry != NULL, "klass pointer placed incorrectly");
+      assert(entry != NULL, "klass pointer placed incorrectly");
     }
-    return next_entry->literal();
   }
   return entry->literal();
 }
@@ -69,8 +70,25 @@ KlassRegionHashtable::get_region(Klass* k)
 KlassRegionMap::KlassRegionMap()
 {
   _next_region = BDARegion::region_start;
-  _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<KlassRegionEl*>(0,true);  
+  _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<KlassRegionEl*>(0,true);
   parse_from_string(BDAKlasses, KlassRegionMap::parse_from_line);
+
+  // 2 times each 'interesting' class (container and element) and 2 more for
+  // region_start and no_region. Initialize it.
+  _region_data_sz = 2 * _bda_class_names->length() + 2;
+  _region_data = NEW_C_HEAP_ARRAY(BDARegion, _region_data_sz, mtGC);
+  _region_data[0] = BDARegion(BDARegion::no_region);
+  _region_data[1] = BDARegion(BDARegion::region_start);
+  bdareg_t reg = BDARegion::region_start;
+  for(int j = 2; j < _region_data_sz; j += 2) {
+    reg <<= BDARegion::region_shift;
+    // the no_region is occupying idx 0
+    int idx = log2_intptr((intptr_t)reg) + 1;
+    _region_data[idx] = BDARegion(reg); _region_data[idx+1] = BDARegion(reg | 0x1);
+  }
+  // Set the limits on the BDARegion
+  BDARegion::set_region_start(_region_data);
+  BDARegion::set_region_end(&_region_data[_region_data_sz - 1]);
 
   int table_size = 4096;//_bda_class_names->length() << log2_intptr(sizeof(KlassRegionEntry));
   _region_map = new KlassRegionHashtable(table_size);
@@ -147,12 +165,14 @@ KlassRegionMap::is_bda_type(const char* name)
   }
 }
 
-bdareg_t
+BDARegion*
 KlassRegionMap::bda_type(const char* name)
 {
   int i = _bda_class_names->find((char*)name, KlassRegionEl::equals_name);
   assert(i >= 0 && i < _bda_class_names->length(), "index out of bounds");
-  return _bda_class_names->at(i)->region_id();
+  bdareg_t r = _bda_class_names->at(i)->region_id();
+  int idx = log2_intptr((intptr_t)r) + 1;
+  return &_region_data[idx];
 }
 
 void
@@ -170,14 +190,14 @@ KlassRegionMap::add_entry(Klass* k)
                is_bda_type(k->primary_super_of_depth(index)->external_name())) {
       // If this is a bda_type (i.e. an interesting class) add to the hashtable
       // as a BDARegion with non-uniform id.
-      bdareg_t region = bda_type(k->primary_super_of_depth(index)->external_name());
+      BDARegion* region = bda_type(k->primary_super_of_depth(index)->external_name());
       return add_region_entry(k, region);
     }
   }
   add_other_entry(k);
 }
 
-bdareg_t
+BDARegion*
 KlassRegionMap::region_for_klass(Klass* k)
 {
   _region_map->get_region(k);

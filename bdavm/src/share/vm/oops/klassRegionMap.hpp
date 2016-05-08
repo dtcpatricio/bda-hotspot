@@ -12,31 +12,31 @@
 
 class KlassRegionEntry;
 
-class KlassRegionHashtable : public Hashtable<bdareg_t, mtGC> {
+class KlassRegionHashtable : public Hashtable<BDARegion*, mtGC> {
 
 public:
   KlassRegionHashtable(int table_size);
 
   void add_entry(int index, KlassRegionEntry* entry) {
-    Hashtable<bdareg_t, mtGC>::add_entry(index, (HashtableEntry<bdareg_t, mtGC>*)entry);
+    Hashtable<BDARegion*, mtGC>::add_entry(index, (HashtableEntry<BDARegion*, mtGC>*)entry);
   }
 
-  void add_entry(Klass* k, bdareg_t region_id);
-  bdareg_t get_region(Klass* k);
+  KlassRegionEntry* add_entry(Klass* k, BDARegion* region);
+  BDARegion* get_region(Klass* k);
 };
 
-class KlassRegionEntry : public HashtableEntry<bdareg_t, mtGC> {
+class KlassRegionEntry : public HashtableEntry<BDARegion*, mtGC> {
 
 private:
   Klass* _klass; // actual klass for conflict resolution
   
 public:
   KlassRegionEntry* next() const {
-    return (KlassRegionEntry*)HashtableEntry<bdareg_t, mtGC>::next();
+    return (KlassRegionEntry*)HashtableEntry<BDARegion*, mtGC>::next();
   }
 
   KlassRegionEntry** next_addr() {
-    return (KlassRegionEntry**)HashtableEntry<bdareg_t, mtGC>::next_addr();
+    return (KlassRegionEntry**)HashtableEntry<BDARegion*, mtGC>::next_addr();
   }
 
   Klass* get_klass()         { return _klass; }
@@ -49,24 +49,28 @@ public:
  * instance of this class.
  */
 class KlassRegionMap : public CHeapObj<mtGC> {
+
 private:
   static volatile bdareg_t _next_region;
+  static BDARegion* _region_data;
+  static int        _region_data_sz;
   static KlassRegionHashtable* _region_map;
 
   // parse the command line string BDAKlasses="..."
   static void parse_from_string(const char* line, void (*parse)(char*));
   static void parse_from_line(char* line);
 
+  // Class that wraps the class names and the ids with they are promoted
   class KlassRegionEl : public CHeapObj<mtGC> {
 
   private:
-    char*    _klass_name;
-    bdareg_t _region_id;
+    char*      _klass_name;
+    bdareg_t   _region_id;
   public:
     KlassRegionEl(char* klass_name, bdareg_t region_id) :
       _klass_name(klass_name), _region_id(region_id) {}
     
-    char*    klass_name() const { return _klass_name; }
+    char*      klass_name() const { return _klass_name; }
     bdareg_t region_id() const { return _region_id; }
     // routine to find the element with a specific char* value
     static bool equals_name(void* class_name, KlassRegionEl* value) {
@@ -85,25 +89,41 @@ public:
   // checks if a klass with "name" is a bda type
   bool     is_bda_type(const char* name);
   // actually gets the region id on where objects familiar to "name" live
-  bdareg_t bda_type(const char* name);
+  BDARegion* bda_type(const char* name);
   // adds an antry to the Hashtable of klass_ptr<->bdareg_t
-  void     add_entry(Klass* k);
+  void add_entry(Klass* k);
   // adds an entry for the general object space
   inline void add_other_entry(Klass* k);
   // adds an entry for one of the bda spaces
-  inline void add_region_entry(Klass* k, bdareg_t r);
+  inline void add_region_entry(Klass* k, BDARegion* r);
   // an accessor for the region_map which is used by set_klass(k) to assign a bda space
-  static bdareg_t region_for_klass(Klass* k);
+  static BDARegion* region_for_klass(Klass* k);
+  // an accessor for the _region_data array which saves the bdareg_t wrapper
+  static BDARegion* region_data() { return _region_data; }
+  // an accessor for the elements in the _region_data array
+  static BDARegion* region_elem(bdareg_t r) {
+    int idx = 0;
+    while(_region_data[idx].value() != r)
+      ++idx;
+    return &_region_data[idx];
+  }
+  // Fast accessor for no_region and the low_addr of the _region_data array
+  static BDARegion* no_region_ptr() { return &_region_data[0]; }
+  // Fast accessor for region_start (other's space)
+  static BDARegion* region_start_ptr() { return &_region_data[1]; }
+  // Fast accessor for the last element in the _region_data array
+  static BDARegion* last_region_ptr() { return &_region_data[_region_data_sz - 1]; }
+  
 };
 
 // Inline definition
 inline void
 KlassRegionMap::add_other_entry(Klass* k) {
-  _region_map->add_entry(k, BDARegion::region_start);
+  _region_map->add_entry(k, &_region_data[1]);
 }
 
 inline void
-KlassRegionMap::add_region_entry(Klass* k, bdareg_t r) {
+KlassRegionMap::add_region_entry(Klass* k, BDARegion* r) {
   _region_map->add_entry(k, r);
 }
 

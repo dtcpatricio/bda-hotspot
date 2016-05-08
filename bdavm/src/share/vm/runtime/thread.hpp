@@ -549,7 +549,7 @@ protected:
   int              _lgrp_id;
 
   // Support for big data collections
-  bdareg_t _alloc_region;
+  BDARegion* _alloc_region;
 
  public:
   // Stack overflow support
@@ -574,8 +574,8 @@ protected:
   // Getter and setter for big data collections
   // This value must be set before any alocation
   // to the values specified in the BDACollectionType enum
-  bdareg_t alloc_region() const { return _alloc_region; }
-  void set_alloc_region(bdareg_t region) { _alloc_region = region; }
+  BDARegion* alloc_region() const { return _alloc_region; }
+  void set_alloc_region(BDARegion* region) { _alloc_region = region; }
 
   // Printing
   void print_on(outputStream* st) const;

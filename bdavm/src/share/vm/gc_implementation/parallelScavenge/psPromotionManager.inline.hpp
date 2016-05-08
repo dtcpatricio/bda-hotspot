@@ -137,7 +137,8 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       //   new_obj = (oop) _old_lab.allocate(new_obj_size);
       // }
 #ifdef HEADER_MARK
-      Thread::current()->set_alloc_region(BDARegion::mask_out_element(o->region()));
+      Thread::current()->set_alloc_region(
+        BDARegion::mask_out_element_ptr((BDARegion*)o->region()));
 #endif
       new_obj = (oop) _old_lab.allocate(new_obj_size);
 

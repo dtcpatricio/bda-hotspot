@@ -534,7 +534,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   DEBUG_ONLY(Atomic::add_ptr(len, &add_obj_size);)
 
 #ifdef HEADER_MARK
-  bdareg_t r = ((oop)addr)->region();
+    BDARegion* r = (BDARegion*)((oop)addr)->region();
 #endif // HASH_MARK || HEADER_MARK
 
   // BDA TODO: Find all 0x1 and switch with the proper values!
@@ -542,7 +542,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
     // All in one region.
     _region_data[beg_region].add_live_obj(len);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    _counter_data[beg_region].incr_counter(BDARegion(r).space_id());
+    _counter_data[beg_region].incr_counter(BDARegion::space_id(r));
 #endif
     return;
   }
@@ -551,7 +551,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
   const size_t beg_ofs = region_offset(addr);
   _region_data[beg_region].add_live_obj(RegionSize - beg_ofs);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-  _counter_data[beg_region].incr_counter(BDARegion(r).space_id());
+  _counter_data[beg_region].incr_counter(BDARegion::space_id(r));
 #endif
 
   // Middle regions--completely spanned by this object.
@@ -559,7 +559,7 @@ void ParallelCompactData::add_obj(HeapWord* addr, size_t len)
     _region_data[region].set_partial_obj_size(RegionSize);
     _region_data[region].set_partial_obj_addr(addr);
 #if defined(HASH_MARK) || defined(HEADER_MARK)
-    _counter_data[region].incr_counter(BDARegion(r).space_id());
+    _counter_data[region].incr_counter(BDARegion::space_id(r));
 #endif
   }
 
