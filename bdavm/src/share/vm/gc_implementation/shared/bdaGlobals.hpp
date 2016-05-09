@@ -2,7 +2,7 @@
 #define SHARE_VM_GC_IMPLEMENTATION_SHARED_BDAGLOBALS_HPP
 
 #include <stdint.h>
-#include "utilities/globalDefinitions.hpp"
+#include "memory/allocation.hpp"
 /*
  * BDARegionDesc implments basic functions to mask out region identifiers
  * as also helps assigning them. BDARegionDesc is always passed as a pointer
@@ -16,7 +16,7 @@ typedef uint64_t bdareg_t;
 typedef uint32_t bdareg_t;
 #endif
 
-class BDARegion {
+class BDARegion : public CHeapObj<mtGC> {
 
 private:
   bdareg_t _value;
@@ -100,9 +100,7 @@ public:
   static bool is_bad_region_ptr(BDARegion* ptr);
   
   static bool is_valid(BDARegion* v) {
-    if(is_bad_region_ptr(v)) return false;
-    bdareg_t temp = mask_out_element(v->value());
-    return is_power_of_2((intptr_t)temp);
+    return !is_bad_region_ptr(v) && v != region_start_addr;
   }
 
   // Print support (nothing for now...)

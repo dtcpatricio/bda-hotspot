@@ -29,7 +29,7 @@ class KlassRegionEntry : public HashtableEntry<BDARegion*, mtGC> {
 
 private:
   Klass* _klass; // actual klass for conflict resolution
-  
+
 public:
   KlassRegionEntry* next() const {
     return (KlassRegionEntry*)HashtableEntry<BDARegion*, mtGC>::next();
@@ -64,25 +64,25 @@ private:
   class KlassRegionEl : public CHeapObj<mtGC> {
 
   private:
-    char*      _klass_name;
-    bdareg_t   _region_id;
+    const char*      _klass_name;
+    const bdareg_t   _region_id;
   public:
     KlassRegionEl(char* klass_name, bdareg_t region_id) :
       _klass_name(klass_name), _region_id(region_id) {}
-    
-    char*      klass_name() const { return _klass_name; }
-    bdareg_t region_id() const { return _region_id; }
+
+    const char*      klass_name() const { return _klass_name; }
+    const bdareg_t   region_id() const { return _region_id; }
     // routine to find the element with a specific char* value
     static bool equals_name(void* class_name, KlassRegionEl* value) {
-      return strcmp((char*)class_name, value->klass_name()) == 0;
+        return strcmp((char*)class_name, (char*)value->klass_name()) == 0;
     }
   };
 
 public:
   static GrowableArray<KlassRegionEl*>* _bda_class_names;
-  
+
   static int number_bdaregions();
-  
+
   KlassRegionMap();
   ~KlassRegionMap();
 
@@ -113,7 +113,7 @@ public:
   static BDARegion* region_start_ptr() { return &_region_data[1]; }
   // Fast accessor for the last element in the _region_data array
   static BDARegion* last_region_ptr() { return &_region_data[_region_data_sz - 1]; }
-  
+
 };
 
 // Inline definition

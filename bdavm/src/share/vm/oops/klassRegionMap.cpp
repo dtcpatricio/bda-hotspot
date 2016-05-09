@@ -33,6 +33,7 @@ KlassRegionHashtable::add_entry(Klass* k, BDARegion* region)
   return entry;
 }
 
+__attribute__((optimize("O0")))
 BDARegion*
 KlassRegionHashtable::get_region(Klass* k)
 {
@@ -83,7 +84,7 @@ KlassRegionMap::KlassRegionMap()
   for(int j = 2; j < _region_data_sz; j += 2) {
     reg <<= BDARegion::region_shift;
     // the no_region is occupying idx 0
-    int idx = log2_intptr((intptr_t)reg) + 1;
+    int idx = log2_intptr((intptr_t)reg)*2;
     _region_data[idx] = BDARegion(reg); _region_data[idx+1] = BDARegion(reg | 0x1);
   }
   // Set the limits on the BDARegion
@@ -165,33 +166,33 @@ KlassRegionMap::is_bda_type(const char* name)
   }
 }
 
+__attribute__((optimize("O0")))
 BDARegion*
 KlassRegionMap::bda_type(const char* name)
 {
   int i = _bda_class_names->find((char*)name, KlassRegionEl::equals_name);
   assert(i >= 0 && i < _bda_class_names->length(), "index out of bounds");
   bdareg_t r = _bda_class_names->at(i)->region_id();
-  int idx = log2_intptr((intptr_t)r) + 1;
+  int idx = log2_intptr((intptr_t)r)*2;
   return &_region_data[idx];
 }
 
+__attribute__((optimize("O0")))
 void
 KlassRegionMap::add_entry(Klass* k)
 {
   ResourceMark rm(Thread::current());
-  // Debug purposes
-  if (strstr(k->external_name(), "CompactBuffer")) {
-    tty->print_cr("Found CompactBuffer!");
-  }
-  for(int index = 0; index <= (int)k->super_depth(); ++index) {
-    if ( index == (int)Klass::primary_super_limit() ) {
-      return add_other_entry(k);
+  for(juint index = 0; index <= k->super_depth(); ++index) {
+    if ( index == Klass::primary_super_limit() ) {
+      add_other_entry(k);
+      return;
     } else if( k->primary_super_of_depth(index) != NULL &&
                is_bda_type(k->primary_super_of_depth(index)->external_name())) {
       // If this is a bda_type (i.e. an interesting class) add to the hashtable
       // as a BDARegion with non-uniform id.
       BDARegion* region = bda_type(k->primary_super_of_depth(index)->external_name());
-      return add_region_entry(k, region);
+      add_region_entry(k, region);
+      return;
     }
   }
   add_other_entry(k);

@@ -1,6 +1,4 @@
-#!/bin/sh
-
-#HS_SCRIPT_DIR=`cd ../build/linux/linux_amd64_compiler2/product && pwd`
+#!/bin/bash
 
 while :
 do
@@ -65,7 +63,7 @@ echo "JAVA_ARGS to be used $JAVA_ARGS"
 echo "JVM_ARGS to be used $JVM_ARGS"
 echo "Using hotspot dir $HS_SCRIPT_DIR"
 
-ALT_JAVA_HOME=`cd /usr/lib/jvm/java-8-openjdk && pwd`
+ALT_JAVA_HOME=$JAVA_HOME
 
 export JAVA_ARGS
 export ALT_JAVA_HOME
