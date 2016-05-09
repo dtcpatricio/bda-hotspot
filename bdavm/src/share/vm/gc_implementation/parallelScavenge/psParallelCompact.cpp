@@ -3414,16 +3414,12 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
 #ifdef HEADER_MARK
   // Since the bda-space ids are after the to_space_id (i.e from last_space_id up)
   // then some adjustment is necessary in order to push the next_src_region down to
-  // the eden_space_id. This is only necessary if it is searching for regions after
-  // the last bda-space.
-  if (space_id == bda_last_space_id) {
+  // the eden_space_id. This is needed since bda spaces are after the young gen
+  // spaces, thus the src, which is generally a young gen space, will never hit.
+  if (space_id >= last_space_id)
     space_id = PSParallelCompact::eden_space_id;
-  } else {
-    assert(space_id < bda_last_space_id, "not enough spaces");
-  }
-#else
-  assert(space_id < last_space_id, "not enough spaces");
 #endif
+  assert(space_id < last_space_id, "not enough spaces");
 
   HeapWord* const destination = closure.destination();
 
@@ -3438,11 +3434,13 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
       const RegionData* const top_cp = sd.addr_to_region_ptr(top_aligned_up);
 
       for (const RegionData* src_cp = bottom_cp; src_cp < top_cp; ++src_cp) {
+#ifdef HEADER_MARK
         if (src_cp->data_size() > 0 && src_cp->destination() != destination) {
           // This jumps the scanned region because some may have their destination
           // set to other old-space segments
           continue;
         }
+#endif
         if (src_cp->live_obj_size() > 0) {
           // Found it.
           assert(src_cp->destination() == destination,
@@ -3460,12 +3458,7 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
         }
       }
     }
-  }
-#ifdef HEADER_MARK
-  while (++space_id < bda_last_space_id);
-#else
-  while (++space_id < last_space_id);
-#endif
+  } while (++space_id < last_space_id);
 
   assert(false, "no source region was found");
   return 0;
