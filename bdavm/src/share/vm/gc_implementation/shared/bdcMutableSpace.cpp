@@ -966,7 +966,10 @@ BDCMutableSpace::print_current_space_layout(bool descriptive,
       MutableSpace* spc = grp->space();
       BDARegion* region = grp->coll_type();
       gclog_or_tty->print("\nRegion for objects %x", region->value());
-      gclog_or_tty->print_cr(":: From 0x%x to 0x%x \t top 0x%x",
+      gclog_or_tty->print_cr(":: From ["
+                             INTPTR_FORMAT ") to ["
+                             INTPTR_FORMAT ")\t top = "
+                             INTPTR_FORMAT,
                              spc->bottom(),
                              spc->end(),
                              spc->top());
