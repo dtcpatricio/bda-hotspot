@@ -74,12 +74,8 @@ else
   endif
 endif
 
-ifeq ($(ENABLE_BDA_HEADER_MARK),1)
-  SYSDEFS += -DHEADER_MARK
-else
-  ifeq ($(ENABLE_BDA_HASH_MARK),1)
-    SYSDEFS += -DHASH_MARK
-  endif
+ifeq ($(ENABLE_BDA),1)
+  SYSDEFS += -DBDA
 endif
 
 # HOTSPOT_RELEASE_VERSION and HOTSPOT_BUILD_VERSION are defined

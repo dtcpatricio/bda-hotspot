@@ -1,7 +1,7 @@
-#ifndef SHARE_VM_GC_IMPLEMENTATION_SHARED_BDCMUTABLESPACE_HPP
-#define SHARE_VM_GC_IMPLEMENTATION_SHARED_BDCMUTABLESPACE_HPP
+#ifndef SHARE_VM_BDA_MUTABLEBDASPACE_HPP
+#define SHARE_VM_BDA_MUTABLEBDASPACE_HPP
 
-#include "gc_implementation/shared/bdaGlobals.hpp"
+#include "bda/globals.hpp"
 #include "gc_implementation/shared/mutableSpace.hpp"
 
 // Implementation of an allocation space for big-data collection placement
@@ -34,7 +34,7 @@ public:
 // The BDCMutableSpace class is a general object that encapsulates multiple
 // CGRPSpaces. It is implemented in a similar fashion as mutableNUMASpace.
 
-class BDCMutableSpace : public MutableSpace
+class BDAMutableSpace : public MutableSpace
 {
   friend class VMStructs;
 
@@ -53,29 +53,44 @@ private:
   // This class defines the addressable space of the BDCMutableSpace
   // for a particular collection type, or none at all.
   class CGRPSpace : public CHeapObj<mtGC> {
-    
-    MutableSpace* _space;
-    BDARegion*    _coll_type;    
 
-  public:
-    CGRPSpace(size_t alignment, BDARegion* region) : _coll_type(region) {
+    // This are globals for CGRPSpace so they can be updated with the result
+    // of heuristics that compute the use of the bda-spaces by the application.
+    static int dnf;
+    static int delegation_level;
+    static int default_collection_size;
+    
+    MutableSpace*               _space;
+    bdareg_t                    _coll_type;
+    GrowableArray<container_t*> _containers;
+
+    // Helper function to calculate the power of base over exponent using bit-wise
+    // operations. It is inlined for such.
+    inline int power_function(int base, int exp);
+    
+   public:
+    
+    CGRPSpace(size_t alignment, bdareg_t region) : _coll_type(region) {
       _space = new MutableSpace(alignment);
+      _containers = new (ResourceObj::C_HEAP, mtGC) GrowableArray<container_t*>(0, true);
     }
     ~CGRPSpace() {
       delete _space;
+      delete _containers;
     }
 
     static bool equals(void* group_type, CGRPSpace* s) {
-      return *(BDARegion**)group_type == s->coll_type();
+      return *(bdareg_t*)group_type == s->coll_type();
     }
 
-    BDARegion*    coll_type() const { return _coll_type; }
-    MutableSpace* space() const { return _space; }
-    
+    bdareg_t      coll_type() const { return _coll_type; }
+    MutableSpace* space()     const { return _space; }
+
+    inline container_t*  push_container(size_t size);
   };
 
 private:
-  GrowableArray<CGRPSpace*>* _collections;
+  GrowableArray<CGRPSpace*>* _spaces;
   size_t _page_size;
 
 protected:
@@ -111,15 +126,15 @@ protected:
 
 public:
 
-  BDCMutableSpace(size_t alignment);
-  virtual ~BDCMutableSpace();
+  BDAMutableSpace(size_t alignment);
+  virtual ~BDAMutableSpace();
 
   void set_page_size(size_t page_size) { _page_size = page_size; }
   size_t page_size() const { return _page_size; }
-  GrowableArray<CGRPSpace*>* collections() const { return _collections; }
+  GrowableArray<CGRPSpace*>* spaces() const { return _spaces; }
   MutableSpace* region_for(BDARegion* region) const {
-    int i = _collections->find(&region, CGRPSpace::equals);
-    return _collections->at(i)->space();
+    int i = _spaces->find(&region, CGRPSpace::equals);
+    return __spaces->at(i)->space();
   }
 
   virtual void      initialize(MemRegion mr,
@@ -129,9 +144,9 @@ public:
 
   // Boolean queries - the others are already implemented on mutableSpace.hpp
   bool contains(const void* p) const {
-    assert(collections() != NULL, "Collections array no initialized");
-    for(int i = 0; i < collections()->length(); ++i) {
-      if(collections()->at(i)->space()->contains((HeapWord*)p))
+    assert(_spaces() != NULL, "_Spaces array no initialized");
+    for(int i = 0; i < spaces()->length(); ++i) {
+      if(spaces()->at(i)->space()->contains((HeapWord*)p))
         return true;
     }
     return false;
@@ -147,16 +162,16 @@ public:
   size_t compute_avg_freespace();
 
   virtual HeapWord *top_specific(BDARegion* type) {
-    int i = _collections->find(&type, CGRPSpace::equals);
-    return _collections->at(i)->space()->top();
+    int i = _spaces->find(&type, CGRPSpace::equals);
+    return _spaces->at(i)->space()->top();
   }
 
   virtual MemRegion used_region(BDARegion* type) {
-    int i = _collections->find(&type, CGRPSpace::equals);
-    return _collections->at(i)->space()->used_region();
+    int i = _spaces->find(&type, CGRPSpace::equals);
+    return _spaces->at(i)->space()->used_region();
   }
 
-  virtual int num_bda_regions() { return _collections->length() - 1; }
+  virtual int num_bda_regions() { return _spaces->length() - 1; }
 
   // Methods for mangling
   virtual void set_top_for_allocations(HeapWord *v);
@@ -182,12 +197,12 @@ public:
   virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) {
     int index = grp_index_contains_obj(stripe_start);
     assert(index > -1, "There's no region containing the stripe");
-    return _collections->at(index)->space()->top();
+    return _spaces->at(index)->space()->top();
   }
 
   int grp_index_contains_obj(const void* p) const {
-    for (int i = 0; i < _collections->length(); ++i) {
-      if(_collections->at(i)->space()->contains((HeapWord*)p))
+    for (int i = 0; i < _spaces->length(); ++i) {
+      if(_spaces->at(i)->space()->contains((HeapWord*)p))
         return i;
     }
     return -1;
@@ -211,4 +226,4 @@ public:
   void print_current_space_layout(bool descriptive, bool only_collections);
 };
 
-#endif // SHARE_VM_GC_IMPLEMENTATION_SHARED_BDCMUTABLESPACE_HPP
+#endif // SHARE_VM_BDA_MUTABLEBDASPACE_HPP

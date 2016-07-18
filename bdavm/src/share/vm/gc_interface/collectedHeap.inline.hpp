@@ -174,6 +174,11 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(KlassHandle klass, size_t si
 HeapWord* CollectedHeap::common_mem_allocate_init(KlassHandle klass, size_t size, TRAPS) {
   HeapWord* obj = common_mem_allocate_noinit(klass, size, CHECK_NULL);
   init_obj(obj, size);
+#ifdef BDA
+  if(klass()->layout_helper_is_array()) {
+    
+  }
+#endif
   return obj;
 }
 

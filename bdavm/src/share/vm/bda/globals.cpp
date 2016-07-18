@@ -1,4 +1,4 @@
-#include "gc_implementation/shared/bdaGlobals.hpp"
+#include "bda/globals.hpp"
 #include "oops/klassRegionMap.hpp"
 
 BDARegion* BDARegion::region_start_addr = NULL;

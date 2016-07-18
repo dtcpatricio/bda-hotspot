@@ -123,24 +123,13 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       }
 #endif  // #ifndef PRODUCT
 
-      // BDA TODO: For now we're not using this method (HASHMARK), but we shall!
-//#if defined(HASH_MARK)
-      // // Try to find the objects destination region
-      // // by using the klass pointer
-      // BDARegion target = old_gen()->region_map()->region_for_klass(o->klass());
-      // // If plab is already allocated, go through it directly
-      // if (mask_bits(target, region_hashmap)) {
-      //   new_obj = (oop) _hashmap_old_lab.allocate(new_obj_size);
-      // } else if (mask_bits(target, region_hashtable)) {
-      //   new_obj = (oop) _hashtable_old_lab.allocate(new_obj_size);
-      // } else {
-      //   new_obj = (oop) _old_lab.allocate(new_obj_size);
-      // }
-#ifdef HEADER_MARK
-      Thread::current()->set_alloc_region(
-        BDARegion::mask_out_element_ptr((BDARegion*)o->region()));
+      
+#ifdef BDAGC
+      if (o->klass()->oop_is_array() && o->isBDA()) {
+        new_obj = (oop) _bda_manager.allocate(new_obj_size);
+      } else
 #endif
-      new_obj = (oop) _old_lab.allocate(new_obj_size);
+        new_obj = (oop) _old_lab.allocate(new_obj_size);
 
       new_obj_is_tenured = true;
 

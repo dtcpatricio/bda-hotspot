@@ -168,7 +168,7 @@ protected:
   uint dirty_size(uint bot, uint top) const {
     return (bot - top) & MOD_N_MASK;
   }
-
+  
   // Returns the size corresponding to the given "bot" and "top".
   uint size(uint bot, uint top) const {
     uint sz = dirty_size(bot, top);

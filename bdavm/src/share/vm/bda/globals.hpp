@@ -1,21 +1,25 @@
-#ifndef SHARE_VM_GC_IMPLEMENTATION_SHARED_BDAGLOBALS_HPP
-#define SHARE_VM_GC_IMPLEMENTATION_SHARED_BDAGLOBALS_HPP
+#ifndef SHARE_VM_BDA_GLOBALS_HPP
+#define SHARE_VM_BDA_GLOBALS_HPP
 
-#include <stdint.h>
-#include "memory/allocation.hpp"
+# include <stdint.h>
+# include "utilities/macros.hpp"
+# include "memory/allocation.hpp"
+
+typedef uint32_t bdareg_t;
+typedef struct container {
+  HeapWord* _top;
+  HeapWord* _start;
+  DEBUG_ONLY(size_t _size;)
+  DEBUG_ONLY(size_t _reserved;)
+  DEBUG_ONLY(char   _space_id;)
+} container_t;
+
 /*
  * BDARegionDesc implments basic functions to mask out region identifiers
  * as also helps assigning them. BDARegionDesc is always passed as a pointer
  * or as a BDARegion (see typedef below). This ensures that it is always the
  * width of a machine pointer (generally, 64bit).
  */
-//typedef class BDARegionDesc* BDARegion;
-#ifdef _LP64
-typedef uint64_t bdareg_t;
-#else
-typedef uint32_t bdareg_t;
-#endif
-
 class BDARegion : public CHeapObj<mtGC> {
 
 private:
@@ -124,4 +128,4 @@ public:
     }
 };
 
-#endif // SHARE_VM_GC_IMPLEMENTATION_SHARED_BDAGLOBALS_HPP
+#endif // SHARE_VM_GLOBALS_HPP

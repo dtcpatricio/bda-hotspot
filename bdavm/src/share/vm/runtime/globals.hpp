@@ -3956,8 +3956,16 @@ class CommandLineFlags {
                "Ratio for the size of the BDARegions on the heap, "         \
                "defaults to 5 and is the minimum")                          \
                                                                             \
-  product(intx, BDAThreshold, 100,                                          \
-               "Threshold percentage for the decision on promotion")        \
+  product(intx, BDADelegationLevel, 2,                                      \
+               "The amount of delegation for BDA collections until "        \
+               "the actual data is reached")                                \
+                                                                            \
+  product(intx, BDACollectionSize, 1024,                                    \
+               "The default value for the size of a BDA collection")        \
+                                                                            \
+  product(intx, BDAElementNumberFields, 3,                                  \
+               "The default value for the number of fields of each element "\
+               "in the BDA collections")                                    \
                                                                             \
   product(bool, BDAPrintAfterGC, false,                                     \
                "Print big-data aware space after compacting GC")            \
