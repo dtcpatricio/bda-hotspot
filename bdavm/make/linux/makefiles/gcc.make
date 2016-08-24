@@ -205,6 +205,9 @@ ifeq ($(USE_CLANG), true)
   WARNINGS_ARE_ERRORS += -Wno-switch -Wno-tautological-constant-out-of-range-compare -Wno-tautological-compare
   WARNINGS_ARE_ERRORS += -Wno-delete-non-virtual-dtor -Wno-deprecated -Wno-format -Wno-dynamic-class-memaccess
   WARNINGS_ARE_ERRORS += -Wno-return-type -Wno-empty-body
+else
+  # Roll back to std98 if GCC's version is >= 6.1.
+  
 endif
 
 WARNING_FLAGS = -Wpointer-arith -Wsign-compare -Wundef -Wunused-function -Wunused-value
@@ -229,6 +232,13 @@ OPT_CFLAGS/SPEED=-O3
 # This option is added to CFLAGS rather than OPT_CFLAGS
 # so that OPT_CFLAGS overrides get this option too.
 CFLAGS += -fno-strict-aliasing 
+
+ifeq ($(USE_CLANG),)
+  ifeq "$(shell expr \( $(CC_VER_MAJOR) \> 6 \) )" "0"
+    CFLAGS += -std=gnu++98
+    WARNINGS_ARE_ERRORS += -Wno-deprecated-declarations
+  endif
+endif
 
 OPT_CFLAGS_DEFAULT ?= SPEED
 
