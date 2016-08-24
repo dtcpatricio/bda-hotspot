@@ -4241,7 +4241,7 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
     }
 
 #ifdef BDA
-    // BDA --- check if this is one of our special klasses and, if so, set
+    // Check if this is one of our special klasses and, if so, set
     // the klass and region on the KlassRegionMap
     ((ParallelScavengeHeap*)Universe::heap())->old_gen()->region_map()->add_entry(this_klass());
 #endif
