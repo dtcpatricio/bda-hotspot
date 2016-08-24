@@ -19,7 +19,7 @@
 # Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
 # or visit www.oracle.com if you need additional information or have any
 # questions.
-#  
+#
 #
 
 #------------------------------------------------------------------------
@@ -207,7 +207,7 @@ ifeq ($(USE_CLANG), true)
   WARNINGS_ARE_ERRORS += -Wno-return-type -Wno-empty-body
 else
   # Roll back to std98 if GCC's version is >= 6.1.
-  
+
 endif
 
 WARNING_FLAGS = -Wpointer-arith -Wsign-compare -Wundef -Wunused-function -Wunused-value
@@ -222,7 +222,7 @@ endif
 
 CFLAGS_WARN/DEFAULT = $(WARNINGS_ARE_ERRORS) $(WARNING_FLAGS)
 # Special cases
-CFLAGS_WARN/BYFILE = $(CFLAGS_WARN/$@)$(CFLAGS_WARN/DEFAULT$(CFLAGS_WARN/$@)) 
+CFLAGS_WARN/BYFILE = $(CFLAGS_WARN/$@)$(CFLAGS_WARN/DEFAULT$(CFLAGS_WARN/$@))
 
 # The flags to use for an Optimized g++ build
 OPT_CFLAGS/SIZE=-Os
@@ -231,8 +231,10 @@ OPT_CFLAGS/SPEED=-O3
 # Hotspot uses very unstrict aliasing turn this optimization off
 # This option is added to CFLAGS rather than OPT_CFLAGS
 # so that OPT_CFLAGS overrides get this option too.
-CFLAGS += -fno-strict-aliasing 
+CFLAGS += -fno-strict-aliasing
 
+# If using GCC > 6 then force the use of gnu++98 and don't warn about deprecated
+# declarations.
 ifeq ($(USE_CLANG),)
   ifeq "$(shell expr \( $(CC_VER_MAJOR) \> 6 \) )" "0"
     CFLAGS += -std=gnu++98
@@ -250,7 +252,7 @@ endif
 
 OPT_CFLAGS = $(OPT_CFLAGS/$(OPT_CFLAGS_DEFAULT)) $(OPT_EXTRAS)
 
-# The gcc compiler segv's on ia64 when compiling bytecodeInterpreter.cpp 
+# The gcc compiler segv's on ia64 when compiling bytecodeInterpreter.cpp
 # if we use expensive-optimizations
 ifeq ($(BUILDARCH), ia64)
 OPT_CFLAGS += -fno-expensive-optimizations
@@ -357,7 +359,7 @@ else
         DEBUG_CFLAGS/$(BUILDARCH) = -gstabs
       endif
   endif
-  
+
   ifeq ($(ENABLE_FULL_DEBUG_SYMBOLS),1)
     FASTDEBUG_CFLAGS/ia64  = -g
     FASTDEBUG_CFLAGS/amd64 = -g
@@ -371,7 +373,7 @@ else
         FASTDEBUG_CFLAGS/$(BUILDARCH) = -gstabs
       endif
     endif
-  
+
     OPT_CFLAGS/ia64  = -g
     OPT_CFLAGS/amd64 = -g
     OPT_CFLAGS/ppc64 = -g
