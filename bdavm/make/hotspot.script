@@ -62,7 +62,7 @@ then
 fi
 
 # This is the name of Emacs for running GUD
-EMACS=emacs
+EMACS="emacs -nw"
 
 #
 # End of user changeable parameters -----------------------------------------

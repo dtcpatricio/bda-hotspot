@@ -162,6 +162,9 @@ CollectedHeap::CollectedHeap() : _n_par_threads(0)
   _is_gc_active = false;
   _total_collections = _total_full_collections = 0;
   _gc_cause = _gc_lastcause = GCCause::_no_gc;
+#ifdef BDA
+  _bda_refqueue = RefQueue::create();
+#endif
   NOT_PRODUCT(_promotion_failure_alot_count = 0;)
   NOT_PRODUCT(_promotion_failure_alot_gc_number = 0;)
 

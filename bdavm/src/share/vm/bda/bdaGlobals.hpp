@@ -15,10 +15,9 @@ typedef struct container {
 } container_t;
 
 /*
- * BDARegionDesc implments basic functions to mask out region identifiers
- * as also helps assigning them. BDARegionDesc is always passed as a pointer
- * or as a BDARegion (see typedef below). This ensures that it is always the
- * width of a machine pointer (generally, 64bit).
+ * BDARegion is a wrapper to a bdareg_t value. What it does is provide
+ * methods to query the value and interpret the response, i.e., toString(),
+ * etc.
  */
 class BDARegion : public CHeapObj<mtGC> {
 
@@ -28,7 +27,7 @@ private:
 public:
 
   bdareg_t value() const { return _value; }
-  
+
   enum BDAType {
     other = 1,
     container = 2,
@@ -48,20 +47,19 @@ public:
   static BDARegion*      region_start_addr;
   static BDARegion*      region_end_addr;
 
-  
+
   BDARegion() { _value = no_region; }
   BDARegion(bdareg_t v) { _value = v; }
   BDARegion(const BDARegion& region) { _value = region.value(); }
 
   static void set_region_start(BDARegion* ptr) { region_start_addr = ptr; }
   static void set_region_end(BDARegion* ptr) { region_end_addr = ptr; }
-  
+
   bool operator==(const BDARegion& comp)  {
     return value() == comp.value();
   }
 
-  
-  
+
   BDARegion mask_out_element() const {
     return BDARegion(value() & container_mask);
   }
@@ -93,7 +91,7 @@ public:
   static int space_id(BDARegion* v) {
     if(is_bad_region_ptr(v)) return 0;
     return log2_intptr((intptr_t)v->value()) + 1;
-  }    
+  }
 
   bool is_null_region() const {
     return value() == no_region;
@@ -102,7 +100,7 @@ public:
   static bool is_element(bdareg_t v);
   static bool is_bad_region(bdareg_t v);
   static bool is_bad_region_ptr(BDARegion* ptr);
-  
+
   static bool is_valid(BDARegion* v) {
     return !is_bad_region_ptr(v) && v != region_start_addr;
   }
@@ -113,17 +111,26 @@ public:
   }
 
   template <class T> static void encode_oop_element(T* p, BDARegion* r);
-  
+
   // This method is still a bit insane...
   inline const char* toString()
     {
       switch(value())
       {
-      case no_region:
-        return "[No Region Assigned]";
+      case other:
+        return "General Object";
+        break;
+
+      case container:
+        return "Container Object";
+        break;
+
+      case element:
+        return "Element Object";
+        break;
 
       default:
-        return (char*)value();
+        return "[No Region Assigned]";
       }
     }
 };

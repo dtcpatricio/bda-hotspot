@@ -30,7 +30,7 @@
 #include "gc_implementation/parallelScavenge/psVirtualspace.hpp"
 #include "gc_implementation/shared/mutableSpace.hpp"
 #include "gc_implementation/shared/spaceCounters.hpp"
-#include "gc_implementation/shared/bdcMutableSpace.hpp"
+#include "bda/mutableBDASpace.hpp"
 #include "runtime/safepoint.hpp"
 #if defined(HASH_MARK) || defined(HEADER_MARK)
 # include "oops/klassRegionMap.hpp"
@@ -61,7 +61,7 @@ class PSOldGen : public CHeapObj<mtGC> {
   const size_t _min_gen_size;
   const size_t _max_gen_size;
 
-#if defined(HASH_MARK) || defined(HEADER_MARK)
+#ifdef BDA
   // Information about the placement of klasses in regions for the BDA Allocators
   KlassRegionMap*          _region_map;
 #endif
@@ -148,8 +148,8 @@ class PSOldGen : public CHeapObj<mtGC> {
   PSMarkSweepDecorator* object_mark_sweep() const { return _object_mark_sweep; }
   ObjectStartArray*     start_array()             { return &_start_array; }
   PSVirtualSpace*       virtual_space() const     { return _virtual_space;}
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  KlassRegionMap*        region_map() const        { return _region_map; }
+#ifdef BDA
+  KlassRegionMap *      region_map() const        { return _region_map; }
 #endif
 
   // Has the generation been successfully allocated?

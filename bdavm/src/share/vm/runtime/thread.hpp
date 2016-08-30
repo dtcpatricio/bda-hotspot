@@ -58,7 +58,7 @@
 #endif
 
 // Big data allocators support
-#include "gc_implementation/shared/bdaGlobals.hpp"
+#include "bda/bdaGlobals.hpp"
 
 class ThreadSafepointState;
 class ThreadProfiler;

@@ -34,6 +34,11 @@
 #include "runtime/safepoint.hpp"
 #include "utilities/events.hpp"
 
+#ifdef BDA
+# include "bda/refqueue.hpp"
+# include "oops/klassRegionMap.hpp"
+#endif
+
 // A "CollectedHeap" is an implementation of a java heap for HotSpot.  This
 // is an abstract class: there may be many different kinds of heaps.  This
 // class defines the functions that a heap must implement, and contains
@@ -94,6 +99,10 @@ class CollectedHeap : public CHeapObj<mtInternal> {
 
   GCHeapLog* _gc_heap_log;
 
+#ifdef BDA
+  RefQueue * _bda_refqueue;
+#endif
+
   // Used in support of ReduceInitialCardMarks; only consulted if COMPILER2 is being used
   bool _defer_initial_card_mark;
 
@@ -124,6 +133,11 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   // be slightly more awkward because we want the latter to be a
   // pure virtual.
   void pre_initialize();
+
+  // Getter for the instance of the bda refqueue
+#ifdef BDA
+  RefQueue * bda_refqueue() { return _bda_refqueue; }
+#endif
 
   // Create a new tlab. All TLAB allocations must go through this.
   virtual HeapWord* allocate_new_tlab(size_t size);

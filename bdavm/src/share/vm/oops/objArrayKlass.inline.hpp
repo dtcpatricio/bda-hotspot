@@ -91,14 +91,8 @@ void ObjArrayKlass::objarray_follow_contents(ParCompactionManager* cm, oop obj,
   T* const beg = base + beg_index;
   T* const end = base + end_index;
 
-#ifdef HEADER_MARK // For BDAVM
-  BDARegion* r = oopDesc::load_region_oop(obj);
-#endif // HEADER_MARK
   // Push the non-NULL elements of the next stride on the marking stack.
   for (T* e = beg; e < end; e++) {
-#ifdef HEADER_MARK
-    BDARegion::encode_oop_element<T>(e, r);
-#endif
     PSParallelCompact::mark_and_push<T>(cm, e);
   }
 

@@ -124,9 +124,6 @@ inline void oopDesc::set_klass(Klass* k) {
   // since klasses are promoted no store check is needed
   assert(Universe::is_bootstrapping() || k != NULL, "must be a real Klass*");
   assert(Universe::is_bootstrapping() || k->is_klass(), "not a Klass*");
-#ifdef HEADER_MARK
-  *region_addr() = KlassRegionMap::region_for_klass(k);
-#endif
   if (UseCompressedClassPointers) {
     *compressed_klass_addr() = Klass::encode_klass_not_null(k);
   } else {

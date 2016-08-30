@@ -1,7 +1,7 @@
 #ifndef SHARE_VM_BDA_MUTABLEBDASPACE_HPP
 #define SHARE_VM_BDA_MUTABLEBDASPACE_HPP
 
-#include "bda/globals.hpp"
+#include "bda/bdaGlobals.hpp"
 #include "gc_implementation/shared/mutableSpace.hpp"
 
 // Implementation of an allocation space for big-data collection placement
@@ -11,19 +11,19 @@
 class Thread;
 class CollectedHeap;
 class SpaceDecorator;
-class BDCMutableSpace;
+class MutableBDASpace;
 
 // The BDACardTableHelper
 class BDACardTableHelper : public CHeapObj<mtGC> {
 
-private:
+ private:
   int _length;
   HeapWord** _tops;
   MutableSpace** _spaces;
 
-public:
+ public:
 
-  BDACardTableHelper(BDCMutableSpace* sp);
+  BDACardTableHelper(MutableBDASpace* sp);
   ~BDACardTableHelper();
 
   int        length() const { return _length; }
@@ -31,14 +31,14 @@ public:
   MutableSpace** spaces() const { return _spaces; }
 };
 
-// The BDCMutableSpace class is a general object that encapsulates multiple
+// The MutableBDASpace class is a general object that encapsulates multiple
 // CGRPSpaces. It is implemented in a similar fashion as mutableNUMASpace.
 
-class BDAMutableSpace : public MutableSpace
+class MutableBDASpace : public MutableSpace
 {
   friend class VMStructs;
 
-public:
+ public:
   // Constant sizes in HeapWords, unless stated otherwise
   static const size_t Log2MinRegionSize;
   static const size_t MinRegionSize;
@@ -48,29 +48,29 @@ public:
   static const size_t MinRegionAddrOffsetMask;
   static const size_t MinRegionAddrMask;
 
-private:
- 
-  // This class defines the addressable space of the BDCMutableSpace
+ private:
+
+  // This class defines the addressable space of the MutableBDASpace
   // for a particular collection type, or none at all.
   class CGRPSpace : public CHeapObj<mtGC> {
+
+    MutableSpace *                _space;
+    BDARegion *                   _type;
+    GrowableArray<container_t*> * _containers;
+
+    // Helper function to calculate the power of base over exponent using bit-wise
+    // operations. It is inlined for such.
+    inline int power_function(int base, int exp);
+
+   public:
 
     // This are globals for CGRPSpace so they can be updated with the result
     // of heuristics that compute the use of the bda-spaces by the application.
     static int dnf;
     static int delegation_level;
     static int default_collection_size;
-    
-    MutableSpace*               _space;
-    bdareg_t                    _coll_type;
-    GrowableArray<container_t*> _containers;
 
-    // Helper function to calculate the power of base over exponent using bit-wise
-    // operations. It is inlined for such.
-    inline int power_function(int base, int exp);
-    
-   public:
-    
-    CGRPSpace(size_t alignment, bdareg_t region) : _coll_type(region) {
+    CGRPSpace(size_t alignment, BDARegion * region) : _type(region) {
       _space = new MutableSpace(alignment);
       _containers = new (ResourceObj::C_HEAP, mtGC) GrowableArray<container_t*>(0, true);
     }
@@ -79,21 +79,21 @@ private:
       delete _containers;
     }
 
-    static bool equals(void* group_type, CGRPSpace* s) {
-      return *(bdareg_t*)group_type == s->coll_type();
+    static bool equals(void* container_type, CGRPSpace* s) {
+      return (BDARegion*)container_type == s->container_type();
     }
 
-    bdareg_t      coll_type() const { return _coll_type; }
-    MutableSpace* space()     const { return _space; }
+    BDARegion *      container_type() const { return _type; }
+    MutableSpace *   space()     const { return _space; }
 
     inline container_t*  push_container(size_t size);
   };
 
-private:
+ private:
   GrowableArray<CGRPSpace*>* _spaces;
   size_t _page_size;
 
-protected:
+ protected:
   void select_limits(MemRegion mr, HeapWord **start, HeapWord **tail);
   // To update the regions when resize takes place
   void update_layout(MemRegion mr);
@@ -124,17 +124,17 @@ protected:
   void shrink_space_noclear(MutableSpace* spc, size_t sz);
   void shrink_space_end_noclear(MutableSpace *spc, size_t sz);
 
-public:
+ public:
 
-  BDAMutableSpace(size_t alignment);
-  virtual ~BDAMutableSpace();
+  MutableBDASpace(size_t alignment);
+  virtual ~MutableBDASpace();
 
   void set_page_size(size_t page_size) { _page_size = page_size; }
   size_t page_size() const { return _page_size; }
   GrowableArray<CGRPSpace*>* spaces() const { return _spaces; }
   MutableSpace* region_for(BDARegion* region) const {
     int i = _spaces->find(&region, CGRPSpace::equals);
-    return __spaces->at(i)->space();
+    return _spaces->at(i)->space();
   }
 
   virtual void      initialize(MemRegion mr,
@@ -144,7 +144,7 @@ public:
 
   // Boolean queries - the others are already implemented on mutableSpace.hpp
   bool contains(const void* p) const {
-    assert(_spaces() != NULL, "_Spaces array no initialized");
+    assert(spaces() != NULL, "_Spaces array no initialized");
     for(int i = 0; i < spaces()->length(); ++i) {
       if(spaces()->at(i)->space()->contains((HeapWord*)p))
         return true;

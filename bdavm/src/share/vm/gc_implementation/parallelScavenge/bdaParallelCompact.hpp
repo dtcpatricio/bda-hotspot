@@ -3,7 +3,7 @@
 
 #include "utilities/growableArray.hpp"
 #include "utilities/globalDefinitions.hpp"
-#include "gc_implementation/shared/bdcMutableSpace.hpp"
+#include "bda/mutableBDASpace.hpp"
 
 /* This file provides multiple auxiliary classes to aid the ParallelCompact GC when
  * adapted to the BDA Spaces. The classes in this file are carefuly introduced in the
@@ -37,7 +37,7 @@ public:
 private:
   CounterData* _map;
   int _counter_sz;
-    
+
 };
 
 class BDASummaryMap {
@@ -50,8 +50,8 @@ private:
 public:
 
   BDASummaryMap();
-  
-  bool initialize(BDCMutableSpace* sp);
+
+  bool initialize(MutableBDASpace* sp);
   void reset();
 
   void set_end_word(int id, HeapWord* hw);

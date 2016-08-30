@@ -9,9 +9,6 @@ BUILD_SCRIPT=$BUILD_SCRIPT_DIR/build.sh
 BUILD_DIR=../build/linux
 DEBUG_BIN=false
 
-ENABLE_BDA_HEADERMARK=0
-ENABLE_BDA_HASHMARK=0
-
 while :
 do
     case "$1" in
@@ -31,15 +28,13 @@ do
             DEBUG_BIN=true
             shift
             ;;
-        -header) ## Both cannot exist at the same time
-            ENABLE_BDA_HEADERMARK=1
-            ENABLE_BDA_HASHMARK=0
+        -bda)
+            ENABLE_BDA=1
             shift
             ;;
-        -hash) ## Both cannot exist at the same time
-            ENABLE_BDA_HASHMARK=1
-            ENABLE_BDA_HEADERMARK=0
-            shift
+        -jobs)
+            HOTSPOT_BUILD_JOBS=$2
+            shift 2
             ;;
         *)
             break
@@ -47,4 +42,4 @@ do
     esac
 done
 
-exec $BUILD_SCRIPT $MODE LP64=1 DEBUG_BINARIES=$DEBUG_BIN ALT_OUTPUTDIR=$BUILD_DIR ENABLE_BDA_HEADER_MARK=$ENABLE_BDA_HEADERMARK ENABLE_BDA_HASH_MARK=$ENABLE_BDA_HASHMARK
+exec $BUILD_SCRIPT $MODE LP64=1 DEBUG_BINARIES=$DEBUG_BIN ALT_OUTPUTDIR=$BUILD_DIR ENABLE_BDA=$ENABLE_BDA HOTSPOT_BUILD_JOBS=$HOTSPOT_BUILD_JOBS

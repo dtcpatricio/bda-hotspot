@@ -29,7 +29,7 @@
 #include "memory/memRegion.hpp"
 #include "utilities/copy.hpp"
 
-#include "gc_implementation/shared/bdaGlobals.hpp"
+#include "bda/bdaGlobals.hpp"
 
 // A MutableSpace is a subtype of ImmutableSpace that supports the
 // concept of allocation. This includes the concepts that a space may
@@ -153,7 +153,7 @@ class MutableSpace: public ImmutableSpace {
   // Gets the number of bda_regions in the heap (it eases casting)
   virtual int num_bda_regions() { return 0; }
   // ----------- END OF BIGDATA AWARE ALLOCATORS SUPPORT VIRTUALS ---------
-  
+
   // Debugging
   virtual void print() const;
   virtual void print_on(outputStream* st) const;

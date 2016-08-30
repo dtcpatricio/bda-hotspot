@@ -6,11 +6,11 @@ typedef BDADataCounters::CounterData CounterData;
 CounterData*
 BDADataCounters::initialize_counter_data(size_t region_count)
 {
-  int counter_sz = ((BDCMutableSpace*)ParallelScavengeHeap::old_gen()->object_space())->collections()->length();
+  int counter_sz = ((MutableBDASpace*)ParallelScavengeHeap::old_gen()->object_space())->spaces()->length();
   // Would it be easier to use array initialization? That'd require the CounterData
   // to be a ResourceObj...
   _map = NEW_C_HEAP_ARRAY(CounterData, region_count, mtGC);
-  
+
   for(int idx = 0; idx < (int)region_count; ++idx) {
     _map[idx].initialize(counter_sz);
   }
@@ -55,9 +55,9 @@ BDASummaryMap::BDASummaryMap()
 }
 
 bool
-BDASummaryMap::initialize(BDCMutableSpace* sp)
+BDASummaryMap::initialize(MutableBDASpace* sp)
 {
-  _length = sp->collections()->length();
+  _length = sp->spaces()->length();
   _target_nexts = NEW_C_HEAP_ARRAY(HeapWord**, _length, mtGC);
   _target_ends = NEW_C_HEAP_ARRAY(HeapWord*, _length, mtGC);
   return true;

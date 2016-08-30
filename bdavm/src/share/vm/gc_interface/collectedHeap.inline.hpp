@@ -175,8 +175,11 @@ HeapWord* CollectedHeap::common_mem_allocate_init(KlassHandle klass, size_t size
   HeapWord* obj = common_mem_allocate_noinit(klass, size, CHECK_NULL);
   init_obj(obj, size);
 #ifdef BDA
-  if(klass()->layout_helper_is_array()) {
-    
+  // Enqueues a new possible container, based on the test
+  // on the KlassRegionMap, on the refqueue for later GC processing
+  BDARegion * r;
+  if((r = KlassRegionMap::is_bda_klass(klass())) != NULL) {
+    Universe::heap()->bda_refqueue()->enqueue((oop)obj, r);
   }
 #endif
   return obj;

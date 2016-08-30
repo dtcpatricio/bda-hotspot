@@ -2,9 +2,9 @@
 #define SHARE_VM_GC_IMPLEMENTATION_PARALLELSCAVENGE_BDAOLDPROMOTIONLAB_HPP
 
 #include "gc_implementation/parallelScavenge/psPromotionLAB.hpp"
-#include "gc_implementation/shared/bdaGlobals.hpp"
+#include "bda/bdaGlobals.hpp"
 #include "oops/klassRegionMap.hpp"
-/* 
+/*
  * BDAOldPromotionLAB acts as an array of PSPromotionLAB objects, specially
  * of PSOldPromotionLAB. Thus, the relation between BDAOldPromotionLAB and
  * PSOldPromotionLAB is the same as the one between BDCMutableSpace and MutableSpace.
@@ -38,7 +38,7 @@ private:
     }
   };
 
-  
+
 
   GrowableArray<LABGroup*>* _bda_labs;
 
@@ -50,7 +50,7 @@ public:
   BDAOldPromotionLAB(ObjectStartArray* start_array);
 
   GrowableArray<LABGroup*>* labs() { return _bda_labs; }
-  
+
   // Intercepts PSPromotionLAB initialize() but ditches lab values and fetches new ones
   // From BDCMutableSpace.
   void initialize(MemRegion lab);
@@ -59,10 +59,10 @@ public:
   // Initializes the LABGroup array and its elements
   void set_start_array(ObjectStartArray* start_array);
   // Takes the call to the specific PSOldPromotionLAB
-  HeapWord* allocate(size_t size);
+  HeapWord * allocate(size_t size);
   // Takes the call from PSPromotionLAB
   bool unallocate_object(HeapWord* obj, size_t obj_size);
-  
+
 };
 
 #endif // SHARE_VM_GC_IMPLEMENTATION_PARALLELSCAVENGE_BDAOLDPROMOTIONLAB_HPP

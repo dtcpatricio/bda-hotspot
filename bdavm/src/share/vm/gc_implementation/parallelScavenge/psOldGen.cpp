@@ -128,7 +128,7 @@ void PSOldGen::initialize_work(const char* perf_data_name, int level) {
   //
   // Klass Regions Map
   //
-#if defined(HASH_MARK) || defined(HEADER_MARK)
+#ifdef BDA
   _region_map = new KlassRegionMap();
 #endif
 
@@ -136,7 +136,7 @@ void PSOldGen::initialize_work(const char* perf_data_name, int level) {
   // ObjectSpace stuff
   //
   if(UseBDA) {
-    _object_space = new BDCMutableSpace(virtual_space()->alignment());
+    _object_space = new MutableBDASpace(virtual_space()->alignment());
   } else {
     _object_space = new MutableSpace(virtual_space()->alignment());
   }

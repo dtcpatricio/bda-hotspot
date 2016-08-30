@@ -21,7 +21,7 @@ BDAOldPromotionLAB::initialize(MemRegion words)
     for(int i = 0; i < labs()->length(); ++i) {
       LABGroup* el = labs()->at(i);
       Thread::current()->set_alloc_region(el->type());
-      HeapWord* top = ((BDCMutableSpace*)ParallelScavengeHeap::old_gen()->object_space())->top_specific(el->type());
+      HeapWord* top = ((MutableBDASpace*)ParallelScavengeHeap::old_gen()->object_space())->top_specific(el->type());
       el->lab()->initialize(MemRegion(top - words.word_size(), words.word_size()));
     }
   } else {
@@ -37,11 +37,11 @@ BDAOldPromotionLAB::initialize(MemRegion words)
     // go through  a KlassRegionMap::region_for_klass() call.
     // if( i == -1 ) {
     //   i = 0;
-      
+
     PSOldPromotionLAB* lab = labs()->at(i)->lab();
     lab->initialize(words);
   }
-  
+
 }
 
 void

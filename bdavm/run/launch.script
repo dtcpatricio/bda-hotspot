@@ -10,7 +10,7 @@ do
             echo -e "-dir \t\t Specify the directory of the libjvm.so (obligatory)"
             echo -e "-printgc \t Set printing the BDA-Region's occupancy after FullGC"
             echo -e "-printminorgc \t Set printing the BDA-Region's occupancy after MinorGC"
-            echo -e "-dacapo \t <.jar file> <Test to Run> <Number of Iterations as nX where X is an int => 1> Run with the DaCapo benchmark suite"
+            echo -e "-dacapo \t <.jar file> <Test to Run> <Number of Iterations as nX where X is an int => 1> -s <size: small, default, large> Run with the DaCapo benchmark suite"
             exit 1;
             ;;
         -bda)
@@ -18,8 +18,8 @@ do
             shift 3
             ;;
         -dacapo)
-            DACAPO_ARGS="-jar ${@:2:3}"
-            shift 4
+            DACAPO_ARGS="-jar ${@:2:5}"
+            shift 6
             ;;
         -nocomp)
             compressed="-XX:-UseCompressedOops -XX:-UseCompressedClassPointers"
@@ -36,6 +36,10 @@ do
         -dir)
             HS_SCRIPT_DIR=`cd $2 && pwd`
             shift 2
+            ;;
+        -print)
+            print="${print} -XX:+PrintGC -XX:+PrintGCDetails"
+            shift
             ;;
         -*)
             add_args="${add_args} $1"
@@ -57,7 +61,7 @@ else
     JAVA_ARGS="-classpath $MYDIR $DACAPO_ARGS"
 fi
 
-JVM_ARGS="-XX:-UsePerfData -XX:-UseAdaptiveSizePolicy ${usebda} ${compressed} ${print} ${add_args}"
+JVM_ARGS="-XX:+UseParallelGC -XX:-UsePerfData -XX:-UseAdaptiveSizePolicy ${usebda} ${compressed} ${print} ${add_args}"
 
 echo "JAVA_ARGS to be used $JAVA_ARGS"
 echo "JVM_ARGS to be used $JVM_ARGS"

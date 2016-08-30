@@ -1,20 +1,19 @@
 #ifndef SHARE_VM_OOPS_KLASSREGIONMAP_HPP
 #define SHARE_VM_OOPS_KLASSREGIONMAP_HPP
 
-#include "gc_implementation/shared/bdaGlobals.hpp"
+#include "bda/bdaGlobals.hpp"
 #include "utilities/hashtable.hpp"
 #include "utilities/growableArray.hpp"
 
 /**
  * The Hashtable for the mapping between region identifiers and Klass objects.
- * The Klass objects are identified by their ref
  */
 
 class KlassRegionEntry;
 
 class KlassRegionHashtable : public Hashtable<BDARegion*, mtGC> {
 
-public:
+ public:
   KlassRegionHashtable(int table_size);
 
   void add_entry(int index, KlassRegionEntry* entry) {
@@ -27,10 +26,10 @@ public:
 
 class KlassRegionEntry : public HashtableEntry<BDARegion*, mtGC> {
 
-private:
+ private:
   Klass* _klass; // actual klass for conflict resolution
 
-public:
+ public:
   KlassRegionEntry* next() const {
     return (KlassRegionEntry*)HashtableEntry<BDARegion*, mtGC>::next();
   }
@@ -44,13 +43,13 @@ public:
 };
 
 
-/* The concrete class that manages the mapping between region ids and Klass objects.
+/* The actual class that manages the mapping between region ids and Klass objects.
  * Several fields and methods are static, since we're assuming there's always just one
  * instance of this class.
  */
 class KlassRegionMap : public CHeapObj<mtGC> {
 
-private:
+ private:
   static volatile bdareg_t _next_region;
   static BDARegion* _region_data;
   static int        _region_data_sz;
@@ -63,22 +62,22 @@ private:
   // Class that wraps the class names and the ids with they are promoted
   class KlassRegionEl : public CHeapObj<mtGC> {
 
-  private:
+   private:
     const char*      _klass_name;
     const bdareg_t   _region_id;
-  public:
-    KlassRegionEl(char* klass_name, bdareg_t region_id) :
+   public:
+    KlassRegionEl(const char* klass_name, bdareg_t region_id) :
       _klass_name(klass_name), _region_id(region_id) {}
 
     const char*      klass_name() const { return _klass_name; }
-    const bdareg_t   region_id() const { return _region_id; }
+    const bdareg_t   region_id()  const { return _region_id; }
     // routine to find the element with a specific char* value
-    static bool equals_name(void* class_name, KlassRegionEl* value) {
-        return strcmp((char*)class_name, (char*)value->klass_name()) == 0;
+    static bool equals_name(void* klass_name, KlassRegionEl* value) {
+        return strcmp((char*)klass_name, value->klass_name()) == 0;
     }
   };
 
-public:
+ public:
   static GrowableArray<KlassRegionEl*>* _bda_class_names;
 
   static int number_bdaregions();
@@ -86,10 +85,12 @@ public:
   KlassRegionMap();
   ~KlassRegionMap();
 
+  // checks if a klass is bda type and returns the appropriate region id
+  static BDARegion * is_bda_klass(Klass* k);
   // checks if a klass with "name" is a bda type
   bool     is_bda_type(const char* name);
   // actually gets the region id on where objects familiar to "name" live
-  BDARegion* bda_type(const char* name);
+  BDARegion * bda_type(Klass* k);
   // adds an antry to the Hashtable of klass_ptr<->bdareg_t
   void add_entry(Klass* k);
   // adds an entry for the general object space
@@ -119,7 +120,7 @@ public:
 // Inline definition
 inline void
 KlassRegionMap::add_other_entry(Klass* k) {
-  _region_map->add_entry(k, &_region_data[1]);
+  _region_map->add_entry(k, region_start_ptr());
 }
 
 inline void

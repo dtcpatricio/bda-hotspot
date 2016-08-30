@@ -123,13 +123,8 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       }
 #endif  // #ifndef PRODUCT
 
-      
-#ifdef BDAGC
-      if (o->klass()->oop_is_array() && o->isBDA()) {
-        new_obj = (oop) _bda_manager.allocate(new_obj_size);
-      } else
-#endif
-        new_obj = (oop) _old_lab.allocate(new_obj_size);
+
+      new_obj = (oop) _old_lab.allocate(new_obj_size);
 
       new_obj_is_tenured = true;
 

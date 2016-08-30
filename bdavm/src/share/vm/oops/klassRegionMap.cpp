@@ -91,7 +91,7 @@ KlassRegionMap::KlassRegionMap()
   BDARegion::set_region_start(_region_data);
   BDARegion::set_region_end(&_region_data[_region_data_sz - 1]);
 
-  int table_size = 4096;//_bda_class_names->length() << log2_intptr(sizeof(KlassRegionEntry));
+  int table_size = 4096;
   _region_map = new KlassRegionHashtable(table_size);
 }
 
@@ -155,6 +155,16 @@ KlassRegionMap::parse_from_line(char* line)
   _bda_class_names->push(el);
 }
 
+BDARegion*
+KlassRegionMap::is_bda_klass(Klass* k)
+{
+  BDARegion * r = region_for_klass(k);
+  if(r != no_region_ptr() && r != region_start_ptr())
+    return r;
+  else
+    return NULL;
+}
+
 bool
 KlassRegionMap::is_bda_type(const char* name)
 {
@@ -168,9 +178,9 @@ KlassRegionMap::is_bda_type(const char* name)
 
 __attribute__((optimize("O0")))
 BDARegion*
-KlassRegionMap::bda_type(const char* name)
+KlassRegionMap::bda_type(Klass* k)
 {
-  int i = _bda_class_names->find((char*)name, KlassRegionEl::equals_name);
+  int i = _bda_class_names->find((void*)k->external_name(), KlassRegionEl::equals_name);
   assert(i >= 0 && i < _bda_class_names->length(), "index out of bounds");
   bdareg_t r = _bda_class_names->at(i)->region_id();
   int idx = log2_intptr((intptr_t)r)*2;
@@ -190,7 +200,7 @@ KlassRegionMap::add_entry(Klass* k)
                is_bda_type(k->primary_super_of_depth(index)->external_name())) {
       // If this is a bda_type (i.e. an interesting class) add to the hashtable
       // as a BDARegion with non-uniform id.
-      BDARegion* region = bda_type(k->primary_super_of_depth(index)->external_name());
+      BDARegion* region = bda_type(k->primary_super_of_depth(index));
       add_region_entry(k, region);
       return;
     }
@@ -201,7 +211,8 @@ KlassRegionMap::add_entry(Klass* k)
 BDARegion*
 KlassRegionMap::region_for_klass(Klass* k)
 {
-  _region_map->get_region(k);
+  if(_region_map != NULL) return _region_map->get_region(k);
+  return NULL;
 }
 
 int

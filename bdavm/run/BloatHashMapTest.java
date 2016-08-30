@@ -4,6 +4,7 @@
  */
 import java.util.Random;
 import java.util.Base64;
+import java.util.HashMap;
 
 public class BloatHashMapTest {
 
@@ -18,19 +19,22 @@ public class BloatHashMapTest {
       MyHashMap<Long, String> map1 = new MyHashMap<Long, String>(max / 2);
       MyHashMap<Long, String> map2 = new MyHashMap<Long, String>(max / 4);
 
+      HashMap<Long, String> map3 = new HashMap<Long, String>(max / 4);
+
       fillHashMapWithRandom(map);
       fillHashMapWithRandom(map1);
       fillHashMapWithRandom(map2);
+      fillHashMapWithRandom(map3);
 
-      for(int i = 0; i < max / 2; i++) {
-        MyHashMap<Long, String> young_map = new MyHashMap<Long, String>(i*2);
-        fillHashMapWithRandom(young_map);
-      }
+      // for(int i = 0; i < max / 10; i++) {
+      //   MyHashMap<Long, String> young_map = new MyHashMap<Long, String>(i*2);
+      //   fillHashMapWithRandom(young_map);
+      // }
 
       System.out.println("--------------- BloatHashMapTest DONE ---------------");
     }
 
-  private static void fillHashMapWithRandom(MyHashMap<Long, String> map) {
+  private static void fillHashMapWithRandom(HashMap<Long, String> map) {
         if(map == null)
             return;
 

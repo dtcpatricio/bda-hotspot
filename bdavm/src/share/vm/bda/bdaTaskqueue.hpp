@@ -2,18 +2,19 @@
 #define SHARE_VM_BDA_TASKQUEUE_HPP
 
 # include "utilities/taskqueue.hpp"
-# include "bda/globals.hpp"
+# include "bda/bdaGlobals.hpp"
+# include "bda/mutableBDASpace.hpp"
 
 template<class E, MEMFLAGS F, unsigned int N = TASKQUEUE_SIZE>
 class ContainerOverflowTaskQueue : public OverflowTaskQueue<E, F, N>
 {
-  
+
   container_t* _collection;
 
  public:
 
-  typedef MutableBDASpace::CGRPSpace* space_t;
-  
+  typedef MutableBDASpace::CGRPSpace * space_t;
+
   inline void push_container(size_t size, space_t s);
 };
 
@@ -25,14 +26,16 @@ ContainerOverflowTaskQueue<E, F, N>::push_container(size_t size, space_t s)
 }
 
 template<class T, MEMFLAGS F>
-class ContainerTaskQueueSet : public GenericTaskQueueSet<T, F>
-{
+class ContainerTaskQueueSet : public GenericTaskQueueSet<T, F> {
+
+
  public:
 
-  typedef MutableBDASpace* oldspace_t;
-  
+  typedef MutableBDASpace * oldspace_t;
+
   ContainerTaskQueueSet(int n, oldspace_t s) :
-    GenericTaskQueueSet(n), _space(s) {}
+    GenericTaskQueueSet<T, F>(n)
+    { _space = s; }
 
  private:
 
