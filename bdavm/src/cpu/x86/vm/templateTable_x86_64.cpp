@@ -37,6 +37,10 @@
 #include "runtime/synchronizer.hpp"
 #include "utilities/macros.hpp"
 
+#ifdef BDA
+# include "oops/klassRegionMap.hpp"
+#endif
+
 #ifndef CC_INTERP
 
 #define __ _masm->
@@ -3283,6 +3287,7 @@ void TemplateTable::_new() {
   __ testl(rdx, Klass::_lh_instance_slow_path_bit);
   __ jcc(Assembler::notZero, slow_case);
 
+ 
   // Allocate the instance
   // 1) Try to allocate in the TLAB
   // 2) if fail and the object is large allocate in the shared Eden
@@ -3370,6 +3375,32 @@ void TemplateTable::_new() {
 
     // initialize object header only.
     __ bind(initialize_header);
+#ifdef BDA
+    // Test if it is a valid BDA value
+    // Must be done here after having the object allocated but before rsi
+    // is consumed when storing the klass field
+    Label done_enqueue;
+    // Save registers
+    __ push (rsi);
+    __ push (rdx);
+    __ push (rax);
+
+    // Call the VM to search the BDARegion ptr
+    call_VM (c_rarg2, CAST_FROM_FN_PTR(address, KlassRegionMap::is_bda_klass_asm), rsi);
+    __ testptr (c_rarg2, c_rarg2);
+    __ jcc (Assembler::zero, done_enqueue);
+
+    // If it hit add the ref to the refqueue
+    __ lea (c_rarg1, Address(rsp,0)); // get the oop
+    call_VM (rax, CAST_FROM_FN_PTR(address, CollectedHeap::enqueue_asm),
+             c_rarg1, c_rarg2);
+
+    // Pop the saved registers
+    __ bind (done_enqueue);
+    __ pop (rax);
+    __ pop (rdx);
+    __ pop (rsi);
+#endif
     if (UseBiasedLocking) {
       __ movptr(rscratch1, Address(rsi, Klass::prototype_header_offset()));
       __ movptr(Address(rax, oopDesc::mark_offset_in_bytes()), rscratch1);
@@ -3381,6 +3412,7 @@ void TemplateTable::_new() {
     __ store_klass_gap(rax, rcx);  // zero klass gap for compressed oops
     __ store_klass(rax, rsi);      // store klass last
 
+    
     {
       SkipIfEqual skip(_masm, &DTraceAllocProbes, false);
       // Trigger dtrace event for fastpath

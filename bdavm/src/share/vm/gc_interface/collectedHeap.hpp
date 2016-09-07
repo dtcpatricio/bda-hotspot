@@ -100,7 +100,7 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   GCHeapLog* _gc_heap_log;
 
 #ifdef BDA
-  RefQueue * _bda_refqueue;
+  static RefQueue * _bda_refqueue;
 #endif
 
   // Used in support of ReduceInitialCardMarks; only consulted if COMPILER2 is being used
@@ -134,8 +134,8 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   // pure virtual.
   void pre_initialize();
 
-  // Getter for the instance of the bda refqueue
 #ifdef BDA
+  // Getter for the instance of the bda refqueue
   RefQueue * bda_refqueue() { return _bda_refqueue; }
 #endif
 
@@ -208,6 +208,11 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   static inline size_t filler_array_max_size() {
     return _filler_array_max_size;
   }
+
+#ifdef BDA
+  // This function is called by the TemplateInterpreter when r is a valid bda-space
+  static void enqueue_asm(JavaThread * java_thread, oop obj, BDARegion * r);
+#endif
 
   virtual CollectedHeap::Name kind() const { return CollectedHeap::Abstract; }
 

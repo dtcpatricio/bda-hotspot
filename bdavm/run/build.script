@@ -36,10 +36,14 @@ do
             HOTSPOT_BUILD_JOBS=$2
             shift 2
             ;;
+        -asm)
+            NEED_ASM=1
+            shift 1
+            ;;
         *)
             break
             ;;
     esac
 done
 
-exec $BUILD_SCRIPT $MODE LP64=1 DEBUG_BINARIES=$DEBUG_BIN ALT_OUTPUTDIR=$BUILD_DIR ENABLE_BDA=$ENABLE_BDA HOTSPOT_BUILD_JOBS=$HOTSPOT_BUILD_JOBS
+exec $BUILD_SCRIPT $MODE LP64=1 DEBUG_BINARIES=$DEBUG_BIN ALT_OUTPUTDIR=$BUILD_DIR ENABLE_BDA=$ENABLE_BDA HOTSPOT_BUILD_JOBS=$HOTSPOT_BUILD_JOBS NEED_ASM=$NEED_ASM

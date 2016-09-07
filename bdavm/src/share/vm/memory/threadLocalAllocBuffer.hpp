@@ -158,6 +158,7 @@ public:
   void fill(HeapWord* start, HeapWord* top, size_t new_size);
   void initialize();
 
+
   static size_t refill_waste_limit_increment()   { return TLABWasteIncrement; }
 
   // Code generation support

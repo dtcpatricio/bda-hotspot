@@ -7,8 +7,6 @@ public class MyHashMap<K, V> extends HashMap<K, V> {
   }
 
   public void myput(K key, V value) {
-    System.out.println("Invoking put");
     super.put(key,value);
-    System.out.println("Finished invoking put");
   }
 }

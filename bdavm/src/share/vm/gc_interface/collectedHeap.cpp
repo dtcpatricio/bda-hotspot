@@ -46,6 +46,10 @@ int CollectedHeap::_fire_out_of_memory_count = 0;
 
 size_t CollectedHeap::_filler_array_max_size = 0;
 
+#ifdef BDA
+RefQueue * CollectedHeap::_bda_refqueue = RefQueue::create();
+#endif
+
 template <>
 void EventLogBase<GCMessage>::print(outputStream* st, GCMessage& m) {
   st->print_cr("GC heap %s", m.is_before ? "before" : "after");
@@ -162,9 +166,7 @@ CollectedHeap::CollectedHeap() : _n_par_threads(0)
   _is_gc_active = false;
   _total_collections = _total_full_collections = 0;
   _gc_cause = _gc_lastcause = GCCause::_no_gc;
-#ifdef BDA
-  _bda_refqueue = RefQueue::create();
-#endif
+
   NOT_PRODUCT(_promotion_failure_alot_count = 0;)
   NOT_PRODUCT(_promotion_failure_alot_gc_number = 0;)
 
@@ -584,6 +586,16 @@ void CollectedHeap::post_full_gc_dump(GCTimer* timer) {
     inspector.doit();
   }
 }
+
+/////////////// BDA Support //////////////
+#ifdef BDA
+void
+CollectedHeap::enqueue_asm(JavaThread * java_thread, oop obj, BDARegion * r)
+{
+  _bda_refqueue->enqueue(obj, r);
+}
+#endif
+
 
 /////////////// Unit tests ///////////////
 

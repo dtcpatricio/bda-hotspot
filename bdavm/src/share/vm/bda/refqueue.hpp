@@ -32,6 +32,7 @@ class RefQueue : public CHeapObj<mtGC> {
   // Factory methods
   static RefQueue * create();
 
+  // Methods for modification of the queue
   inline void  enqueue(oop obj, BDARegion * r);
   inline Ref * dequeue();
 
@@ -41,7 +42,7 @@ class RefQueue : public CHeapObj<mtGC> {
   inline Ref * remove_end() { return _remove_end; }
 };
 
-// Inlines definition
+// Inline definitions
 
 inline void
 RefQueue::enqueue(oop obj, BDARegion * r)

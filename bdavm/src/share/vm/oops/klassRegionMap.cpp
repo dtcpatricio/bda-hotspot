@@ -165,6 +165,16 @@ KlassRegionMap::is_bda_klass(Klass* k)
     return NULL;
 }
 
+// Doesn't need return type since it is set by the thread
+void
+KlassRegionMap::is_bda_klass_asm(JavaThread* java_thread, Klass* k)
+{
+  // Get the region ptr
+  BDARegion * r = is_bda_klass(k);
+  // Set it as the thread's call vm result
+  java_thread->set_vm_result((oop)r);
+}
+
 bool
 KlassRegionMap::is_bda_type(const char* name)
 {

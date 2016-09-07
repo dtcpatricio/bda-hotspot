@@ -87,6 +87,8 @@ class KlassRegionMap : public CHeapObj<mtGC> {
 
   // checks if a klass is bda type and returns the appropriate region id
   static BDARegion * is_bda_klass(Klass* k);
+  // Assembler version of is_bda_klass(Klass*)
+  static void        is_bda_klass_asm(JavaThread * java_thread, Klass* k);
   // checks if a klass with "name" is a bda type
   bool     is_bda_type(const char* name);
   // actually gets the region id on where objects familiar to "name" live

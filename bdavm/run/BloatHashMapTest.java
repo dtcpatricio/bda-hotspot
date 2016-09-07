@@ -2,52 +2,32 @@
  * Fills a big hashmap with tons of entries, and then tries to compute
  * new hash values for it
  */
-import java.util.Random;
-import java.util.Base64;
-import java.util.HashMap;
-
 public class BloatHashMapTest {
 
-    // We'll have to try with Integer.MAX_VALUE, but with a bigger heap
-    // to prevent OutOfMemory errors.
-    private static int max = 100000;
+    public static MyHashMap<Long, String> map;
+    public static MyHashMap<Long, String> map1;
 
     public static void main(String[] args) throws Exception {
       System.out.println("--------------- BloatHashMapTest STARTED ---------------");
 
-      MyHashMap<Long, String> map = new MyHashMap<Long, String>(max);
-      MyHashMap<Long, String> map1 = new MyHashMap<Long, String>(max / 2);
-      MyHashMap<Long, String> map2 = new MyHashMap<Long, String>(max / 4);
+      Bootstrap bs = new Bootstrap();
 
-      HashMap<Long, String> map3 = new HashMap<Long, String>(max / 4);
+      map = bs.fillMapRandom();
+      map1 = bs.fillMapValues();
 
-      fillHashMapWithRandom(map);
-      fillHashMapWithRandom(map1);
-      fillHashMapWithRandom(map2);
-      fillHashMapWithRandom(map3);
-
-      // for(int i = 0; i < max / 10; i++) {
-      //   MyHashMap<Long, String> young_map = new MyHashMap<Long, String>(i*2);
-      //   fillHashMapWithRandom(young_map);
+      // for (Long l : map.keySet()) {
+      //     if(l > max * 10)
+      //         System.out.print(l + "; ");
       // }
+
+      for (String s : map1.values()) {
+          // Duarte overriden by Cândida
+          if (s.equals("Ivan") | s.equals("Duarte") | s.equals("Cândida"))
+              System.out.println(s);
+      }
 
       System.out.println("--------------- BloatHashMapTest DONE ---------------");
     }
 
-  private static void fillHashMapWithRandom(HashMap<Long, String> map) {
-        if(map == null)
-            return;
 
-        Random generator = new Random((long)max);
-        Base64.Encoder encoder = Base64.getEncoder();
-        for(int i = 0; i < max; i++) {
-            long key = generator.nextInt();
-            byte[] stringBytes = new byte[6];
-            generator.nextBytes(stringBytes);
-
-            String value = encoder.encodeToString(stringBytes);
-
-            map.put(key, value);
-        }
-    }
 }

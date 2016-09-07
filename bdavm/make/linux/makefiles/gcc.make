@@ -191,7 +191,7 @@ endif
 
 # Keep temporary files (.ii, .s)
 ifdef NEED_ASM
-  CFLAGS += -save-temps
+  CFLAGS += -fverbose-asm
 else
   CFLAGS += -pipe
 endif
