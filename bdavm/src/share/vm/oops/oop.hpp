@@ -31,8 +31,8 @@
 #include "oops/metadata.hpp"
 #include "utilities/macros.hpp"
 #include "utilities/top.hpp"
-#ifdef HEADER_MARK
-# include "gc_implementation/shared/bdaGlobals.hpp"
+#ifdef BDA
+# include "bda/bdaGlobals.hpp"
 #endif
 
 // oopDesc is the top baseclass for objects classes.  The {name}Desc classes describe
@@ -313,11 +313,17 @@ class oopDesc {
 #if INCLUDE_ALL_GCS
   // Parallel Scavenge
   void push_contents(PSPromotionManager* pm);
-
+  
   // Parallel Old
   void update_contents(ParCompactionManager* cm);
 
   void follow_contents(ParCompactionManager* cm);
+
+#ifdef BDA
+  // Parallel Scavenge
+  void push_bdaref_contents(PSPromotionManager * pm, container_t * container);
+#endif // BDA
+  
 #endif // INCLUDE_ALL_GCS
 
   bool is_scavengable() const;

@@ -43,4 +43,15 @@ inline void oopDesc::push_contents(PSPromotionManager* pm) {
   // Else skip it.  The TypeArrayKlass in the header never needs scavenging.
 }
 
+#ifdef BDA
+inline void
+oopDesc::push_bdaref_contents(PSPromotionManager * pm, container_t * container)
+{
+  Klass * k = klass();
+  if (!k->oop_is_typeArray()) {
+    k->oop_push_bdaref_contents(pm, container, this);
+  }
+}
+#endif
+
 #endif // SHARE_VM_OOPS_OOP_PSGC_INLINE_HPP

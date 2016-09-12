@@ -5,6 +5,7 @@
 # include "oops/oopsHierarchy.hpp"
 # include "bda/bdaGlobals.hpp"
 # include "runtime/atomic.inline.hpp"
+# include "utilities/taskqueue.hpp"
 
 class Ref : public CHeapObj<mtGC> {
 
@@ -19,6 +20,10 @@ class Ref : public CHeapObj<mtGC> {
 
   Ref * next()            { return _next; }
   void set_next(Ref* ref) { _next = ref; }
+
+  oop operator () ()   const { return _actual_ref; }
+  oop *       ref()          { return &_actual_ref; }
+  BDARegion * region() const { return _region; }
 };
 
 class RefQueue : public CHeapObj<mtGC> {
@@ -29,6 +34,12 @@ class RefQueue : public CHeapObj<mtGC> {
   DEBUG_ONLY(int _n_elements;)
 
  public:
+
+  enum RefType {
+    element = 0,
+    container = 1
+  };
+  
   // Factory methods
   static RefQueue * create();
 
@@ -74,4 +85,40 @@ RefQueue::dequeue()
   DEBUG_ONLY(Atomic::dec(&_n_elements);)
   return temp;
 }
+
+/*
+ * RefStack
+ * The RefStack is a stack whose elements are to group bda container refs
+ * (i.e. elements of a collection) with the container they belong to. It works much as a
+ * StarTask (see taskqueue.hpp) but it groups the oop with the container it belongs to in the
+ * bda-spaces to inform the collector where the oop should be promoted.
+ */
+class BDARefTask {
+
+  void *        _holder;
+  container_t * _container;
+
+  enum { COMPRESSED_OOP_MASK = 1 };
+  
+ public:
+  
+  BDARefTask(narrowOop * p, container_t * c) : _container(c) {
+    assert(((uintptr_t)p & COMPRESSED_OOP_MASK) == 0, "Information loss!");
+    _holder = (void*)((uintptr_t)p | COMPRESSED_OOP_MASK);
+  }
+  BDARefTask(oop* p, container_t * c) : _container(c) {
+    assert(((uintptr_t)p & COMPRESSED_OOP_MASK) == 0, "Information loss!");
+    _holder = (void*)p;
+  }
+  BDARefTask()                 { _holder = NULL; _container = NULL; }
+  operator oop * ()            { return (oop*)_holder; }
+  operator narrowOop * ()      { return (narrowOop*)((uintptr_t)_holder & ~COMPRESSED_OOP_MASK); }  
+  container_t * operator -> () { return _container; }  
+
+  bool is_narrow() const {
+    return (((uintptr_t)_holder & COMPRESSED_OOP_MASK) != 0);
+  }
+};
+
+typedef Stack<BDARefTask, mtGC> BDARefStack;
 #endif // SHARE_VM_BDA_REFQUEUE_HPP

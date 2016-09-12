@@ -30,6 +30,21 @@
 #include "utilities/macros.hpp"
 
 #if INCLUDE_ALL_GCS
+#ifdef BDA
+#define PARALLEL_GC_DECLS                                               \
+  virtual void oop_push_contents(PSPromotionManager* pm, oop obj);      \
+  virtual void oop_push_bdaref_contents(PSPromotionManager * pm,        \
+                                        container_t * container,        \
+                                        oop obj);                       \
+  /* Parallel Old GC support                                            \
+                                                                        \
+  The 2-arg version of oop_update_pointers is for objects that are      \
+  known not to cross chunk boundaries.  The 4-arg version is for        \
+  objects that do (or may) cross chunk boundaries; it updates only those\
+  oops that are in the region [beg_addr, end_addr).  */                 \
+  virtual void oop_follow_contents(ParCompactionManager* cm, oop obj);  \
+  virtual int  oop_update_pointers(ParCompactionManager* cm, oop obj);
+#else // !BDA
 #define PARALLEL_GC_DECLS \
   virtual void oop_push_contents(PSPromotionManager* pm, oop obj);          \
   /* Parallel Old GC support                                                \
@@ -41,11 +56,24 @@
   virtual void oop_follow_contents(ParCompactionManager* cm, oop obj);      \
   virtual int  oop_update_pointers(ParCompactionManager* cm, oop obj);
 
+#endif
+
+#ifdef BDA
+// Pure virtual version for klass.hpp including bda specific pure virtuals
+#define PARALLEL_GC_DECLS_PV                                            \
+  virtual void oop_push_contents(PSPromotionManager* pm, oop obj) = 0;  \
+  virtual void oop_push_bdaref_contents(PSPromotionManager * pm,        \
+                                        container_t * container,        \
+                                        oop obj) = 0;                      \
+  virtual void oop_follow_contents(ParCompactionManager* cm, oop obj) = 0; \
+  virtual int  oop_update_pointers(ParCompactionManager* cm, oop obj) = 0;
+#else
 // Pure virtual version for klass.hpp
 #define PARALLEL_GC_DECLS_PV \
   virtual void oop_push_contents(PSPromotionManager* pm, oop obj) = 0;      \
   virtual void oop_follow_contents(ParCompactionManager* cm, oop obj) = 0;  \
   virtual int  oop_update_pointers(ParCompactionManager* cm, oop obj) = 0;
+#endif // BDA
 #else  // INCLUDE_ALL_GCS
 #define PARALLEL_GC_DECLS
 #define PARALLEL_GC_DECLS_PV

@@ -190,8 +190,10 @@ class MutableBDASpace : public MutableSpace
   virtual size_t tlab_used(Thread *thr) const;
   virtual size_t unsafe_max_tlab_alloc(Thread *thr) const;
 
+  // Allocation methods
   virtual HeapWord* allocate(size_t size);
   virtual HeapWord* cas_allocate(size_t size);
+  container_t *     allocate_container (size_t size, BDARegion * r);
 
   // Helper methods for scavenging
   virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) {

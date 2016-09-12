@@ -8,7 +8,7 @@
 typedef uint32_t bdareg_t;
 typedef struct container {
   HeapWord* _top;
-  HeapWord* _start;
+  HeapWord* _start;  
   DEBUG_ONLY(size_t _size;)
   DEBUG_ONLY(size_t _reserved;)
   DEBUG_ONLY(char   _space_id;)

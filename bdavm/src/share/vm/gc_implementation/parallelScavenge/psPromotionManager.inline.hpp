@@ -31,6 +31,10 @@
 #include "gc_implementation/parallelScavenge/psScavenge.hpp"
 #include "oops/oop.psgc.inline.hpp"
 
+#ifdef BDA
+# include "bda/bdaScavenge.inline.hpp"
+#endif
+
 inline PSPromotionManager* PSPromotionManager::manager_array(int index) {
   assert(_manager_array != NULL, "access of NULL manager_array");
   assert(index >= 0 && index <= (int)ParallelGCThreads, "out of range manager_array access");
@@ -235,6 +239,123 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
   return new_obj;
 }
 
+#ifdef BDA
+template <class T> inline void
+PSPromotionManager::push_bdaref_stack(T * p, container_t * ct)
+{
+  (&_bdaref_stack)->push(BDARefTask(p, ct));
+}
+
+template <class T> inline void
+PSPromotionManager::claim_or_forward_bdaref(T * p, container_t * ct)
+{
+  assert(PSScavenge::should_scavenge(p, true), "revisiting object?");
+  assert(Universe::heap()->kind() == CollectedHeap::ParallelScavengeHeap,
+         "Sanity");
+  assert(Universe::heap()->is_in(p), "pointer outside heap");
+
+  // Test p and if it hasn't been claimed then push on the bdaref_stack
+  if (p != NULL) {
+    oop o = oopDesc::load_decode_heap_oop_not_null(p);
+    if (o->is_forwarded()) {
+      o = o->forwardee();
+      // Clean the card
+      if (PSScavenge::is_obj_in_young(o)) {
+        PSScavenge::card_table()->inline_write_ref_field_gc(p, o);
+      }
+      oopDesc::encode_store_heap_oop_not_null(p, o);
+    } else {
+      push_bdaref_stack(p, ct);
+    }
+  }
+}
+
+template<bool promote_immediately> oop
+PSPromotionManager::copy_bdaref_to_survivor_space(oop o, BDARegion* r, RefQueue::RefType rt)
+{
+  // TODO: Promote immediately does not work for now, thus the oop o is promoted to
+  // old without further tests
+
+  oop new_obj = NULL;
+  container_t * container = NULL;
+  MutableBDASpace * old_space = (MutableBDASpace *) old_gen()->object_space();
+
+  markOop test_mark = o->mark();
+
+  // The same as "o->is_forwarded()". Jumps right away since another thread won the race.
+  if (!test_mark->is_marked()) {
+    size_t new_obj_size = o->size();
+
+    // If it is RefType::container
+    if (rt) {
+      // Allocate a container on the correct bda-space (already pushes new_obj_size)
+      container = old_space -> allocate_container(new_obj_size, r);
+      // And get the start ptr which is the parent object
+      new_obj = (oop)container->_start;
+
+      // If it failed return and try to allocate on the general object space
+      // Generally, the MutableBDASpace prepares for this scenario.
+      if (new_obj == NULL) {
+        return bda_oop_promotion_failed(o, test_mark, container);
+      }
+
+      // Copy obj
+      Copy::aligned_disjoint_words((HeapWord*)o, (HeapWord*)new_obj, new_obj_size);
+
+      // Try to cas in the header. If it succeeds push the contents and pass the container_t
+      // structure. If it fails just leave the space empty.
+      if (o->cas_forward_to(new_obj, test_mark)) {
+        assert (new_obj == o->forwardee(), "Sanity");
+
+        if (new_obj_size > _min_array_size_for_chunking &&
+            new_obj->is_objArray() &&
+            PSChunkLargeArrays) {
+          // chunk the array and push on the stack right away to continue processing
+          oop* const masked_oop = mask_chunked_array_oop(o);
+          push_bdaref_stack(masked_oop, container);
+        } else {
+          new_obj->push_bdaref_contents(this, container);
+        }
+      } else {
+        // lost the cas header race
+        guarantee(o->is_forwarded(), "Object must be forwarded if the cas failed.");
+        // Leave it empty since it will be compacted during PSParallelCompact.
+        new_obj = o->forwardee();
+      }
+    } else {
+      // If it is RefType::element it must abide to the container_t info
+    }
+  }
+  
+}
+
+inline void
+PSPromotionManager::process_popped_bdaref_depth(Ref * r)
+{
+  StarTask p(r->ref());
+  if (is_oop_masked(p)) {
+    assert(PSChunkLargeArrays, "invariant");
+    oop const old = unmask_chunked_array_oop(p);
+    process_bda_array_chunk(old);
+  } else {
+    BDAScavenge::copy_and_push_safe_barrier<Ref*, /*promote_immediately=*/true>(
+      this, &r, RefQueue::container);
+  }
+}
+
+inline void
+PSPromotionManager::process_bda_array_chunk(oop old)
+{
+
+}
+
+inline void
+PSPromotionManager::drain_bda_stacks()
+{
+
+}
+
+#endif
 
 inline void PSPromotionManager::process_popped_location_depth(StarTask p) {
   if (is_oop_masked(p)) {

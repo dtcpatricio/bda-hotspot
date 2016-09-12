@@ -32,7 +32,7 @@
 #include "gc_implementation/shared/spaceCounters.hpp"
 #include "bda/mutableBDASpace.hpp"
 #include "runtime/safepoint.hpp"
-#if defined(HASH_MARK) || defined(HEADER_MARK)
+#ifdef BDA
 # include "oops/klassRegionMap.hpp"
 #endif
 

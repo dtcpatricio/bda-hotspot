@@ -799,6 +799,9 @@ MutableBDASpace::unsafe_max_tlab_alloc(Thread *thr) const {
   return spaces()->at(i)->space()->free_in_bytes();
 }
 
+// // // // // // // // //
+//  Allocation methods  //
+// // // // // // // // //
 HeapWord* MutableBDASpace::allocate(size_t size) {
   HeapWord *obj = cas_allocate(size);
   return obj;
@@ -832,6 +835,12 @@ HeapWord* MutableBDASpace::cas_allocate(size_t size) {
   assert(obj <= ms->top() && obj + size <= top(), "Incorrect push of the space's top");
 
   return obj;
+}
+
+container_t *
+MutableBDASpace::allocate_container(size_t size,BDARegion* r)
+{
+  
 }
 
 void MutableBDASpace::clear(bool mangle_space) {

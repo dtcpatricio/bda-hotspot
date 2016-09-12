@@ -147,5 +147,16 @@ int InstanceClassLoaderKlass::oop_update_pointers(ParCompactionManager* cm, oop 
   InstanceKlass::oop_update_pointers(cm, obj);
   return size_helper();
 }
+
+#ifdef BDA
+void
+InstanceClassLoaderKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
+                                                   container_t * container,
+                                                   oop obj)
+{
+  InstanceKlass::oop_push_bdaref_contents(pm, container, obj);
+}
+#endif // BDA
+
 #endif // INCLUDE_ALL_GCS
 

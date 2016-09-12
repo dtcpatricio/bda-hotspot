@@ -351,3 +351,34 @@ oop PSPromotionManager::oop_promotion_failed(oop obj, markOop obj_mark) {
 
   return obj;
 }
+
+#ifdef BDA
+/*
+ * A similar version to PSPromotionManager::oop_promotion_failed(...) but, if the header
+ * can be installed, then it is pushed to the bda_stack instead of the claimed_queue.
+ */
+oop
+PSPromotionManager::bda_oop_promotion_failed(oop obj, markOop obj_mark, container_t * ct)
+{
+  assert(_old_gen_is_full || PromotionFailureALot, "Sanity");
+
+  if (obj->cas_forward_to(obj, obj_mark)) {
+    assert (obj == obj->forwardee(), "obj must be owned by this thread");
+
+    _promotion_failed_info.register_copy_failure(obj->size());
+
+    obj->push_bdaref_contents(this, ct);
+
+    // TODO: should this oop be preserved in a different set?
+    PSScavenge::oop_promotion_failed(obj, obj_mark);
+  } else {
+    // Someone else "owns" this object
+    guarantee(obj->is_forwarded(), "if another thread owns the obj, it must be forwarded");
+
+    // Get the newly installed ptr and return
+    obj = obj->forwardee();
+  }
+
+  return obj;
+}
+#endif

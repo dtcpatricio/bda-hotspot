@@ -33,8 +33,8 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/taskqueue.hpp"
 
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-#include "gc_implementation/parallelScavenge/bdaOldPromotionLAB.hpp"
+#ifdef BDA
+# include "bda/refqueue.hpp"
 #endif
 //
 // psPromotionManager is used by a single thread to manage object survival
@@ -79,17 +79,18 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
 #endif // TASKQUEUE_STATS
 
   PSYoungPromotionLAB                 _young_lab;
-#if !defined(HASH_MARK) && !defined(HEADER_MARK)
   PSOldPromotionLAB                   _old_lab;
-#else
-  BDAOldPromotionLAB                  _old_lab;
-#endif
+  
   bool                                _young_gen_is_full;
   bool                                _old_gen_is_full;
 
   OopStarTaskQueue                    _claimed_stack_depth;
   OverflowTaskQueue<oop, mtGC>        _claimed_stack_breadth;
 
+#ifdef BDA
+  BDARefStack                         _bdaref_stack;
+#endif
+  
   bool                                _totally_drain;
   uint                                _target_stack_size;
 
@@ -185,6 +186,18 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
 
   // Promotion methods
   template<bool promote_immediately> oop copy_to_survivor_space(oop o);
+#ifdef BDA
+  template<bool promote_immediately> oop copy_bdaref_to_survivor_space(oop o,
+                                                                       BDARegion* r,
+                                                                       RefQueue::RefType rt);
+  template <class T> inline void claim_or_forward_bdaref(T * p, container_t * ct);
+  template <class T> inline void push_bdaref_stack(T * p, container_t * ct);
+  oop bda_oop_promotion_failed(oop obj, markOop obj_mark, container_t * ct);
+  inline void process_popped_bdaref_depth(Ref * r);
+  // BDA TODO: implement array chunking.
+  inline void process_bda_array_chunk(oop old);
+  inline void drain_bda_stacks();
+#endif
   oop oop_promotion_failed(oop obj, markOop obj_mark);
 
   void reset();

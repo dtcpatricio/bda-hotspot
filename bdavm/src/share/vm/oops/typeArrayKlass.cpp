@@ -253,6 +253,18 @@ TypeArrayKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) {
   assert(obj->is_typeArray(),"must be a type array");
   return typeArrayOop(obj)->object_size();
 }
+
+#ifdef BDA
+void
+TypeArrayKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
+                                         container_t * container,
+                                         oop obj)
+{
+  ShouldNotReachHere();
+  assert(obj->is_typeArray(), "must be a type array");
+}
+#endif // BDA
+
 #endif // INCLUDE_ALL_GCS
 
 void TypeArrayKlass::initialize(TRAPS) {

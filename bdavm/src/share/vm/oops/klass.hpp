@@ -42,7 +42,9 @@
 #endif // INCLUDE_ALL_GCS
 
 // Big Data alloc support
+#ifdef BDA
 #include "bda/bdaGlobals.hpp"
+#endif // BDA
 
 //
 // A Klass provides:

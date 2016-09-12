@@ -447,6 +447,17 @@ int InstanceRefKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) {
   }
   return size_helper();
 }
+
+#ifdef BDA
+void
+InstanceRefKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
+                                           container_t * container,
+                                           oop obj)
+{
+  InstanceKlass::oop_push_bdaref_contents(pm, container, obj);
+}
+#endif // BDA
+
 #endif // INCLUDE_ALL_GCS
 
 void InstanceRefKlass::update_nonstatic_oop_maps(Klass* k) {

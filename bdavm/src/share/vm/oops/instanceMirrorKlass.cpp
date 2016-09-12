@@ -349,6 +349,17 @@ int InstanceMirrorKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) 
     assert_nothing)
   return size;
 }
+
+#ifdef BDA
+void
+InstanceMirrorKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
+                                              container_t * container,
+                                              oop obj)
+{
+  InstanceKlass::oop_push_bdaref_contents(pm, container, obj);
+}
+#endif // BDA
+
 #endif // INCLUDE_ALL_GCS
 
 int InstanceMirrorKlass::instance_size(KlassHandle k) {
