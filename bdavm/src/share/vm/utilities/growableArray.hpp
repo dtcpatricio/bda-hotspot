@@ -503,4 +503,37 @@ template<class E, class UnaryPredicate> class GrowableArrayFilterIterator : publ
   }
 };
 
+// // TODO:!!!
+// # include "runtime/mutex.hpp"
+
+// template<class E>
+// class SynchronizedGrowableArray : public GrowableArray<E> {
+
+//  private:
+
+//   Monitor * _lock;
+ 
+//  public:
+
+//   SynchronizedGrowableArray(Thread * thread, int initial_size, char * name);
+
+//   SynchronizedGrowableArray(int initial_size, char * name,
+//                             bool C_heap = false, MEMFLAGS F = mtInternal);
+  
+
+//   int cas_append(const E& elem) {
+    
+//   }
+
+//   void synchronized_grow(int j);
+  
+// };
+
+// template<class E> void
+// SynchronizedGrowableArray<E>::synchronized_grow(int j)
+// {
+
+// }
+
+
 #endif // SHARE_VM_UTILITIES_GROWABLEARRAY_HPP

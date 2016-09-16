@@ -34,7 +34,7 @@
 #include "utilities/taskqueue.hpp"
 
 #ifdef BDA
-# include "bda/refqueue.hpp"
+# include "bda/bdaTasks.hpp"
 #endif
 //
 // psPromotionManager is used by a single thread to manage object survival
@@ -188,15 +188,28 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   template<bool promote_immediately> oop copy_to_survivor_space(oop o);
 #ifdef BDA
   template<bool promote_immediately> oop copy_bdaref_to_survivor_space(oop o,
-                                                                       BDARegion* r,
+                                                                       void * r,
                                                                        RefQueue::RefType rt);
   template <class T> inline void claim_or_forward_bdaref(T * p, container_t * ct);
   template <class T> inline void push_bdaref_stack(T * p, container_t * ct);
-  oop bda_oop_promotion_failed(oop obj, markOop obj_mark, container_t * ct);
-  inline void process_popped_bdaref_depth(Ref * r);
-  // BDA TODO: implement array chunking.
-  inline void process_bda_array_chunk(oop old);
-  inline void drain_bda_stacks();
+  oop bda_oop_promotion_failed(oop obj, markOop obj_mark);
+  template <class T> inline void process_popped_bdaref_depth(BDARefTask t);
+  template <class T> inline void process_dequeued_bdaroot(Ref * r);
+
+  // Array chunking
+  inline void process_bda_array_chunk(oop old, container_t * ct);
+  template <class T> inline void process_bda_array_chunk_work(oop obj,
+                                                              int start,
+                                                              int end,
+                                                              container_t * ct);
+
+  // Drain the refstack
+  void drain_bda_stacks();
+
+  // Accessors
+  BDARefStack * bdaref_stack() {
+    return &_bdaref_stack;
+  }
 #endif
   oop oop_promotion_failed(oop obj, markOop obj_mark);
 

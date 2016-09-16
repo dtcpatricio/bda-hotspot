@@ -17,7 +17,7 @@ class BDAScavenge: public PSScavenge {
  public:
   template <class T, bool promote_immediately>
   inline static void copy_and_push_safe_barrier(PSPromotionManager * pm, T * p,
-                                                RefQueue::RefType rt);
+                                                void * r, RefQueue::RefType rt);
 };
 
 template<bool promote_immediately>
@@ -38,6 +38,6 @@ class BDARootsClosure : public OopClosure {
   void do_oop(narrowOop * p) { BDARootsClosure::do_oop_work(p); }
 };
 
-typedef BDARootsClosure</*promote_immediately=*/true> BDARefRootClosure;
+typedef BDARootsClosure</*promote_immediately=*/true> BDARootRefClosure;
 
 #endif

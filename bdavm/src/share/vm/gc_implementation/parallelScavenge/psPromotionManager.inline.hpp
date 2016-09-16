@@ -238,7 +238,6 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
 
   return new_obj;
 }
-
 #ifdef BDA
 template <class T> inline void
 PSPromotionManager::push_bdaref_stack(T * p, container_t * ct)
@@ -271,7 +270,7 @@ PSPromotionManager::claim_or_forward_bdaref(T * p, container_t * ct)
 }
 
 template<bool promote_immediately> oop
-PSPromotionManager::copy_bdaref_to_survivor_space(oop o, BDARegion* r, RefQueue::RefType rt)
+PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::RefType rt)
 {
   // TODO: Promote immediately does not work for now, thus the oop o is promoted to
   // old without further tests
@@ -289,14 +288,17 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, BDARegion* r, RefQueue:
     // If it is RefType::container
     if (rt) {
       // Allocate a container on the correct bda-space (already pushes new_obj_size)
-      container = old_space -> allocate_container(new_obj_size, r);
+      container = old_space -> allocate_container(new_obj_size, (BDARegion*)r);
       // And get the start ptr which is the parent object
       new_obj = (oop)container->_start;
 
-      // If it failed return and try to allocate on the general object space
-      // Generally, the MutableBDASpace prepares for this scenario.
+      // Usually, the MutableBDASpace prepares for this scenario.
+      // It allocates the new container in the general object space. However,
+      // if the "other" space is also full, then it generally means that a FullGC
+      // must take place.
       if (new_obj == NULL) {
-        return bda_oop_promotion_failed(o, test_mark, container);
+        _old_gen_is_full = true;
+        return bda_oop_promotion_failed(o, test_mark);
       }
 
       // Copy obj
@@ -324,37 +326,126 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, BDARegion* r, RefQueue:
       }
     } else {
       // If it is RefType::element it must abide to the container_t info
+      container = (container_t*) r;
+
+      // Here the container is changed accordingly and the new object pointer is returned
+      new_obj = (oop) old_space -> allocate_element(new_obj_size, container);
+
+      if (new_obj == NULL) {
+        _old_gen_is_full = true;
+        return bda_oop_promotion_failed(o, test_mark);
+      }
+
+      // Copy obj
+      Copy::aligned_disjoint_words((HeapWord*)o, (HeapWord*)new_obj, new_obj_size);
+
+      // Try to cas in the header. This is here just as an assertion, because threads traverse
+      // in depth and cannot steal from others, thus making the following cas always to succeed.
+      if (o->cas_forward_to(new_obj, test_mark)) {
+        assert (new_obj == o->forwardee(), "Sanity");
+
+        if (new_obj_size > _min_array_size_for_chunking &&
+            new_obj->is_objArray() &&
+            PSChunkLargeArrays) {
+          // chunk the array and push on the stack right away to continue processing
+          oop* const masked_oop = mask_chunked_array_oop(o);
+          push_bdaref_stack(masked_oop, container);
+        } else {
+          new_obj->push_bdaref_contents(this, container);
+        }
+      } else {
+        // lost the cas header race
+        guarantee(o->is_forwarded(), "Object must be forwarded if the cas failed.");
+        // Leave it empty since it will be compacted during PSParallelCompact.
+        new_obj = o->forwardee();
+      }
     }
   }
-  
+
+  return new_obj;
 }
 
+template <class T>
 inline void
-PSPromotionManager::process_popped_bdaref_depth(Ref * r)
+PSPromotionManager::process_popped_bdaref_depth(BDARefTask t)
 {
-  StarTask p(r->ref());
+  StarTask p((T*)t);
+  container_t * ct = t.container();
   if (is_oop_masked(p)) {
     assert(PSChunkLargeArrays, "invariant");
     oop const old = unmask_chunked_array_oop(p);
-    process_bda_array_chunk(old);
+    process_bda_array_chunk(old, ct);
   } else {
-    BDAScavenge::copy_and_push_safe_barrier<Ref*, /*promote_immediately=*/true>(
-      this, &r, RefQueue::container);
+    BDAScavenge::copy_and_push_safe_barrier<T, /*promote_immediately=*/true>(
+        this, (T*)t, (void*)ct, RefQueue::element);
   }
 }
 
+template <class T>
 inline void
-PSPromotionManager::process_bda_array_chunk(oop old)
+PSPromotionManager::process_dequeued_bdaroot(Ref * r)
 {
-
+  // Ref only keeps oop and does not encode into an narrowOop
+  if (PSScavenge::should_scavenge((T*)r->ref_addr())) {
+    BDAScavenge::copy_and_push_safe_barrier<T, true>(this, (T*)r->ref_addr(), (void*)r->region(),
+                                                       RefQueue::container);
+  }
 }
 
+//
+// This version is pratically equal to process_array_chunk
+// but it makes a different call on the claim_or_forward_depth call of
+// the process_array_chunk_work<>
+//
 inline void
-PSPromotionManager::drain_bda_stacks()
+PSPromotionManager::process_bda_array_chunk(oop old, container_t * c)
 {
+  assert(PSChunkLargeArrays, "invariant");
+  assert(old->is_objArray(), "invariant");
+  assert(old->is_forwarded(), "invariant");
 
+  oop const obj = old->forwardee();
+
+  int start;
+  int const end = arrayOop(old)->length();
+  if (end > (int) _min_array_size_for_chunking) {
+    start = end - _array_chunk_size;
+    assert (start > 0, "invariant");
+    arrayOop(old)->set_length(start);
+    push_bdaref_stack(mask_chunked_array_oop(old), c);
+  } else {
+    // the final chunk of the array
+    start = 0;
+    int const actual_length = arrayOop(obj)->length();
+    arrayOop(old)->set_length(actual_length);
+  }
+
+  if (UseCompressedOops) {
+    process_bda_array_chunk_work<narrowOop>(obj, start, end, c);
+  } else {
+    process_bda_array_chunk_work<oop>(obj, start, end, c);
+  }
 }
 
+template <class T> void
+PSPromotionManager::process_bda_array_chunk_work(oop obj,
+                                                 int start,
+                                                 int end,
+                                                 container_t * c)
+{
+  assert (start <= end, "invariant");
+  T* const base      = (T*)objArrayOop(obj)->base();
+  T* p               = base + start;
+  T* const chunk_end = base + end;
+  while (p < chunk_end) {
+    if (PSScavenge::should_scavenge(p)) {
+      claim_or_forward_bdaref(p, c);
+    }
+    p++;
+  }
+}
+    
+    
 #endif
 
 inline void PSPromotionManager::process_popped_location_depth(StarTask p) {

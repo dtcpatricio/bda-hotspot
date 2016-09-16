@@ -38,26 +38,27 @@ BDACardTableHelper::~BDACardTableHelper()
 }
 
 MutableBDASpace::MutableBDASpace(size_t alignment) : MutableSpace(alignment) {
-  _spaces = new (ResourceObj::C_HEAP, mtGC) GrowableArray<CGRPSpace*>(0, true);
+  int n_regions = KlassRegionMap::number_bdaregions();
+  _spaces = new (ResourceObj::C_HEAP, mtGC) GrowableArray<CGRPSpace*>(n_regions, true);
   _page_size = os::vm_page_size();
 
+  // Initialize these to the values on the launch args
+  CGRPSpace::dnf = BDAElementNumberFields;
+  CGRPSpace::default_collection_size = BDACollectionSize;
+  CGRPSpace::delegation_level = BDADelegationLevel;
+  DEBUG_ONLY(CGRPSpace::initial_array_sz = BDAContainerArraySize;)
+    
   // Initializing the array of collection types.
   // It must be done in the constructor due to the resize calls.
   // The number of regions must always include at least one region (the general one).
   // It is implied that the KlassRegionMap must be initialized before since it parses
   // the BDAKlasses string.
-  int n_regions = KlassRegionMap::number_bdaregions();
   BDARegion* region = KlassRegionMap::region_start_ptr();
   spaces()->append(new CGRPSpace(alignment, region)); ++region;
   for(int i = 0; i < n_regions; i++)  {
     spaces()->append(new CGRPSpace(alignment, region));
     region += 2;
   }
-
-  // Initialize these to the values on the launch args
-  CGRPSpace::dnf = BDAElementNumberFields;
-  CGRPSpace::default_collection_size = BDACollectionSize;
-  CGRPSpace::delegation_level = BDADelegationLevel;
 }
 
 MutableBDASpace::~MutableBDASpace() {
@@ -371,19 +372,22 @@ MutableBDASpace::initialize_regions(size_t space_size,
     k++;
   }
 
-  HeapWord *aux_start, *aux_end = end;
-  for(int reg = spaces()->length() - 1; reg > 0; reg--) {
-    aux_start = aux_end - bda_region_sz;
+  HeapWord *aux_end, *aux_start = start;
+  int sp_len = spaces()->length();
+  for(int reg = sp_len - 1; reg > 0; reg--) {
+    aux_end = aux_start + bda_region_sz;
     assert(pointer_delta(aux_end, aux_start) % page_size() == 0, "region size not page aligned");
-    spaces()->at(reg)->space()->initialize(MemRegion(aux_start, aux_end),
-                                                SpaceDecorator::Clear,
-                                                SpaceDecorator::Mangle);
-    aux_end = aux_start;
+    spaces()->at(sp_len - reg)->space()->initialize(MemRegion(aux_start, aux_end),
+                                                    SpaceDecorator::Clear,
+                                                    SpaceDecorator::Mangle);
+    aux_start = aux_end;
   }
 
-  spaces()->at(0)->space()->initialize(MemRegion(start, aux_end),
-                                            SpaceDecorator::Clear,
-                                            SpaceDecorator::Mangle);
+  // The "other" (0) space is located in the end of the old_space
+  spaces()->at(0)->space()->initialize(MemRegion(aux_start, end),
+                                       SpaceDecorator::Clear,
+                                       SpaceDecorator::Mangle);
+  
 }
 
 void
@@ -838,9 +842,37 @@ HeapWord* MutableBDASpace::cas_allocate(size_t size) {
 }
 
 container_t *
-MutableBDASpace::allocate_container(size_t size,BDARegion* r)
+MutableBDASpace::allocate_container(size_t size, BDARegion* r)
 {
-  
+  int i = spaces()->find(r, CGRPSpace::equals);
+  assert(i > -1, "Containers can only be allocated in bda spaces already initialized");
+  CGRPSpace * cs = spaces()->at(i);
+  container_t * new_ctr = cs->push_container(size);
+
+  // If it failed to allocate a container in the specified space
+  // then allocate a container in the "other" space.
+  if (new_ctr == NULL) {
+    new_ctr = spaces()->at(0)->push_container(size);    
+  }
+
+  return new_ctr;
+}
+
+//
+// This is lock and atomic-construct free because container_t structs are handled
+// by each GC thread seperately. If StealTasks are implemented and some kind of
+// synchronization is required, then implement the bumping pointer with a CAS.
+HeapWord*
+MutableBDASpace::allocate_element(size_t size, container_t * c)
+{
+  HeapWord * old_top = c->_top;
+  HeapWord * new_top = old_top + size;
+  if (new_top < c->_end) {
+    c->_top = new_top;
+    return old_top;
+  } else {
+    return NULL;
+  }
 }
 
 void MutableBDASpace::clear(bool mangle_space) {

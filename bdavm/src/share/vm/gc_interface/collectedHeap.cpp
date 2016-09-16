@@ -590,9 +590,9 @@ void CollectedHeap::post_full_gc_dump(GCTimer* timer) {
 /////////////// BDA Support //////////////
 #ifdef BDA
 void
-CollectedHeap::enqueue_asm(JavaThread * java_thread, oop obj, BDARegion * r)
+CollectedHeap::enqueue_asm(JavaThread * java_thread, oop * obj, BDARegion * r)
 {
-  _bda_refqueue->enqueue(obj, r);
+  _bda_refqueue->enqueue(*obj, r);
 }
 #endif
 

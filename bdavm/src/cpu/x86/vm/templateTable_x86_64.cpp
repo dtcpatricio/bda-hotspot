@@ -3396,7 +3396,7 @@ void TemplateTable::_new() {
     __ jcc (Assembler::zero, done_enqueue);
 
     // If it hit add the ref to the refqueue
-    __ lea (c_rarg1, Address(rsp,0)); // get the oop
+    __ lea (c_rarg1, Address(rsp,0)); // get the oop address (don't forget to dereference)
     call_VM (rax, CAST_FROM_FN_PTR(address, CollectedHeap::enqueue_asm),
              c_rarg1, c_rarg2);
 

@@ -48,6 +48,10 @@ class MutableBDASpace : public MutableSpace
   static const size_t MinRegionAddrOffsetMask;
   static const size_t MinRegionAddrMask;
 
+  static const size_t Log2BlockSize;
+  static const size_t BlockSize;
+  static const size_t BlockSizeBytes;
+  
  private:
 
   // This class defines the addressable space of the MutableBDASpace
@@ -56,7 +60,7 @@ class MutableBDASpace : public MutableSpace
 
     MutableSpace *                _space;
     BDARegion *                   _type;
-    GrowableArray<container_t*> * _containers;
+    DEBUG_ONLY(GrowableArray<container_t*> * _containers;)
 
     // Helper function to calculate the power of base over exponent using bit-wise
     // operations. It is inlined for such.
@@ -69,14 +73,16 @@ class MutableBDASpace : public MutableSpace
     static int dnf;
     static int delegation_level;
     static int default_collection_size;
+    DEBUG_ONLY(static int initial_array_sz;)
 
     CGRPSpace(size_t alignment, BDARegion * region) : _type(region) {
       _space = new MutableSpace(alignment);
-      _containers = new (ResourceObj::C_HEAP, mtGC) GrowableArray<container_t*>(0, true);
+      DEBUG_ONLY(_containers = new (ResourceObj::C_HEAP, mtGC)
+                 GrowableArray<container_t*>(initial_array_sz, true);)
     }
     ~CGRPSpace() {
       delete _space;
-      delete _containers;
+      DEBUG_ONLY(delete _containers;)
     }
 
     static bool equals(void* container_type, CGRPSpace* s) {
@@ -194,6 +200,7 @@ class MutableBDASpace : public MutableSpace
   virtual HeapWord* allocate(size_t size);
   virtual HeapWord* cas_allocate(size_t size);
   container_t *     allocate_container (size_t size, BDARegion * r);
+  HeapWord*         allocate_element(size_t size, container_t * r);
 
   // Helper methods for scavenging
   virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) {

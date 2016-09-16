@@ -3967,6 +3967,10 @@ class CommandLineFlags {
                "The default value for the number of fields of each element "\
                "in the BDA collections")                                    \
                                                                             \
+  develop(intx, BDAContainerArraySize, 256,                                 \
+               "This sets the initial size of the array that contains "     \
+               "pointers to container_t structures, for debug builds")      \
+                                                                            \
   product(bool, BDAPrintAfterGC, false,                                     \
                "Print big-data aware space after compacting GC")            \
                                                                             \

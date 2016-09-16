@@ -134,11 +134,6 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   // pure virtual.
   void pre_initialize();
 
-#ifdef BDA
-  // Getter for the instance of the bda refqueue
-  RefQueue * bda_refqueue() { return _bda_refqueue; }
-#endif
-
   // Create a new tlab. All TLAB allocations must go through this.
   virtual HeapWord* allocate_new_tlab(size_t size);
 
@@ -211,11 +206,13 @@ class CollectedHeap : public CHeapObj<mtInternal> {
 
 #ifdef BDA
   // This function is called by the TemplateInterpreter when r is a valid bda-space
-  static void enqueue_asm(JavaThread * java_thread, oop obj, BDARegion * r);
-#endif
+  static void enqueue_asm(JavaThread * java_thread, oop * obj, BDARegion * r);
+  // Getter for the instance of the bda refqueue, which although it is static
+  // it needs to be created or it is just NULL
+  RefQueue * bda_refqueue() { return _bda_refqueue; }
+#endif // BDA
 
   virtual CollectedHeap::Name kind() const { return CollectedHeap::Abstract; }
-
   /**
    * Returns JNI error code JNI_ENOMEM if memory could not be allocated,
    * and JNI_OK on success.

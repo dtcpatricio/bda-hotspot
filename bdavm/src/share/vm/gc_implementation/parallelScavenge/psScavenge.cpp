@@ -56,6 +56,10 @@
 #include "services/memoryService.hpp"
 #include "utilities/stack.inline.hpp"
 
+#ifdef BDA
+# include "bda/bdaTasks.hpp"
+#endif
+
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
 HeapWord*                  PSScavenge::_to_space_top_before_gc = NULL;
@@ -422,6 +426,13 @@ bool PSScavenge::invoke_no_policy() {
 
       GCTaskQueue* q = GCTaskQueue::create();
 
+#ifdef BDA
+      RefQueue * refqueue = Universe::heap()->bda_refqueue();
+      for (uint j = 0; j < active_workers; j++) {
+        q->enqueue(new BDARefRootsTask(refqueue, old_gen));
+      }
+#endif
+      
       if (!old_gen->object_space()->is_empty()) {
         // There are only old-to-young pointers if there are objects
         // in the old gen.

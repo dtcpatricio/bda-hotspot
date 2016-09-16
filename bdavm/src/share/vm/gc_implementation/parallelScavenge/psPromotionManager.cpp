@@ -354,23 +354,43 @@ oop PSPromotionManager::oop_promotion_failed(oop obj, markOop obj_mark) {
 
 #ifdef BDA
 /*
+ * The drain_stacks_depth(...) version for the BDA GC/Allocator.
+ * Works pretty much the same, however, since there's no StealTasks, there's
+ * no need to pop from the overflow stack first. In fact, there's only one stack
+ * and it is local to the thread processing it. The threads process the stacks in
+ * depth-first.
+ */
+void
+PSPromotionManager::drain_bda_stacks()
+{
+  BDARefStack * rs = bdaref_stack();
+
+  while (!rs->is_empty()) {
+    BDARefTask p;
+    
+    p = rs->pop();
+    if(p.is_narrow())
+      process_popped_bdaref_depth<narrowOop>(p);
+    else
+      process_popped_bdaref_depth<oop>(p);
+  }
+
+  assert (rs->is_empty(), "Sanity");
+}
+
+/*
  * A similar version to PSPromotionManager::oop_promotion_failed(...) but, if the header
  * can be installed, then it is pushed to the bda_stack instead of the claimed_queue.
  */
 oop
-PSPromotionManager::bda_oop_promotion_failed(oop obj, markOop obj_mark, container_t * ct)
+PSPromotionManager::bda_oop_promotion_failed(oop obj, markOop obj_mark)
 {
-  assert(_old_gen_is_full || PromotionFailureALot, "Sanity");
-
   if (obj->cas_forward_to(obj, obj_mark)) {
     assert (obj == obj->forwardee(), "obj must be owned by this thread");
 
     _promotion_failed_info.register_copy_failure(obj->size());
 
-    obj->push_bdaref_contents(this, ct);
-
-    // TODO: should this oop be preserved in a different set?
-    PSScavenge::oop_promotion_failed(obj, obj_mark);
+    obj->push_contents(this);
   } else {
     // Someone else "owns" this object
     guarantee(obj->is_forwarded(), "if another thread owns the obj, it must be forwarded");
@@ -380,5 +400,28 @@ PSPromotionManager::bda_oop_promotion_failed(oop obj, markOop obj_mark, containe
   }
 
   return obj;
+
 }
+  if (!rt) {
+    // obj could not be pushed to its container. Add it to the claimed_stack_breadth()
+    // in order to be promoted to the survivor spaces.
+    
+  }
+  // This means that an object could not be promoted to old-space where its parent and
+  // brothers live. Thus, push to the claimed_stack_breadth() queue in order to at least try
+  // the survivor spaces, before a FullGC takes place.
+
+  
+  assert(_old_gen_is_full || PromotionFailureALot, "Sanity");
+
+  if (obj->cas_forward_to(obj, obj_mark)) {
+    assert (obj == obj->forwardee(), "obj must be owned by this thread");
+
+    _promotion_failed_info.register_copy_failure(obj->size());
+
+    obj->push_contents(this);
+
+    // TODO: should this oop be preserved in a different set?
+    PSScavenge::oop_promotion_failed(obj, obj_mark);
+
 #endif
