@@ -57,7 +57,6 @@ public:
   void set_end_word(int id, HeapWord* hw);
   void set_next_addr(int id, HeapWord** hw);
 
-  //HeapWord* next_at(int id)  { return _target_nexts[id]; }
   HeapWord** next_addr_at(int id) { return _target_nexts[id]; }
   HeapWord* end_at(int id) { return _target_ends[id]; }
   HeapWord** end_addr_at(int id) { return &(_target_ends[id]); }
