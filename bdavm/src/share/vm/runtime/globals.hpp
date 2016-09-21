@@ -3956,7 +3956,7 @@ class CommandLineFlags {
                "Ratio for the size of the BDARegions on the heap, "         \
                "defaults to 5 and is the minimum")                          \
                                                                             \
-  product(intx, BDADelegationLevel, 2,                                      \
+  product(intx, BDADelegationLevel, 3,                                      \
                "The amount of delegation for BDA collections until "        \
                "the actual data is reached")                                \
                                                                             \

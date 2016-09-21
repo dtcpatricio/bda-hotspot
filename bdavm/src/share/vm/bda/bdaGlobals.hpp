@@ -10,6 +10,7 @@ typedef struct container {
   HeapWord* _top;
   HeapWord* _start;
   HeapWord* _end;
+  struct container * _next; // For iteration of containers in mutableSpaces
   DEBUG_ONLY(size_t _size;)
   DEBUG_ONLY(size_t _reserved;)
   DEBUG_ONLY(char   _space_id;)

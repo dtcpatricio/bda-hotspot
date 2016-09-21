@@ -1,4 +1,4 @@
-#include "gc_implementation/parallelScavenge/bdaOldPromotionLAB.hpp"
+#include "bda/bdaOldPromotionLAB.hpp"
 #include "gc_implementation/parallelScavenge/parallelScavengeHeap.hpp"
 
 // TODO: OR FIXME:

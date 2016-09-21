@@ -1,5 +1,5 @@
 #include "gc_implementation/parallelScavenge/parallelScavengeHeap.hpp"
-#include "gc_implementation/parallelScavenge/bdaParallelCompact.hpp"
+#include "bda/bdaParallelCompact.hpp"
 
 typedef BDADataCounters::CounterData CounterData;
 

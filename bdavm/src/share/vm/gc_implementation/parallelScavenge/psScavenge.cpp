@@ -398,9 +398,9 @@ bool PSScavenge::invoke_no_policy() {
     // creating the promotion_manager. We pass the top
     // values to the card_table, to prevent it from
     // straying into the promotion labs.
-#if defined(HASH_MARK) || defined(HEADER_MARK)
+#ifdef BDA
     BDACardTableHelper* saved_tops = new BDACardTableHelper(
-      (BDCMutableSpace*)old_gen->object_space());
+      (MutableBDASpace*)old_gen->object_space());
 #else
     HeapWord* old_top = old_gen->object_space()->top();
 #endif
@@ -438,7 +438,7 @@ bool PSScavenge::invoke_no_policy() {
         // in the old gen.
         uint stripe_total = active_workers;
         for(uint i=0; i < stripe_total; i++) {
-#if defined(HASH_MARK) || defined(HEADER_MARK)
+#ifdef BDA
           q->enqueue(new OldToYoungRootsTask(old_gen, saved_tops, i, stripe_total));
 #else
           q->enqueue(new OldToYoungRootsTask(old_gen, old_top, i, stripe_total));

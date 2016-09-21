@@ -1,8 +1,9 @@
 #ifndef SHARE_VM_BDA_MUTABLEBDASPACE_HPP
 #define SHARE_VM_BDA_MUTABLEBDASPACE_HPP
 
-#include "bda/bdaGlobals.hpp"
-#include "gc_implementation/shared/mutableSpace.hpp"
+# include "bda/bdaGlobals.hpp"
+# include "bda/gen_queue.hpp"
+# include "gc_implementation/shared/mutableSpace.hpp"
 
 // Implementation of an allocation space for big-data collection placement
 
@@ -16,19 +17,21 @@ class MutableBDASpace;
 // The BDACardTableHelper
 class BDACardTableHelper : public CHeapObj<mtGC> {
 
+ public:
+  typedef struct container_helper {
+    HeapWord *    _top;
+    container_t * _container;
+  } container_helper_t;
+  
  private:
-  int _length;
-  HeapWord** _tops;
-  MutableSpace** _spaces;
+  container_helper_t * _containers;
+  int                  _length;
 
  public:
-
-  BDACardTableHelper(MutableBDASpace* sp);
+  BDACardTableHelper(MutableBDASpace * sp);
   ~BDACardTableHelper();
 
-  int        length() const { return _length; }
-  HeapWord** tops() const { return _tops; }
-  MutableSpace** spaces() const { return _spaces; }
+  HeapWord * top (container_t * c);
 };
 
 // The MutableBDASpace class is a general object that encapsulates multiple
@@ -58,9 +61,12 @@ class MutableBDASpace : public MutableSpace
   // for a particular collection type, or none at all.
   class CGRPSpace : public CHeapObj<mtGC> {
 
-    MutableSpace *                _space;
-    BDARegion *                   _type;
-    DEBUG_ONLY(GrowableArray<container_t*> * _containers;)
+    MutableSpace *                 _space;
+    BDARegion *                    _type;
+    GenQueue<container_t*, mtGC> * _containers;
+
+    // GC support
+    container_t *                  _gc_current;
 
     // Helper function to calculate the power of base over exponent using bit-wise
     // operations. It is inlined for such.
@@ -72,27 +78,35 @@ class MutableBDASpace : public MutableSpace
     // of heuristics that compute the use of the bda-spaces by the application.
     static int dnf;
     static int delegation_level;
-    static int default_collection_size;
-    DEBUG_ONLY(static int initial_array_sz;)
+    static int default_collection_size;    
 
     CGRPSpace(size_t alignment, BDARegion * region) : _type(region) {
       _space = new MutableSpace(alignment);
-      DEBUG_ONLY(_containers = new (ResourceObj::C_HEAP, mtGC)
-                 GrowableArray<container_t*>(initial_array_sz, true);)
+      _containers = GenQueue<container_t*, mtGC>::create();
     }
     ~CGRPSpace() {
       delete _space;
-      DEBUG_ONLY(delete _containers;)
+      for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+           *iterator != NULL;
+           ++iterator) {
+        container_t * c = *iterator;
+        FreeHeap((void*)c, mtGC);
+      }
     }
 
     static bool equals(void* container_type, CGRPSpace* s) {
       return (BDARegion*)container_type == s->container_type();
     }
 
-    BDARegion *      container_type() const { return _type; }
-    MutableSpace *   space()     const { return _space; }
-
+    BDARegion *      container_type()  const { return _type; }
+    MutableSpace *   space()           const { return _space; }
+    int              container_count() const { return _containers->n_elements(); }
+    
     inline container_t*  push_container(size_t size);
+
+    // GC support
+    inline container_t * cas_get_next_container();
+    inline void          save_top_ptrs(container_helper_t * helper, int * i);
   };
 
  private:
@@ -178,6 +192,7 @@ class MutableBDASpace : public MutableSpace
   }
 
   virtual int num_bda_regions() { return _spaces->length() - 1; }
+  inline  int container_count();
 
   // Methods for mangling
   virtual void set_top_for_allocations(HeapWord *v);

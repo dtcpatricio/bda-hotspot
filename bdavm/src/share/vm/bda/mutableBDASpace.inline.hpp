@@ -13,7 +13,6 @@ const size_t MutableBDASpace::BlockSizeBytes  = BlockSize << LogHeapWordSize;
 int MutableBDASpace::CGRPSpace::dnf = 0;
 int MutableBDASpace::CGRPSpace::delegation_level = 0;
 int MutableBDASpace::CGRPSpace::default_collection_size = 0;
-int MutableBDASpace::CGRPSpace::initial_array_sz = 0;
 
 inline container_t*
 MutableBDASpace::CGRPSpace::push_container(size_t size)
@@ -67,8 +66,9 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
   container->_reserved = reserved_sz;
 #endif
 
-  // FIXME: NOT MT safe! Use SynchronizedGrowableArray
-  _containers->append(container);
+  // MT safe, but only for subsequent enqueues/dequeues. If mixed, then the queue may break!
+  // See gen_queue.hpp for more details.
+  _containers->enqueue(container);
 
   return container;
 }
@@ -81,6 +81,50 @@ MutableBDASpace::CGRPSpace::power_function(int base, int exp)
   acc += base << exp;
   for (int i = exp - 1; i > 0; i--) acc += exp * (base << i);
   acc += base;
+}
+
+inline container_t *
+MutableBDASpace::CGRPSpace::cas_get_next_container()
+{
+  container_t * c = NULL;
+  do {
+    c = _gc_current;
+    if (c == NULL)
+      break;
+    
+    container_t * next = c->_next;    
+  } while (Atomic::cmpxchg_ptr((intptr_t)next,
+                               (intptr_t*)&_gc_current,
+                               (intptr_t)c) != c);
+  return c;
+}
+
+inline void
+MutableBDASpace::CGRPSpace::save_top_ptrs(container_helper_t * helper, int * i)
+{
+  int from = *i;
+
+  for(GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+      *iterator != NULL;
+      ++iterator) {
+    container_t * c = *iterator;
+    helper[from++] = c->_top;
+  }
+
+  *i = from;
+}
+
+/////////////////////////////////////////
+//// MutableBDASpace Definitions/////////
+/////////////////////////////////////////
+inline int
+MutableBDASpace::container_count()
+{
+  int acc = 0;
+  for (int i = 1; i < _spaces->length(), ++i) {
+    acc += _spaces->at(i)->container_count();
+  }
+  return acc;
 }
 
 #endif

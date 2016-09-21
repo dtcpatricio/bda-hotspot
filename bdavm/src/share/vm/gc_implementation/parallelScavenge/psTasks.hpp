@@ -164,7 +164,7 @@ class StealTask : public GCTask {
 class OldToYoungRootsTask : public GCTask {
  private:
   PSOldGen* _gen;
-#if defined(HASH_MARK) || defined(HEADER_MARK)
+#ifdef BDA
   BDACardTableHelper* _helper;
 #else
   HeapWord* _gen_top;
@@ -173,7 +173,7 @@ class OldToYoungRootsTask : public GCTask {
   uint _stripe_total;
 
  public:
-#if defined(HASH_MARK) || defined(HEADER_MARK)
+#ifdef BDA
   OldToYoungRootsTask(PSOldGen *gen,
                       BDACardTableHelper* helper,
                       uint stripe_number,

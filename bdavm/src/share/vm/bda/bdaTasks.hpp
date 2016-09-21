@@ -9,10 +9,12 @@
 
 //
 // bdaTasks.hpp defines GCTasks used by the adapted parallelScavenge collector.
-// It tries to pop bda-refs from the refqueue and checks if each ref is
+//
+
+//
+// BDARefRootsTask tries to pop bda-refs from the refqueue and checks if each ref is
 // appropriate for promotion.
 // 
-
 class BDARefRootsTask : public GCTask {
  private:
   RefQueue * _refqueue;
@@ -29,6 +31,26 @@ class BDARefRootsTask : public GCTask {
   virtual void do_it(GCTaskManager * manager, uint which);
 };
 
+//
+// OldToYoungBDARootsTask iterates through the containers of all bda spaces and pushes
+// the contents of the oops to the bdaref_stack, for later direct promotion. It uses the
+// _gc_current value in each CGRPSpace (see mutableBDASpace.hpp) where it CAS the next value
+// and returns the pointer that was read.
+//
+class OldToYoungBDARootsTask : public GCTask {
+
+ private:
+  PSOldGen * _old_gen;
+  BDACardTableHelper * _helper;
+
+ public:
+  OldToYoungBDARootsTask(PSOldGen * old_gen, BDACardTableHelper * helper) :
+    _old_gen(old_gen), _helper(helper) { }
+
+  char * name() { return (char*)"big-data old to young roots task"; }
+
+  virtual void do_it(GCTaskManager * manager, uint which);  
+};
 
 
 //

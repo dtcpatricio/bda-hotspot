@@ -21,20 +21,29 @@ const size_t MutableBDASpace::MinRegionAddrOffsetMask = MinRegionSizeBytes - 1;
 const size_t MutableBDASpace::MinRegionAddrMask       = ~MinRegionAddrOffsetMask;
 
 BDACardTableHelper::BDACardTableHelper(MutableBDASpace* sp) {
-  _length = sp->spaces()->length();
-  _tops = NEW_RESOURCE_ARRAY(HeapWord*, _length);
-  _spaces = NEW_RESOURCE_ARRAY(MutableSpace*, _length);
-  for(int i = 0; i < _length; ++i) {
-    MutableSpace* ms = sp->spaces()->at(i)->space();
-    _tops[i] = ms->top();
-    _spaces[i] = ms;
+  _length = sp->container_count();
+  _containers = NEW_RESOURCE_ARRAY(container_helper_t, length);
+
+  // Fill in the array. It is filled by each CGRPSpace, i.e., the manager of each bda space.
+  int j = 1; int i = 0;
+  while (j < sp->spaces()->length()) {
+    sp->spaces()->at(j)->save_top_ptrs(_containers, &i);
   }
 }
 
 BDACardTableHelper::~BDACardTableHelper()
 {
-  FREE_RESOURCE_ARRAY(HeapWord*, _tops, _length);
-  FREE_RESOURCE_ARRAY(MutableSpace*, _spaces, _length);
+  FREE_RESOURCE_ARRAY(container_helper_t, _containers, _length);  
+}
+
+HeapWord *
+BDACardTableHelper::top(container_t * c)
+{
+  for (int i = 0; i < _length; ++i) {
+    if (_containers[i]._container == c) {
+      return _containers[i]._top;
+    }
+  }
 }
 
 MutableBDASpace::MutableBDASpace(size_t alignment) : MutableSpace(alignment) {
@@ -46,7 +55,6 @@ MutableBDASpace::MutableBDASpace(size_t alignment) : MutableSpace(alignment) {
   CGRPSpace::dnf = BDAElementNumberFields;
   CGRPSpace::default_collection_size = BDACollectionSize;
   CGRPSpace::delegation_level = BDADelegationLevel;
-  DEBUG_ONLY(CGRPSpace::initial_array_sz = BDAContainerArraySize;)
     
   // Initializing the array of collection types.
   // It must be done in the constructor due to the resize calls.

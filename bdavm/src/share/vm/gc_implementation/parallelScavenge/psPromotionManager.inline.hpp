@@ -289,17 +289,18 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::Ref
     if (rt) {
       // Allocate a container on the correct bda-space (already pushes new_obj_size)
       container = old_space -> allocate_container(new_obj_size, (BDARegion*)r);
-      // And get the start ptr which is the parent object
-      new_obj = (oop)container->_start;
 
       // Usually, the MutableBDASpace prepares for this scenario.
       // It allocates the new container in the general object space. However,
       // if the "other" space is also full, then it generally means that a FullGC
       // must take place.
-      if (new_obj == NULL) {
+      if (container == NULL) {
         _old_gen_is_full = true;
         return bda_oop_promotion_failed(o, test_mark);
       }
+
+      // Now get the start ptr which is the parent object
+      new_obj = (oop)container->_start;
 
       // Copy obj
       Copy::aligned_disjoint_words((HeapWord*)o, (HeapWord*)new_obj, new_obj_size);

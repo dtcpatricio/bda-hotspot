@@ -128,11 +128,6 @@ class CheckForPreciseMarks : public OopClosure {
 // do no work.  If this method needs to be called
 // when the space is empty, fix the calculation of
 // end_card to allow sp_top == sp->bottom().
-
-// This method contains two "versions" such that some calls must be made
-// to similar methods but with different signature to avoid errors due to
-// the segmentation of spaces in the big-data allocators
-
 void CardTableExtension::scavenge_contents_parallel(ObjectStartArray* start_array,
                                                     MutableSpace* sp,
                                                     HeapWord* space_top,
@@ -719,3 +714,28 @@ HeapWord* CardTableExtension::lowest_prev_committed_start(int ind) const {
   }
   return min_start;
 }
+
+#ifdef BDA
+void
+CardTableExtension::scavenge_bda_contents_parallel(ObjectStartArray * start_array,
+                                                   container_t * c,
+                                                   HeapWord * c_top,
+                                                   PSPromotionManager * pm)
+{
+  assert (c->_start < space_top, "Should not be called if empty");
+
+  jbyte * start_card = byte_for(c->_start);
+  jbyte * end_card = byte_for(c_top - 1) + 1;
+  oop * last_scanned = NULL;
+
+  jbyte * slice = start_card;
+  while (slice < end_card) {
+    HeapWord * slice_start = addr_for(start_card);
+    HeapWord * slice_end = addr_for(end_card);
+
+    // Update the beginning address. Don't go below the container's start.
+    HeapWord * first_object = start_array->object_start(slice_start, c->_start);
+    
+  }
+}
+#endif

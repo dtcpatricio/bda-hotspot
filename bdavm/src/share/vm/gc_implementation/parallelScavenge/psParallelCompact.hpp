@@ -34,8 +34,8 @@
 #include "memory/sharedHeap.hpp"
 #include "oops/oop.hpp"
 
-#ifdef HEADER_MARK
-#include "gc_implementation/parallelScavenge/bdaParallelCompact.hpp"
+#ifdef BDA
+#include "bda/bdaParallelCompact.hpp"
 #endif
 
 class ParallelScavengeHeap;
@@ -237,7 +237,7 @@ public:
   static const size_t BlocksPerRegion;
   static const size_t Log2BlocksPerRegion;
 
-#ifdef HEADER_MARK
+#ifdef BDA
   typedef BDADataCounters::CounterData CounterData;
 #endif
   
@@ -421,11 +421,11 @@ public:
                  HeapWord* target_beg, HeapWord* target_end,
                  HeapWord** target_next);
 
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  bool summarize_parse_region(SplitInfo& split_info,
-                              HeapWord* source_beg, HeapWord* source_end,
-                              HeapWord** source_next,
-                              BDASummaryMap summary_map);
+#ifdef BDA
+  bool summarize_bda_regions(SplitInfo& split_info,
+                             HeapWord* source_beg, HeapWord* source_end,
+                             HeapWord** source_next,
+                             BDASummaryMap summary_map);
 #endif
   
   void clear();
@@ -501,7 +501,7 @@ private:
   BlockData*      _block_data;
   size_t          _block_count;
   
-#ifdef HEADER_MARK
+#ifdef BDA
   BDADataCounters* _bda_counters;
   CounterData*     _counter_data;
 #endif
@@ -1013,7 +1013,7 @@ class PSParallelCompact : AllStatic {
   static AdjustPointerClosure _adjust_pointer_closure;
   static AdjustKlassClosure   _adjust_klass_closure;
 
-#ifdef HEADER_MARK
+#ifdef BDA
   // Map to hold some data during summary of the bda spaces
   static BDASummaryMap        _summary_map;
 #endif
@@ -1035,7 +1035,7 @@ class PSParallelCompact : AllStatic {
 
  public:
   static ParallelOldTracer* gc_tracer() { return &_gc_tracer; }
-#ifdef HEADER_MARK
+#ifdef BDA
   // This is analogous to the last_space_id, but it compensates such that it adds
   // the number of bda_regions (which is the number of regions in old gen minus 1
   static unsigned int         bda_last_space_id;
@@ -1461,7 +1461,7 @@ PSParallelCompact::is_in(oop* p, HeapWord* beg_addr, HeapWord* end_addr) {
 }
 
 inline MutableSpace* PSParallelCompact::space(SpaceId id) {
-#ifdef HEADER_MARK
+#ifdef BDA
   assert(id < bda_last_space_id, "id out of range");
 #else
   assert(id < last_space_id, "id out of range");
@@ -1470,7 +1470,7 @@ inline MutableSpace* PSParallelCompact::space(SpaceId id) {
 }
 
 inline HeapWord* PSParallelCompact::new_top(SpaceId id) {
-#ifdef HEADER_MARK
+#ifdef BDA
   assert(id < bda_last_space_id, "id out of range");
 #else
   assert(id < last_space_id, "id out of range");
@@ -1479,7 +1479,7 @@ inline HeapWord* PSParallelCompact::new_top(SpaceId id) {
 }
 
 inline HeapWord* PSParallelCompact::dense_prefix(SpaceId id) {
-#ifdef HEADER_MARK
+#ifdef BDA
   assert(id < bda_last_space_id, "id out of range");
 #else
   assert(id < last_space_id, "id out of range");
@@ -1488,7 +1488,7 @@ inline HeapWord* PSParallelCompact::dense_prefix(SpaceId id) {
 }
 
 inline ObjectStartArray* PSParallelCompact::start_array(SpaceId id) {
-#ifdef HEADER_MARK
+#ifdef BDA
   assert(id < bda_last_space_id, "id out of range");
 #else
   assert(id < last_space_id, "id out of range");
@@ -1587,7 +1587,7 @@ public:
     ParMarkBitMapClosure(PSParallelCompact::mark_bitmap(), cm),
     _start_array(PSParallelCompact::start_array(space_id))
   {
-#ifdef HEADER_MARK
+#ifdef BDA
       assert(space_id == PSParallelCompact::old_space_id ||
              space_id >= PSParallelCompact::last_space_id,
              "cannot use FillClosure in the young gen");

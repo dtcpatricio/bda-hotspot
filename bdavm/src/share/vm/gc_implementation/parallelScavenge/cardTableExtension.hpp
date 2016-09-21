@@ -67,6 +67,12 @@ class CardTableExtension : public CardTableModRefBS {
                                   uint stripe_number,
                                   uint stripe_total);
 
+#ifdef BDA
+  void scavenge_bda_contents_parallel(ObjectStartArray * start_array,
+                                      container_t * c,
+                                      HeapWord * space_top,
+                                      PSPromotionManager * pm);
+#endif
   // Verification
   static void verify_all_young_refs_imprecise();
   static void verify_all_young_refs_precise();

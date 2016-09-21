@@ -390,7 +390,15 @@ PSPromotionManager::bda_oop_promotion_failed(oop obj, markOop obj_mark)
 
     _promotion_failed_info.register_copy_failure(obj->size());
 
+    _promotion_stats.failed_element_promotion();
+
+    // This means that an object could not be promoted to old-space where its parent and
+    // brothers live. Thus, push to the claimed_stack_breadth() queue in order to at least try
+    // the survivor spaces, before a FullGC takes place.
     obj->push_contents(this);
+
+    // TODO: should this oop be preserved in a different set?
+    PSScavenge::oop_promotion_failed(obj, obj_mark);
   } else {
     // Someone else "owns" this object
     guarantee(obj->is_forwarded(), "if another thread owns the obj, it must be forwarded");
@@ -402,26 +410,4 @@ PSPromotionManager::bda_oop_promotion_failed(oop obj, markOop obj_mark)
   return obj;
 
 }
-  if (!rt) {
-    // obj could not be pushed to its container. Add it to the claimed_stack_breadth()
-    // in order to be promoted to the survivor spaces.
-    
-  }
-  // This means that an object could not be promoted to old-space where its parent and
-  // brothers live. Thus, push to the claimed_stack_breadth() queue in order to at least try
-  // the survivor spaces, before a FullGC takes place.
-
-  
-  assert(_old_gen_is_full || PromotionFailureALot, "Sanity");
-
-  if (obj->cas_forward_to(obj, obj_mark)) {
-    assert (obj == obj->forwardee(), "obj must be owned by this thread");
-
-    _promotion_failed_info.register_copy_failure(obj->size());
-
-    obj->push_contents(this);
-
-    // TODO: should this oop be preserved in a different set?
-    PSScavenge::oop_promotion_failed(obj, obj_mark);
-
-#endif
+#endif // BDA

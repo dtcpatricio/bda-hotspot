@@ -176,7 +176,7 @@ void OldToYoungRootsTask::do_it(GCTaskManager* manager, uint which) {
   assert(!_gen->object_space()->is_empty(),
     "Should not be called is there is no work");
   assert(_gen != NULL, "Sanity");
-#if !defined(HASH_MARK) && !defined(HEADER_MARK)
+#ifndef BDA
   // For now skip this assert
   assert(_gen->object_space()->contains(_gen_top) || _gen_top == _gen->object_space()->top(), "Sanity");
 #endif
@@ -188,7 +188,7 @@ void OldToYoungRootsTask::do_it(GCTaskManager* manager, uint which) {
     assert(Universe::heap()->kind() == CollectedHeap::ParallelScavengeHeap, "Sanity");
     CardTableExtension* card_table = (CardTableExtension *)Universe::heap()->barrier_set();
     // FIX ME! Assert that card_table is the type we believe it to be.
-#if defined(HASH_MARK) || defined(HEADER_MARK)
+#ifdef BDA
     for(int i = 0; i < _helper->length(); i++) {
       // A quick fix due to the fact that some regions can be empty at the time
       if(_helper->spaces()[i]->bottom() == _helper->spaces()[i]->top())

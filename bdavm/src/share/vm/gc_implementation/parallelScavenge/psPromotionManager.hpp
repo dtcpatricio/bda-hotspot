@@ -35,6 +35,7 @@
 
 #ifdef BDA
 # include "bda/bdaTasks.hpp"
+# include "bda/bdaStats.hpp"
 #endif
 //
 // psPromotionManager is used by a single thread to manage object survival
@@ -99,6 +100,8 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
 
   PromotionFailedInfo                 _promotion_failed_info;
 
+  BDAPromotionStats                   _promotion_stats;
+  
   // Accessors
   static PSOldGen* old_gen()         { return _old_gen; }
   static MutableSpace* young_space() { return _young_space; }
