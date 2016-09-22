@@ -2,7 +2,7 @@
 #define SHARE_VM_BDA_BDATASKS_HPP
 
 # include "bda/refqueue.hpp"
-# include "bda/mutableBDASpace.hpp"
+# include "bda/mutableBDASpace.inline.hpp"
 # include "gc_implementation/parallelScavenge/psOldGen.hpp"
 # include "gc_implementation/parallelScavenge/gcTaskManager.hpp"
 

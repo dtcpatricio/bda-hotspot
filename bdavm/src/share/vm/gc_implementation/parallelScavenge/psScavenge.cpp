@@ -58,6 +58,7 @@
 
 #ifdef BDA
 # include "bda/bdaTasks.hpp"
+# include "bda/mutableBDASpace.inline.hpp"
 #endif
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
@@ -398,11 +399,11 @@ bool PSScavenge::invoke_no_policy() {
     // creating the promotion_manager. We pass the top
     // values to the card_table, to prevent it from
     // straying into the promotion labs.
+    HeapWord* old_top = NULL;
 #ifdef BDA
-    BDACardTableHelper* saved_tops = new BDACardTableHelper(
-      (MutableBDASpace*)old_gen->object_space());
+    old_top = old_gen->object_space()->non_bda_space()->top();
 #else
-    HeapWord* old_top = old_gen->object_space()->top();
+    old_gen->object_space()->top();
 #endif
 
     // Release all previously held resources
@@ -427,6 +428,18 @@ bool PSScavenge::invoke_no_policy() {
       GCTaskQueue* q = GCTaskQueue::create();
 
 #ifdef BDA
+      if (!((MutableBDASpace*)old_gen->object_space())->is_bdaspace_empty()) {
+        // The saved_tops saves the containers tops in an array, while the old_top
+        // only saves the top ptr of the non_bda_space. We could reuse the declaration of
+        // old_top since non_bda_space() is a virtual that in a normal scenario (vanilla),
+        // it returns the actual object_space(), while in bdavm it returns the segment of the
+        // non-bda space.
+        BDACardTableHelper* saved_tops = new BDACardTableHelper(
+          (MutableBDASpace*)old_gen->object_space());
+        for (uint i = 0; i < active_workers; i++) {
+          q->enqueue(new OldToYoungBDARootsTask(old_gen, saved_tops));
+        }
+      }
       RefQueue * refqueue = Universe::heap()->bda_refqueue();
       for (uint j = 0; j < active_workers; j++) {
         q->enqueue(new BDARefRootsTask(refqueue, old_gen));
@@ -438,11 +451,7 @@ bool PSScavenge::invoke_no_policy() {
         // in the old gen.
         uint stripe_total = active_workers;
         for(uint i=0; i < stripe_total; i++) {
-#ifdef BDA
-          q->enqueue(new OldToYoungRootsTask(old_gen, saved_tops, i, stripe_total));
-#else
           q->enqueue(new OldToYoungRootsTask(old_gen, old_top, i, stripe_total));
-#endif
         }
       }
 

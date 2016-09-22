@@ -164,25 +164,11 @@ class StealTask : public GCTask {
 class OldToYoungRootsTask : public GCTask {
  private:
   PSOldGen* _gen;
-#ifdef BDA
-  BDACardTableHelper* _helper;
-#else
   HeapWord* _gen_top;
-#endif
   uint _stripe_number;
   uint _stripe_total;
 
  public:
-#ifdef BDA
-  OldToYoungRootsTask(PSOldGen *gen,
-                      BDACardTableHelper* helper,
-                      uint stripe_number,
-                      uint stripe_total) :
-    _gen(gen),
-    _helper(helper),
-    _stripe_number(stripe_number),
-    _stripe_total(stripe_total) { }
-#else
   OldToYoungRootsTask(PSOldGen *gen,
                       HeapWord* gen_top,
                       uint stripe_number,
@@ -191,7 +177,6 @@ class OldToYoungRootsTask : public GCTask {
     _gen_top(gen_top),
     _stripe_number(stripe_number),
     _stripe_total(stripe_total) { }
-#endif
 
   char* name() { return (char *)"old-to-young-roots-task"; }
 

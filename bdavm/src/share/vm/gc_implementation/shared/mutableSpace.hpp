@@ -152,6 +152,8 @@ class MutableSpace: public ImmutableSpace {
   virtual HeapWord* top_specific(BDARegion type) { return top(); }
   // Gets the number of bda_regions in the heap (it eases casting)
   virtual int num_bda_regions() { return 0; }
+  // Get the general object space, i.e., the one for non bda objects
+  virtual MutableSpace * non_bda_space() { return this; }
   // ----------- END OF BIGDATA AWARE ALLOCATORS SUPPORT VIRTUALS ---------
 
   // Debugging

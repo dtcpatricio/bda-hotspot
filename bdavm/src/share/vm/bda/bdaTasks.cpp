@@ -43,11 +43,13 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
 
     // Here we iterate through the bda spaces only, thus starting with the first which is in index 1
     // on the array of spaces.
-    for (int spc_id = 1; spc_id < _space->spaces()->length(); ++spc_id) {
-      CGRPSpace * bda_space = _space->spaces()->at(spc_id);
+    _helper->prefetch_array();
+    for (int spc_id = 1; spc_id < space->spaces()->length(); ++spc_id) {
+      MutableBDASpace::CGRPSpace * bda_space = space->spaces()->at(spc_id);
       container_t * c;
       while ((c = bda_space->cas_get_next_container()) != NULL) {
-        card_table->scavenge_bda_contents_parallel(_gen->start_array(),
+        assert (c->_start < c->_top, "containers are not empty allocated");
+        card_table->scavenge_bda_contents_parallel(_old_gen->start_array(),
                                                    c,
                                                    _helper->top(c),
                                                    pm);

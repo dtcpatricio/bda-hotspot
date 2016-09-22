@@ -1980,7 +1980,7 @@ PSParallelCompact::clear_source_region(HeapWord* beg_addr, HeapWord* end_addr)
 void
 PSParallelCompact::summarize_space(SpaceId id, bool maximum_compaction)
 {
-#if defined(HASH_MARK) || defined(HEADER_MARK)
+#ifdef BDA
   assert(id < bda_last_space_id, "id out of range");
   // FIXME: We cannot assert this for now
   // assert(_space_info[id].dense_prefix() == _space_info[id].space()->bottom() ||

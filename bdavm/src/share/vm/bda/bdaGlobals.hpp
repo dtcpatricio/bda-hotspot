@@ -6,6 +6,7 @@
 # include "memory/allocation.hpp"
 
 typedef uint32_t bdareg_t;
+
 typedef struct container {
   HeapWord* _top;
   HeapWord* _start;
@@ -15,6 +16,11 @@ typedef struct container {
   DEBUG_ONLY(size_t _reserved;)
   DEBUG_ONLY(char   _space_id;)
 } container_t;
+
+typedef struct container_helper {
+  HeapWord *    _top;
+  container_t * _container;
+} container_helper_t;
 
 /*
  * BDARegion is a wrapper to a bdareg_t value. What it does is provide

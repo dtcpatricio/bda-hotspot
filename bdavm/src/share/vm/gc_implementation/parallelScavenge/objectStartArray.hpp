@@ -154,7 +154,7 @@ class ObjectStartArray : public CHeapObj<mtGC> {
     return scroll_forward;
   }
 
-#if defined(HASH_MARK) || defined(HEADER_MARK)
+#ifdef BDA
   // Big Data Aware alloc version of the object start function
   // It is optimized for finding the first object that crosses
   // into a given block, the one containing addr. If the addr <= low_bound

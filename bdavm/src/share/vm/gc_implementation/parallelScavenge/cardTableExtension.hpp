@@ -27,6 +27,10 @@
 
 #include "memory/cardTableModRefBS.hpp"
 
+#ifdef BDA
+# include "bda/bdaGlobals.hpp"
+#endif
+
 class MutableSpace;
 class ObjectStartArray;
 class PSPromotionManager;

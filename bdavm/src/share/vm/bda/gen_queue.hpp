@@ -24,7 +24,8 @@ class GenQueue : public CHeapObj<F> {
 
   inline void enqueue(E el);
   inline E   dequeue();
-  inline E   peek() { return _remove_end; }
+  inline E   peek()        const { return _remove_end; }
+  inline int  n_elements() const { return _n_elements; }
 
   GenQueueIterator<E, F> iterator() const;
 
@@ -32,7 +33,7 @@ class GenQueue : public CHeapObj<F> {
 
   inline void set_insert_end(E el) { _insert_end = el; }
   inline void set_remove_end(E el) { _remove_end = el; }
-  inline int  n_elements() const     { return _n_elements; }
+  
   inline E    insert_end() const     { return _insert_end; }
   inline E    remove_end() const     { return _remove_end; }
 };

@@ -3,17 +3,6 @@
 
 # include "bda/mutableBDASpace.hpp"
 
-// Definition of minimum and aligned size of a container. Subject to change
-// if it is too low. This values are conform to the ParallelOld (psParallelCompact.cpp).
-const size_t MutableBDASpace::Log2BlockSize   = 7; // 128 words
-const size_t MutableBDASpace::BlockSize       = (size_t)1 << Log2BlockSize;
-const size_t MutableBDASpace::BlockSizeBytes  = BlockSize << LogHeapWordSize;
-
-// Definition of sizes for the calculation of a collection size
-int MutableBDASpace::CGRPSpace::dnf = 0;
-int MutableBDASpace::CGRPSpace::delegation_level = 0;
-int MutableBDASpace::CGRPSpace::default_collection_size = 0;
-
 inline container_t*
 MutableBDASpace::CGRPSpace::push_container(size_t size)
 {
@@ -87,15 +76,16 @@ inline container_t *
 MutableBDASpace::CGRPSpace::cas_get_next_container()
 {
   container_t * c = NULL;
+  container_t * next = NULL;
   do {
     c = _gc_current;
     if (c == NULL)
       break;
     
-    container_t * next = c->_next;    
-  } while (Atomic::cmpxchg_ptr((intptr_t)next,
-                               (intptr_t*)&_gc_current,
-                               (intptr_t)c) != c);
+    next = c->_next;    
+  } while (Atomic::cmpxchg_ptr(next,
+                               &_gc_current,
+                               c) != c);
   return c;
 }
 
@@ -108,23 +98,37 @@ MutableBDASpace::CGRPSpace::save_top_ptrs(container_helper_t * helper, int * i)
       *iterator != NULL;
       ++iterator) {
     container_t * c = *iterator;
-    helper[from++] = c->_top;
+    helper[from++]._container = c;
+    helper[from++]._top = c->_top;
   }
 
   *i = from;
 }
 
 /////////////////////////////////////////
-//// MutableBDASpace Definitions/////////
+// MutableBDASpace inline Definitions////
 /////////////////////////////////////////
 inline int
 MutableBDASpace::container_count()
 {
   int acc = 0;
-  for (int i = 1; i < _spaces->length(), ++i) {
+  for (int i = 1; i < _spaces->length(); ++i) {
     acc += _spaces->at(i)->container_count();
   }
   return acc;
+}
+
+inline bool
+MutableBDASpace::is_bdaspace_empty()
+{
+  bool ret = true;
+  for (int i = 1; i < _spaces->length(); ++i) {
+    if (_spaces->at(i)->space()->is_empty())
+      ret &= true;
+    else
+      ret &= false;
+  }
+  return ret;
 }
 
 #endif

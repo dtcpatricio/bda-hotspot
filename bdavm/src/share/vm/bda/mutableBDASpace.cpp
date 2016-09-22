@@ -20,9 +20,20 @@ const size_t MutableBDASpace::MinRegionSizeOffsetMask = MinRegionSize - 1;
 const size_t MutableBDASpace::MinRegionAddrOffsetMask = MinRegionSizeBytes - 1;
 const size_t MutableBDASpace::MinRegionAddrMask       = ~MinRegionAddrOffsetMask;
 
+// Definition of minimum and aligned size of a container. Subject to change
+// if it is too low. This values are conform to the ParallelOld (psParallelCompact.cpp).
+const size_t MutableBDASpace::Log2BlockSize   = 7; // 128 words
+const size_t MutableBDASpace::BlockSize       = (size_t)1 << Log2BlockSize;
+const size_t MutableBDASpace::BlockSizeBytes  = BlockSize << LogHeapWordSize;
+
+// Definition of sizes for the calculation of a collection size
+int MutableBDASpace::CGRPSpace::dnf = 0;
+int MutableBDASpace::CGRPSpace::delegation_level = 0;
+int MutableBDASpace::CGRPSpace::default_collection_size = 0;
+
 BDACardTableHelper::BDACardTableHelper(MutableBDASpace* sp) {
   _length = sp->container_count();
-  _containers = NEW_RESOURCE_ARRAY(container_helper_t, length);
+  _containers = NEW_RESOURCE_ARRAY(container_helper_t, _length);
 
   // Fill in the array. It is filled by each CGRPSpace, i.e., the manager of each bda space.
   int j = 1; int i = 0;

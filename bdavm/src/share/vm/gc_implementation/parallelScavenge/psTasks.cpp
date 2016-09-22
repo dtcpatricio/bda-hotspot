@@ -176,10 +176,14 @@ void OldToYoungRootsTask::do_it(GCTaskManager* manager, uint which) {
   assert(!_gen->object_space()->is_empty(),
     "Should not be called is there is no work");
   assert(_gen != NULL, "Sanity");
-#ifndef BDA
-  // For now skip this assert
+
+#ifdef BDA
+  assert (_gen->object_space()->non_bda_space()->contains(_gen_top) ||
+          _gen_top == _gen->object_space()->non_bda_space()->top(), "Sanity");
+#else
   assert(_gen->object_space()->contains(_gen_top) || _gen_top == _gen->object_space()->top(), "Sanity");
 #endif
+
   assert(_stripe_number < ParallelGCThreads, "Sanity");
 
   {
@@ -189,18 +193,12 @@ void OldToYoungRootsTask::do_it(GCTaskManager* manager, uint which) {
     CardTableExtension* card_table = (CardTableExtension *)Universe::heap()->barrier_set();
     // FIX ME! Assert that card_table is the type we believe it to be.
 #ifdef BDA
-    for(int i = 0; i < _helper->length(); i++) {
-      // A quick fix due to the fact that some regions can be empty at the time
-      if(_helper->spaces()[i]->bottom() == _helper->spaces()[i]->top())
-        continue;
-
-      card_table->scavenge_contents_parallel(_gen->start_array(),
-                                             _helper->spaces()[i],
-                                             _helper->tops()[i],
-                                             pm,
-                                             _stripe_number,
-                                             _stripe_total);
-    }
+    card_table->scavenge_contents_parallel(_gen->start_array(),
+                                           _gen->object_space()->non_bda_space(),
+                                           _gen_top,
+                                           pm,
+                                           _stripe_number,
+                                           _stripe_total);
 #else
     card_table->scavenge_contents_parallel(_gen->start_array(),
                                            _gen->object_space(),

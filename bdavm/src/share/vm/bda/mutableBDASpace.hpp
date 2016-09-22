@@ -4,6 +4,7 @@
 # include "bda/bdaGlobals.hpp"
 # include "bda/gen_queue.hpp"
 # include "gc_implementation/shared/mutableSpace.hpp"
+# include "runtime/prefetch.inline.hpp"
 
 // Implementation of an allocation space for big-data collection placement
 
@@ -17,12 +18,6 @@ class MutableBDASpace;
 // The BDACardTableHelper
 class BDACardTableHelper : public CHeapObj<mtGC> {
 
- public:
-  typedef struct container_helper {
-    HeapWord *    _top;
-    container_t * _container;
-  } container_helper_t;
-  
  private:
   container_helper_t * _containers;
   int                  _length;
@@ -32,11 +27,20 @@ class BDACardTableHelper : public CHeapObj<mtGC> {
   ~BDACardTableHelper();
 
   HeapWord * top (container_t * c);
+  inline void prefetch_array();
 };
 
-// The MutableBDASpace class is a general object that encapsulates multiple
-// CGRPSpaces. It is implemented in a similar fashion as mutableNUMASpace.
+inline void
+BDACardTableHelper::prefetch_array()
+{
+  const int interval = PrefetchScanIntervalInBytes;
+  Prefetch::read(_containers, interval);
+}
 
+//
+// The MutableBDASpace class is a general object that encapsulates multiple
+// CGRPSpaces. It is implemented in a similar fashion as MutableNUMASpace.
+//
 class MutableBDASpace : public MutableSpace
 {
   friend class VMStructs;
@@ -55,9 +59,8 @@ class MutableBDASpace : public MutableSpace
   static const size_t BlockSize;
   static const size_t BlockSizeBytes;
   
- private:
-
-  // This class defines the addressable space of the MutableBDASpace
+ 
+  // This class wraps the addressable space of the MutableBDASpace
   // for a particular collection type, or none at all.
   class CGRPSpace : public CHeapObj<mtGC> {
 
@@ -185,14 +188,15 @@ class MutableBDASpace : public MutableSpace
     int i = _spaces->find(&type, CGRPSpace::equals);
     return _spaces->at(i)->space()->top();
   }
-
   virtual MemRegion used_region(BDARegion* type) {
     int i = _spaces->find(&type, CGRPSpace::equals);
     return _spaces->at(i)->space()->used_region();
   }
-
+  virtual MutableSpace * non_bda_space() { return _spaces->at(0)->space(); }
   virtual int num_bda_regions() { return _spaces->length() - 1; }
-  inline  int container_count();
+
+  inline  int  container_count();
+  inline  bool is_bdaspace_empty();
 
   // Methods for mangling
   virtual void set_top_for_allocations(HeapWord *v);
