@@ -11,9 +11,10 @@ typedef struct container {
   HeapWord* _top;
   HeapWord* _start;
   HeapWord* _end;
+  struct container * _next_segment; // For partition of containers into small segments.
+  struct container * _prev_segment; // Ease the iteration and removal of segments
   struct container * _next; // For iteration of containers in mutableSpaces
-  DEBUG_ONLY(size_t _size;)
-  DEBUG_ONLY(size_t _reserved;)
+  struct container * _previous; // Serves both the container segments and the double link list
   DEBUG_ONLY(char   _space_id;)
 } container_t;
 

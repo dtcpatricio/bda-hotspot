@@ -436,6 +436,10 @@ bool PSScavenge::invoke_no_policy() {
         // non-bda space.
         BDACardTableHelper* saved_tops = new BDACardTableHelper(
           (MutableBDASpace*)old_gen->object_space());
+        // FIXME: Our GC requires the existence of a pointer to a container_t which is
+        // read among threads and the next in the queued CAS'd in. Ideally, the workload
+        // should be better balanced between the threads.
+        ((MutableBDASpace*)old_gen->object_space())->set_shared_gc_pointers();
         for (uint i = 0; i < active_workers; i++) {
           q->enqueue(new OldToYoungBDARootsTask(old_gen, saved_tops));
         }

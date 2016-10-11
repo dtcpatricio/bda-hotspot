@@ -5,7 +5,7 @@ public class Bootstrap {
 
     // We'll have to try with Integer.MAX_VALUE, but with a bigger heap
     // to prevent OutOfMemory errors.
-    private static int max = 10000;
+    private static int max = 1000000;
 
     private MyHashMap<Long, String> map;
     private MyHashMap<Long, String> map1;

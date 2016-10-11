@@ -1,10 +1,11 @@
-#include "bda/mutableBDASpace.inline.hpp"
-#include "gc_implementation/shared/spaceDecorator.hpp"
-#include "gc_implementation/parallelScavenge/parallelScavengeHeap.hpp"
-#include "memory/resourceArea.hpp"
-#include "runtime/thread.hpp"
-#include "oops/oop.inline.hpp"
-#include "oops/klassRegionMap.hpp"
+# include "bda/mutableBDASpace.inline.hpp"
+# include "gc_implementation/shared/spaceDecorator.hpp"
+# include "gc_implementation/parallelScavenge/parallelScavengeHeap.hpp"
+# include "gc_implementation/parallelScavenge/psParallelCompact.hpp"
+# include "memory/resourceArea.hpp"
+# include "runtime/thread.hpp"
+# include "oops/oop.inline.hpp"
+# include "oops/klassRegionMap.hpp"
 
 PRAGMA_FORMAT_MUTE_WARNINGS_FOR_GCC
 
@@ -27,17 +28,21 @@ const size_t MutableBDASpace::BlockSize       = (size_t)1 << Log2BlockSize;
 const size_t MutableBDASpace::BlockSizeBytes  = BlockSize << LogHeapWordSize;
 
 // Definition of sizes for the calculation of a collection size
-int MutableBDASpace::CGRPSpace::dnf = 0;
-int MutableBDASpace::CGRPSpace::delegation_level = 0;
-int MutableBDASpace::CGRPSpace::default_collection_size = 0;
+int    MutableBDASpace::CGRPSpace::dnf = 0;
+int    MutableBDASpace::CGRPSpace::delegation_level = 0;
+int    MutableBDASpace::CGRPSpace::default_collection_size = 0;
+size_t MutableBDASpace::CGRPSpace::segment_sz = 0;
 
+/////////////// ////////////////// ///////////////
+/////////////// BDACardTableHelper ////////////////
+/////////////// ////////////////// /////////////////
 BDACardTableHelper::BDACardTableHelper(MutableBDASpace* sp) {
   _length = sp->container_count();
   _containers = NEW_RESOURCE_ARRAY(container_helper_t, _length);
 
   // Fill in the array. It is filled by each CGRPSpace, i.e., the manager of each bda space.
-  int j = 1; int i = 0;
-  while (j < sp->spaces()->length()) {
+  int j = 0; int i = 0;
+  while (++j < sp->spaces()->length()) {
     sp->spaces()->at(j)->save_top_ptrs(_containers, &i);
   }
 }
@@ -55,8 +60,59 @@ BDACardTableHelper::top(container_t * c)
       return _containers[i]._top;
     }
   }
+  return NULL;
 }
 
+//////////// ////////////////////////// //////////
+//////////// MutableBDASpace::CGRPSpace //////////
+//////////// ////////////////////////// //////////
+container_t *
+MutableBDASpace::CGRPSpace::allocate_container(size_t size)
+{  
+  container_t * container = install_container_in_space(segment_sz, size);
+  // Here, the container pointer is installed on the RegionData object that manages
+  // the address range this container spans during OldGC. This is for fast access
+  // during summarize and update of the containers top pointers.
+  if (container != NULL)
+    PSParallelCompact::install_container_in_region(container);
+  
+  return container;
+}
+
+container_t *
+MutableBDASpace::CGRPSpace::allocate_large_container(size_t size)
+{
+  size_t reserved_sz = calculate_large_reserved_sz(size);
+  container_t * container = install_container_in_space(reserved_sz, size);
+  // Here, the container pointer is installed on the RegionData object that manages
+  // the address range this container spans during OldGC. This is for fast access
+  // during summarize and update of the containers top pointers.
+  if (container != NULL)
+    PSParallelCompact::install_container_in_region(container);
+  
+  return container;
+}
+
+void
+MutableBDASpace::CGRPSpace::verify()
+{
+  for(GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+      *iterator != NULL;
+      ++iterator) {
+    container_t * c = *iterator;
+    HeapWord * p = c->_start;
+    HeapWord * t = c->_top;
+    while(p < t) {
+      oop(p)->verify();
+      p += oop(p)->size();
+    }
+    guarantee( p == c->_top, "end of last object must match end of space");
+  }
+}
+
+////////////////// /////////////// //////////////////
+////////////////// MutableBDASpace //////////////////
+////////////////// /////////////// //////////////////
 MutableBDASpace::MutableBDASpace(size_t alignment) : MutableSpace(alignment) {
   int n_regions = KlassRegionMap::number_bdaregions();
   _spaces = new (ResourceObj::C_HEAP, mtGC) GrowableArray<CGRPSpace*>(n_regions, true);
@@ -66,6 +122,8 @@ MutableBDASpace::MutableBDASpace(size_t alignment) : MutableSpace(alignment) {
   CGRPSpace::dnf = BDAElementNumberFields;
   CGRPSpace::default_collection_size = BDACollectionSize;
   CGRPSpace::delegation_level = BDADelegationLevel;
+  // and set the regular segment size
+  CGRPSpace::segment_sz = CGRPSpace::calculate_reserved_sz();
     
   // Initializing the array of collection types.
   // It must be done in the constructor due to the resize calls.
@@ -108,6 +166,28 @@ void MutableBDASpace::initialize(MemRegion mr, bool clear_space, bool mangle_spa
 
   // always clear space for new allocations
   clear(mangle_space);
+}
+
+container_t *
+MutableBDASpace::container_for_addr(HeapWord * addr)
+{
+  CGRPSpace * grp = _spaces->at(grp_index_contains_obj(addr));
+  return grp->get_container_with_addr(addr);
+}
+
+void
+MutableBDASpace::add_to_pool(container_t * c, uint id)
+{
+  CGRPSpace * grp = _spaces->at(id);
+  grp->add_to_pool(c);
+}
+
+void
+MutableBDASpace::set_shared_gc_pointers()
+{
+  for (int i = 1; i < spaces()->length(); ++i) {
+    spaces()->at(i)->set_shared_gc_pointer();
+  }
 }
 
 bool
@@ -864,7 +944,7 @@ container_t *
 MutableBDASpace::allocate_container(size_t size, BDARegion* r)
 {
   int i = spaces()->find(r, CGRPSpace::equals);
-  assert(i > -1, "Containers can only be allocated in bda spaces already initialized");
+  assert(i > 0, "Containers can only be allocated in bda spaces already initialized");
   CGRPSpace * cs = spaces()->at(i);
   container_t * new_ctr = cs->push_container(size);
 
@@ -882,16 +962,29 @@ MutableBDASpace::allocate_container(size_t size, BDARegion* r)
 // by each GC thread seperately. If StealTasks are implemented and some kind of
 // synchronization is required, then implement the bumping pointer with a CAS.
 HeapWord*
-MutableBDASpace::allocate_element(size_t size, container_t * c)
+MutableBDASpace::allocate_element(size_t size, container_t ** c)
 {
-  HeapWord * old_top = c->_top;
+  HeapWord * old_top = (*c)->_top;
   HeapWord * new_top = old_top + size;
-  if (new_top < c->_end) {
-    c->_top = new_top;
-    return old_top;
+  if (new_top < (*c)->_end) {
+    (*c)->_top = new_top;
   } else {
-    return NULL;
+    // If it fails to allocate in the container, i.e., it is full, then
+    // allocate a new segment of the container and change the argument passed
+    // accordingly.
+
+    // Which space was this container allocated?
+    CGRPSpace * grp = NULL;
+    for (int i = 0; i < _spaces->length(); ++i) {
+      if (_spaces->at(i)->space()->contains((*c)->_start)) {
+        grp = _spaces->at(i); break;
+      }
+    }
+    assert (grp != NULL, "The container must have been allocated in one of the groups");
+    old_top = grp->allocate_new_segment(size, c); // reuse the variable
   }
+
+  return old_top;
 }
 
 void MutableBDASpace::clear(bool mangle_space) {
@@ -1051,7 +1144,7 @@ MutableBDASpace::print_current_space_layout(bool descriptive,
 void
 MutableBDASpace::verify() {
   for(int i = 0; i < spaces()->length(); ++i) {
-    MutableSpace* ms = spaces()->at(i)->space();
-    ms->verify();
+    CGRPSpace* grp = spaces()->at(i);
+    grp->verify();
   }
 }

@@ -315,7 +315,6 @@ void PSPromotionManager::process_array_chunk(oop old) {
 
 oop PSPromotionManager::oop_promotion_failed(oop obj, markOop obj_mark) {
   assert(_old_gen_is_full || PromotionFailureALot, "Sanity");
-
   // Attempt to CAS in the header.
   // This tests if the header is still the same as when
   // this started.  If it is the same (i.e., no forwarding

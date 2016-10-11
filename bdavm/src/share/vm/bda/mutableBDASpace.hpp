@@ -64,16 +64,38 @@ class MutableBDASpace : public MutableSpace
   // for a particular collection type, or none at all.
   class CGRPSpace : public CHeapObj<mtGC> {
 
+    enum { CONTAINER_IN_POOL_MASK = 1 };
+    
     MutableSpace *                 _space;
     BDARegion *                    _type;
+    // Containers currently in use by the space. They may be at least partly occupied.
+    // If their contents can be merged onto another container of the same family, then
+    // they shall but only at OldGC, i.e., only when the old space is actually scanned.
     GenQueue<container_t*, mtGC> * _containers;
-
+    // A pool of containers already allocated and ready
+    // to be assigned to a space, i.e., it works as a cache of free containers in order
+    // to avoid free/malloc of new ones. It is implemented as a queue that wether fills
+    // or empties, during the final OldGC phase and during Young GC, respectively.
+    GenQueue<container_t*, mtGC> * _pool;
+    // Pool of large containers already allocated and ready to be assign to a space.
+    GenQueue<container_t*, mtGC> * _large_pool;
+    
     // GC support
     container_t *                  _gc_current;
 
     // Helper function to calculate the power of base over exponent using bit-wise
     // operations. It is inlined for such.
-    inline int power_function(int base, int exp);
+    static inline int    power_function(int base, int exp);
+    // Calculates a container segment size, allocates one in the space and initializes it.
+    // It allocates both containers with parent object and segments with children object only.
+    container_t * allocate_container(size_t size);
+    // Also calculates a container segment size, but only based on the size_t
+    container_t * allocate_large_container(size_t size);
+    // Masks containers by ORing the CONTAINER_IN_POOL_MASK on the _start field of the struct
+    // Any subsequent use must unmask the container because an ORed _start is invalid since
+    // containers/segments are aligned byte aligned.
+    inline void mask_container(container_t *& c );
+    inline void unmask_container(container_t *& c );
 
    public:
 
@@ -81,15 +103,31 @@ class MutableBDASpace : public MutableSpace
     // of heuristics that compute the use of the bda-spaces by the application.
     static int dnf;
     static int delegation_level;
-    static int default_collection_size;    
+    static int default_collection_size;
+    // This value is kept since it is the same for every regular segment.
+    static size_t segment_sz;
 
     CGRPSpace(size_t alignment, BDARegion * region) : _type(region) {
       _space = new MutableSpace(alignment);
       _containers = GenQueue<container_t*, mtGC>::create();
+      _pool = GenQueue<container_t*, mtGC>::create();
+      _large_pool = GenQueue<container_t*, mtGC>::create();
     }
     ~CGRPSpace() {
       delete _space;
       for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+           *iterator != NULL;
+           ++iterator) {
+        container_t * c = *iterator;
+        FreeHeap((void*)c, mtGC);
+      }
+      for (GenQueueIterator<container_t*, mtGC> iterator = _pool->iterator();
+           *iterator != NULL;
+           ++iterator) {
+        container_t * c = *iterator;
+        FreeHeap((void*)c, mtGC);
+      }
+      for (GenQueueIterator<container_t*, mtGC> iterator = _large_pool->iterator();
            *iterator != NULL;
            ++iterator) {
         container_t * c = *iterator;
@@ -104,12 +142,31 @@ class MutableBDASpace : public MutableSpace
     BDARegion *      container_type()  const { return _type; }
     MutableSpace *   space()           const { return _space; }
     int              container_count() const { return _containers->n_elements(); }
-    
-    inline container_t*  push_container(size_t size);
 
+    // To verify oops
+    void verify();
+    
+    // This is called for new collections, i.e., that need a parent container
+    inline container_t * push_container(size_t size);
+    // This is called for already existing collections when they need a new segment
+    inline HeapWord *    allocate_new_segment(size_t size, container_t ** c);
+    // This is called to calculate the segment size based on the user's launch parameters
+    static inline size_t        calculate_reserved_sz();
+    // This is called to calculate a large segment size for large arrays. It bumps size
+    // to the MinRegionSize in order to reserved the most possible.
+    inline size_t        calculate_large_reserved_sz(size_t size);
+    // Allocates the reserved_sz to the space and sets the appropriate pointers
+    inline container_t * install_container_in_space(size_t reserved_sz, size_t size);
+    
+    // This is called during the final stage of OldGC when free segments are returned to the pool
+    inline void          add_to_pool(container_t * c);
+    inline bool          not_in_pool(container_t * c);
+    
     // GC support
     inline container_t * cas_get_next_container();
+    inline container_t * get_container_with_addr(HeapWord * addr);
     inline void          save_top_ptrs(container_helper_t * helper, int * i);
+    inline void          set_shared_gc_pointer() { _gc_current = _containers->peek(); }
   };
 
  private:
@@ -159,6 +216,9 @@ class MutableBDASpace : public MutableSpace
     int i = _spaces->find(&region, CGRPSpace::equals);
     return _spaces->at(i)->space();
   }
+  container_t * container_for_addr(HeapWord * addr);
+  void          add_to_pool(container_t * c, uint id);
+  void          set_shared_gc_pointers();
 
   virtual void      initialize(MemRegion mr,
                                bool clear_space,
@@ -219,7 +279,8 @@ class MutableBDASpace : public MutableSpace
   virtual HeapWord* allocate(size_t size);
   virtual HeapWord* cas_allocate(size_t size);
   container_t *     allocate_container (size_t size, BDARegion * r);
-  HeapWord*         allocate_element(size_t size, container_t * r);
+  // This version updates the container with a new one if a new segment was needed.
+  HeapWord*         allocate_element(size_t size, container_t ** r);
 
   // Helper methods for scavenging
   virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) {

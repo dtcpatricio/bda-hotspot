@@ -250,6 +250,13 @@ public:
     // The first region containing data destined for this region.
     size_t source_region() const { return _source_region; }
 
+#ifdef BDA
+    // The container that manages the address range this region is set for
+    container_t * container() const { return _container; }
+
+    // Returns true if region was already scanned during summary.
+    bool          scanned()   const { return (_scanned & scanned_bit) != 0; }
+#endif
     // The object (if any) starting in this region and ending in a different
     // region that could not be updated during the main (parallel) compaction
     // phase.  This is different from _partial_obj_addr, which is an object that
@@ -323,6 +330,12 @@ public:
     void set_partial_obj_size(size_t words)    {
       _partial_obj_size = (region_sz_t) words;
     }
+#ifdef BDA
+    void set_container_ptr(container_t * container) { _container = container; }
+    // Sets the bit of the region to indicate it has been processed during summary.
+    // No need to MT, but if summary becomes MT then this must be atomic.
+    void set_scanned() { _scanned = scanned_bit; }
+#endif
     inline void set_blocks_filled();
 
     inline void set_destination_count(uint count);
@@ -357,6 +370,15 @@ public:
     region_sz_t          _partial_obj_size;
     region_sz_t volatile _dc_and_los;
     bool                 _blocks_filled;
+#ifdef BDA
+    // A pointer to the container that spans this Region address range. Used for fast access
+    // to the container.
+    container_t *         _container;
+    uint16_t              _scanned;
+    // These bits indicate if the region has been scanned during summary
+    static const uint16_t scanned_bit;
+    static const uint16_t unscanned_bit;
+#endif
 
 #ifdef ASSERT
     size_t               _blocks_filled_count;   // Number of block table fills.
@@ -389,6 +411,28 @@ public:
     blk_ofs_t _offset;
   };
 
+#ifdef BDA
+  // "Empty" regions are those that are to be filled with bda-objects. This allows
+  // caching, incrementally in heap-order, the starting region of a container that has no
+  // words in it, thus providing the means to fill the space occupied by the container.
+  class EmptyRegionData
+  {
+   public:
+    void          initialize(PSVirtualSpace * vspace);
+    void          clear(size_t region_cnt);
+    inline void   append(size_t region);
+    inline void   return_to_array(size_t region);
+    inline size_t remove();
+    inline bool   has_empty_region();
+    inline void   reset();
+    
+   private:
+    size_t * _empty_region_array;
+    size_t   _empty_region_idx; // the next empty region to be claimed from the array
+    size_t   _next_append; // where the next empty region will append
+  };
+#endif // BDA
+  
 public:
   ParallelCompactData();
   bool initialize(MemRegion covered_region);
@@ -424,15 +468,24 @@ public:
 #ifdef BDA
   bool summarize_bda_regions(SplitInfo& split_info,
                              HeapWord* source_beg, HeapWord* source_end,
-                             HeapWord** source_next,
-                             BDASummaryMap summary_map);
+                             HeapWord** source_next);
+  bool fraction_of_occupancy(size_t live_data, size_t total_size);
+  void clear_bda_range(size_t beg_region, size_t end_region, MutableBDASpace::CGRPSpace * sp);
+  void clear_bda_range(HeapWord * beg, HeapWord * end, MutableBDASpace::CGRPSpace * sp) {
+    clear_bda_range(addr_to_region_idx(beg), addr_to_region_idx(end), sp);
+  }
+  void clear_empty_region_range(size_t beg_region, size_t end_region);
+  void clear_empty_region_range(HeapWord * beg, HeapWord * end) {
+    clear_empty_region_range(addr_to_region_idx(beg), addr_to_region_idx(end));
+  }
+  inline void install_bda_container(container_t * container);
 #endif
   
   void clear();
   void clear_range(size_t beg_region, size_t end_region);
   void clear_range(HeapWord* beg, HeapWord* end) {
     clear_range(addr_to_region_idx(beg), addr_to_region_idx(end));
-  }
+  }  
 
   // Return the number of words between addr and the start of the region
   // containing addr.
@@ -481,8 +534,9 @@ public:
 private:
   bool initialize_block_data();
   bool initialize_region_data(size_t region_size);
-#ifdef HEADER_MARK
-  bool initialize_counter_data();
+#ifdef BDA
+  bool initialize_empty_region_data();
+  // bool initialize_counter_data();
 #endif
   PSVirtualSpace* create_vspace(size_t count, size_t element_size);
 
@@ -502,8 +556,12 @@ private:
   size_t          _block_count;
   
 #ifdef BDA
-  BDADataCounters* _bda_counters;
-  CounterData*     _counter_data;
+  PSVirtualSpace *  _empty_region_vspace;
+  EmptyRegionData   _empty_region_data;
+  
+  MutableBDASpace * _old_space;
+  BDADataCounters * _bda_counters;
+  CounterData *     _counter_data;
 #endif
 };
 
@@ -619,6 +677,40 @@ inline bool ParallelCompactData::RegionData::claim()
                                   (volatile int*) &_dc_and_los, los);
   return old == los;
 }
+
+#ifdef BDA
+inline void
+ParallelCompactData::EmptyRegionData::append(size_t region)
+{
+  _empty_region_array[_next_append++] = region;
+}
+
+inline void
+ParallelCompactData::EmptyRegionData::return_to_array(size_t region)
+{
+  _empty_region_array[--_empty_region_idx] = region;
+}
+
+inline size_t
+ParallelCompactData::EmptyRegionData::remove()
+{
+  assert (_empty_region_idx != _next_append, "removing empty region without appending");
+  return _empty_region_array[_empty_region_idx++];
+}
+
+inline bool
+ParallelCompactData::EmptyRegionData::has_empty_region()
+{
+  return _empty_region_idx != _next_append;
+}
+
+inline void
+ParallelCompactData::EmptyRegionData::reset()
+{
+  _empty_region_idx = _next_append;
+}
+
+#endif // BDA
 
 inline ParallelCompactData::RegionData*
 ParallelCompactData::region(size_t region_idx) const
@@ -763,6 +855,19 @@ ParallelCompactData::is_block_aligned(HeapWord* addr) const
 {
   return block_offset(addr) == 0;
 }
+
+#ifdef BDA
+inline void
+ParallelCompactData::install_bda_container(container_t * container)
+{
+  size_t first_region_idx = addr_to_region_idx(container->_start);
+  size_t last_region_idx = addr_to_region_idx(container->_end);
+  while (first_region_idx < last_region_idx) {
+    _region_data[first_region_idx].set_container_ptr(container);
+    ++first_region_idx;
+  }
+}
+#endif
 
 // Abstract closure for use with ParMarkBitMap::iterate(), which will invoke the
 // do_addr() method.
@@ -1016,6 +1121,8 @@ class PSParallelCompact : AllStatic {
 #ifdef BDA
   // Map to hold some data during summary of the bda spaces
   static BDASummaryMap        _summary_map;
+  // Convenient accessor
+  static MutableBDASpace *    _bda_space;
 #endif
   // Reference processing (used in ...follow_contents)
   static ReferenceProcessor*  _ref_processor;
@@ -1311,6 +1418,16 @@ class PSParallelCompact : AllStatic {
     fill_region(cm, region);
   }
 
+#ifdef BDA
+  // Install the container_t ptr in the RegionData that manages the container address range
+  // Call the ParallelCompactData for the effect.
+  inline static void install_container_in_region(container_t * container);
+  // See if HeapWord* p is in container* -- use is_in of PSParallelCompact
+  inline static bool is_in_container(container_t * container, HeapWord * p);
+  // See if the container is the same
+  inline static bool is_same_container(size_t src_region_idx, size_t region_idx);
+#endif
+  
   // Fill in the block table for the specified region.
   static void fill_blocks(size_t region_idx);
 
@@ -1496,6 +1613,29 @@ inline ObjectStartArray* PSParallelCompact::start_array(SpaceId id) {
   return _space_info[id].start_array();
 }
 
+#ifdef BDA
+inline void
+PSParallelCompact::install_container_in_region(container_t * container)
+{
+  assert (container != NULL, "Sanity");
+  _summary_data.install_bda_container(container);
+}
+inline bool
+PSParallelCompact::is_in_container(container_t * container, HeapWord * p)
+{
+  assert (container != NULL, "Sanity");
+  // top is inclusive since a region may have 0 words
+  return is_in (p, container->_start, container->_top + 1);
+}
+inline bool
+PSParallelCompact::is_same_container(size_t src_region_idx, size_t region_idx)
+{
+  container_t * c1 = summary_data().region(src_region_idx)->container();
+  container_t * c2 = summary_data().region(region_idx)->container();
+  return  c1 == c2;
+}
+#endif // BDA
+
 #ifdef ASSERT
 inline void
 PSParallelCompact::check_new_location(HeapWord* old_addr, HeapWord* new_addr)
@@ -1511,11 +1651,12 @@ class MoveAndUpdateClosure: public ParMarkBitMapClosure {
  public:
   inline MoveAndUpdateClosure(ParMarkBitMap* bitmap, ParCompactionManager* cm,
                               ObjectStartArray* start_array,
-                              HeapWord* destination, size_t words);
+                              HeapWord* destination, size_t words,
+                              container_t * container);
 
   // Accessors.
   HeapWord* destination() const         { return _destination; }
-
+  container_t * container() const       { return _container; }
   // If the object will fit (size <= words_remaining()), copy it to the current
   // destination, update the interior oops and the start array and return either
   // full (if the closure is full) or incomplete.  If the object will not fit,
@@ -1538,6 +1679,9 @@ class MoveAndUpdateClosure: public ParMarkBitMapClosure {
  protected:
   ObjectStartArray* const _start_array;
   HeapWord*               _destination;         // Next addr to be written.
+#ifdef BDA
+  container_t *     const _container;           // The container this closure is filling
+#endif
 };
 
 inline
@@ -1545,8 +1689,9 @@ MoveAndUpdateClosure::MoveAndUpdateClosure(ParMarkBitMap* bitmap,
                                            ParCompactionManager* cm,
                                            ObjectStartArray* start_array,
                                            HeapWord* destination,
-                                           size_t words) :
-  ParMarkBitMapClosure(bitmap, cm, words), _start_array(start_array)
+                                           size_t words,
+                                           container_t * container = NULL) :
+  ParMarkBitMapClosure(bitmap, cm, words), _start_array(start_array), _container(container)
 {
   _destination = destination;
 }

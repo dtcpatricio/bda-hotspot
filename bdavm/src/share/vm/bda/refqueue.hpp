@@ -81,6 +81,8 @@ RefQueue::dequeue()
   Ref * next = NULL;
   do {
     temp = remove_end();
+    if (temp == NULL)
+      return temp;
     next = temp->next();
   } while(Atomic::cmpxchg_ptr(next,
                               &_remove_end,
@@ -91,7 +93,7 @@ RefQueue::dequeue()
   // then there must be a membar in between this calls or else the remove_end() may
   // be null at one time, before another thread that enqueued a Ref sets the remove_end() value.
   if(remove_end() == NULL) set_insert_end(NULL);
-  DEBUG_ONLY(Atomic::dec(&_n_elements);)
+  Atomic::dec(&_n_elements);
   return temp;
 }
 

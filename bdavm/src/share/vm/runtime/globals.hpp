@@ -3967,6 +3967,11 @@ class CommandLineFlags {
                "The default value for the number of fields of each element "\
                "in the BDA collections")                                    \
                                                                             \
+  product(double, BDAContainerFraction, 1,                                  \
+               "The fraction tries to split the estimated container "       \
+               "size in small segments. It tries to promote locality "      \
+               "in small system-level memory structures")                   \
+                                                                            \
   develop(intx, BDAContainerArraySize, 256,                                 \
                "This sets the initial size of the array that contains "     \
                "pointers to container_t structures, for debug builds")      \

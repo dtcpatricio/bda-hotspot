@@ -330,7 +330,7 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::Ref
       container = (container_t*) r;
 
       // Here the container is changed accordingly and the new object pointer is returned
-      new_obj = (oop) old_space -> allocate_element(new_obj_size, container);
+      new_obj = (oop) old_space -> allocate_element(new_obj_size, &container);
 
       if (new_obj == NULL) {
         _old_gen_is_full = true;

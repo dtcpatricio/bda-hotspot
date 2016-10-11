@@ -729,122 +729,125 @@ CardTableExtension::scavenge_bda_contents_parallel(ObjectStartArray * start_arra
   jbyte * end_card = byte_for(sp_top - 1) + 1;
   oop * last_scanned = NULL;
 
-  jbyte * slice = start_card;
-  while (slice < end_card) {
-    HeapWord * slice_start = addr_for(start_card);
-    HeapWord * slice_end = addr_for(end_card);
+  // Set the limits and iterate the cards between the container's live words
+  
+  HeapWord * slice_start = addr_for(start_card);
+  HeapWord * slice_end = MIN2((HeapWord*)c_top, addr_for(end_card));
 
-    // Update the beginning address. Don't go below the container's start.
-    HeapWord * first_object = start_array->object_start(slice_start, c->_start);
-    debug_only (oop * first_object_within_slice = (oop*) first_object;)
+  // Update the beginning address. Don't go below the container's start.
+  HeapWord * first_object = start_array->object_start(slice_start, c->_start);
+  debug_only (oop * first_object_within_slice = (oop*) first_object;)
     if (first_object < slice_start) {
       last_scanned = (oop*) first_object + oop(first_object)->size();
       debug_only (first_object_within_slice = last_scanned;)
-      start_card = byte_for (last_scanned);
+        start_card = byte_for (last_scanned);
     }
 
-    // No need to update end_addr (slice_end) because it won't go further
+  // Update the ending addr
+  if (slice_end < (HeapWord*)c_top) {
+    HeapWord * last_object = start_array->object_start(slice_end - 1, c->_start);
+    slice_end = last_object + oop(last_object)->size();
+  }
 
-    assert (slice_end <= c_top, "Last object in slice crosses space boundary");
-    assert (is_valid_card_address (start_card), "Invalid start_card");
-    assert (is_valid_card_address (end_card), "Invalid end_card");
-    assert (start_card <= end_card, "worker start card beyond end card");
+  assert (slice_end <= c_top, "Last object in slice crosses space boundary");
+  assert (is_valid_card_address (start_card), "Invalid start_card");
+  assert (is_valid_card_address (end_card), "Invalid end_card");
+  assert (start_card <= end_card, "worker start card beyond end card");
 
-    jbyte * current_card = start_card;
-    while (current_card < end_card) {
-      // Find an unclean card
-      while (current_card < end_card && card_is_clean(*current_card)) {
-        current_card++;
-      }
-      jbyte * first_unclean_card = current_card;
-
-      // Now, find a contiguous set of unclean cards
-      while (current_card < end_card && !card_is_clean(*current_card)) {
-        while (current_card < end_card && !card_is_clean(*current_card)) {
-          current_card++;
-        }
-
-        if (current_card < end_card) {
-          HeapWord * last_object_in_dirty_region = start_array->object_start (
-            addr_for (current_card) - 1, c->_start);
-          size_t size_of_last_object = oop (last_object_in_dirty_region)->size();
-          HeapWord * end_of_last_object = last_object_in_dirty_region + size_of_last_object;
-          jbyte * ending_card_of_last_object = byte_for (end_of_last_object);
-
-          assert (ending_card_of_last_object <= end_card,
-                  "ending_card_of_last_object has crossed the scanning boundary");
-
-          if (ending_card_of_last_object > current_card) {
-            // This means the object spans the next complete card.
-            current_card = ending_card_of_last_object;
-          }
-        }
-      }
-      
-      jbyte * following_clean_card = current_card;
-
-      if (first_unclean_card < end_card) {
-        oop * p = (oop*) start_array->object_start(addr_for(first_unclean_card),
-                                                   c->_start);
-        assert ((HeapWord*)p <= addr_for(first_unclean_card), "just checking");
-        assert ((p >= last_scanned) ||
-                (last_scanned == first_object_within_slice),
-                "Should not be possible!");
-        if (p < last_scanned) {
-          // Avoid scanning more than once; this can happen because
-          // newgen cards set by GC may a different set than the
-          // originally dirty set
-          p = last_scanned;
-        }
-        oop * to = (oop*) addr_for (following_clean_card);
-
-        if ((HeapWord*)to > slice_end) {
-          to = (oop*)slice_end;
-        } else if (to > sp_top) {
-          to = sp_top;
-        }
-
-        // clear the cards
-        if (first_unclean_card <= start_card + 1)
-          first_unclean_card = start_card + 1;
-        if (following_clean_card >= end_card - 1)
-          following_clean_card = end_card - 1;
-
-        while (first_unclean_card < following_clean_card) {
-          *first_unclean_card++ = clean_card;
-        }
-
-        const int interval = PrefetchScanIntervalInBytes;
-        // scan objects in the range
-        if (interval != 0) {
-          while (p < to) {
-            Prefetch::write(p, interval);
-            oop m = oop(p);
-            assert (m->is_oop_or_null(), "check if header is valid");
-            m->push_bdaref_contents(pm, c);
-            p += m->size();
-          }
-          pm->drain_bda_stacks();
-        } else {
-          while (p < to) {
-            oop m = oop(p);
-            assert (m->is_oop_or_null(), "check if header is valid");
-            m->push_bdaref_contents(pm, c);
-            p += m->size();
-          }
-          pm->drain_bda_stacks();
-        }
-
-        last_scanned = p;
-      }
-
-      assert((current_card == following_clean_card) ||
-             (current_card >= end_card),
-             "current_card should only be incremented if it still equals "
-             "following_clean_card");
-
+  jbyte * current_card = start_card;
+  while (current_card < end_card) {
+    // Find an unclean card
+    while (current_card < end_card && card_is_clean(*current_card)) {
       current_card++;
     }
+    jbyte * first_unclean_card = current_card;
+
+    // Now, find a contiguous set of unclean cards
+    while (current_card < end_card && !card_is_clean(*current_card)) {
+      while (current_card < end_card && !card_is_clean(*current_card)) {
+        current_card++;
+      }
+
+      if (current_card < end_card) {
+        HeapWord * last_object_in_dirty_region = start_array->object_start (
+          addr_for (current_card) - 1, c->_start);
+        size_t size_of_last_object = oop (last_object_in_dirty_region)->size();
+        HeapWord * end_of_last_object = last_object_in_dirty_region + size_of_last_object;
+        jbyte * ending_card_of_last_object = byte_for (end_of_last_object);
+
+        assert (ending_card_of_last_object <= end_card,
+                "ending_card_of_last_object has crossed the scanning boundary");
+
+        if (ending_card_of_last_object > current_card) {
+          // This means the object spans the next complete card.
+          current_card = ending_card_of_last_object;
+        }
+      }
+    }
+      
+    jbyte * following_clean_card = current_card;
+
+    if (first_unclean_card < end_card) {
+      oop * p = (oop*) start_array->object_start(addr_for(first_unclean_card),
+                                                 c->_start);
+      assert ((HeapWord*)p <= addr_for(first_unclean_card), "just checking");
+      assert ((p >= last_scanned) ||
+              (last_scanned == first_object_within_slice),
+              "Should not be possible!");
+      if (p < last_scanned) {
+        // Avoid scanning more than once; this can happen because
+        // newgen cards set by GC may a different set than the
+        // originally dirty set
+        p = last_scanned;
+      }
+      oop * to = (oop*) addr_for (following_clean_card);
+
+      if ((HeapWord*)to > slice_end) {
+        to = (oop*)slice_end;
+      } else if (to > sp_top) {
+        to = sp_top;
+      }
+
+      // clear the cards
+      if (first_unclean_card <= start_card + 1)
+        first_unclean_card = start_card + 1;
+      if (following_clean_card >= end_card - 1)
+        following_clean_card = end_card - 1;
+
+      while (first_unclean_card < following_clean_card) {
+        *first_unclean_card++ = clean_card;
+      }
+
+      const int interval = PrefetchScanIntervalInBytes;
+      // scan objects in the range
+      if (interval != 0) {
+        while (p < to) {
+          Prefetch::write(p, interval);
+          oop m = oop(p);
+          assert (m->is_oop_or_null(), "check if header is valid");
+          m->push_bdaref_contents(pm, c);
+          p += m->size();
+        }
+        pm->drain_bda_stacks();
+      } else {
+        while (p < to) {
+          oop m = oop(p);
+          assert (m->is_oop_or_null(), "check if header is valid");
+          m->push_bdaref_contents(pm, c);
+          p += m->size();
+        }
+        pm->drain_bda_stacks();
+      }
+
+      last_scanned = p;
+    }
+
+    assert((current_card == following_clean_card) ||
+           (current_card >= end_card),
+           "current_card should only be incremented if it still equals "
+           "following_clean_card");
+
+    current_card++;
   }
 }
 #endif

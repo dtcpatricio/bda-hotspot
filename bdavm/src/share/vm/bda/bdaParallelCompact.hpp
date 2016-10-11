@@ -1,5 +1,5 @@
-#ifndef SHARE_VM_GC_IMPLEMENTATION_PARALLELSCAVENGE_BDAPARALLELCOMPACT_HPP
-#define SHARE_VM_GC_IMPLEMENTATION_PARALLELSCAVENGE_BDAPARALLELCOMPACT_HPP
+#ifndef SHARE_VM_BDA_BDAPARALLELCOMPACT_HPP
+#define SHARE_VM_BDA_BDAPARALLELCOMPACT_HPP
 
 #include "utilities/growableArray.hpp"
 #include "utilities/globalDefinitions.hpp"
@@ -40,7 +40,7 @@ private:
 
 };
 
-class BDASummaryMap {
+class BDASummaryMap VALUE_OBJ_CLASS_SPEC {
 
 private:
   int         _length;
@@ -61,4 +61,4 @@ public:
   HeapWord* end_at(int id) { return _target_ends[id]; }
   HeapWord** end_addr_at(int id) { return &(_target_ends[id]); }
 };
-#endif // SHARE_VM_GC_IMPLEMENTATION_PARALLELSCAVENGE_BDAPARALLELCOMPACT_HPP
+#endif // SHARE_VM_BDA_BDAPARALLELCOMPACT_HPP
