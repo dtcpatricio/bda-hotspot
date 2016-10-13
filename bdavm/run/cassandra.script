@@ -1,0 +1,79 @@
+#!/bin/sh
+
+CASSANDRA_HOME=$1
+shift
+
+# If an include wasn't specified in the environment, then search for one...
+if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
+    # Locations (in order) to use when searching for an include file.
+    for include in "$CASSANDRA_HOME/bin/cassandra.in.sh" \
+                       "$HOME/.cassandra.in.sh" \
+                       /usr/share/cassandra/cassandra.in.sh \
+                       /usr/local/share/cassandra/cassandra.in.sh \
+                       /opt/cassandra/cassandra.in.sh; do
+        if [ -r "$include" ]; then
+            . "$include"
+            break
+        fi
+    done
+    # ...otherwise, source the specified include.
+elif [ -r "$CASSANDRA_INCLUDE" ]; then
+    . "$CASSANDRA_INCLUDE"
+fi
+
+if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
+    echo "You must set the CASSANDRA_CONF and CLASSPATH vars" >&2
+    exit 1
+fi
+
+if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
+    . "$CASSANDRA_CONF/cassandra-env.sh"
+fi
+
+export JAVA_HOME="/usr/lib/jvm/java-8-openjdk/"
+export ALT_JAVA_HOME="$JAVA_HOME"
+
+launch_service()
+{
+    pidpath="$1"
+    foreground="$2"
+    props="$3"
+    class="$4"
+    cassandra_parms="-Dlogback.configurationFile=logback.xml"
+    cassandra_parms="$cassandra_parms -Dcassandra.logdir=$CASSANDRA_HOME/logs"
+    cassandra_parms="$cassandra_parms -Dcassandra.storagedir=$cassandra_storagedir"
+
+    export JAVA_ARGS="$cassandra_parms -cp $CLASSPATH $props $class"
+    echo "JAVA_ARGS to be used $JAVA_ARGS"
+    echo "JVM_OPTS to be used $JVM_OPTS"
+    echo "Using hotspot dir $HS_SCRIPT_DIR"
+    
+    exec $HS_SCRIPT_DIR/hotspot -gud $JVM_OPTS
+
+    return $?
+}
+
+classname="org.apache.cassandra.service.CassandraDaemon"
+
+while true; do
+    case "$1" in
+        -vm)
+            HS_SCRIPT_DIR=`cd $2 && pwd`
+            shift 2
+            ;;
+        -D)
+            properties="$properties -D$2"
+            shift 2
+            ;;
+        -H)
+            properties="$properties -XX:HeapDumpPath=$2"
+            shift 2
+            ;;
+        --)
+            shift
+            break
+    esac
+done
+
+# Start up the service
+launch_service "$pidfile" "$foreground" "$properties" "$classname"

@@ -3976,6 +3976,10 @@ class CommandLineFlags {
                "This sets the initial size of the array that contains "     \
                "pointers to container_t structures, for debug builds")      \
                                                                             \
+  develop (bool, PrintEnqueuedContainers, false,                            \
+                "Prints the reference and the space id of container "       \
+                "objects")                                                  \
+                                                                            \
   product(bool, BDAPrintAfterGC, false,                                     \
                "Print big-data aware space after compacting GC")            \
                                                                             \

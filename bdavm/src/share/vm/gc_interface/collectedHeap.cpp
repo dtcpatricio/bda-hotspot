@@ -592,6 +592,14 @@ void CollectedHeap::post_full_gc_dump(GCTimer* timer) {
 void
 CollectedHeap::enqueue_asm(JavaThread * java_thread, oop * obj, BDARegion * r)
 {
+#ifdef ASSERT
+  assert (obj != NULL && r != NULL, "neither object and the space can be null");
+  if (PrintEnqueuedContainers) {
+    tty->print_cr ("Container reference " INTPTR_FORMAT " enqueued for space " INT32_FORMAT,
+                   obj,
+                   r->value());
+  }
+#endif
   _bda_refqueue->enqueue(*obj, r);
 }
 #endif

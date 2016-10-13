@@ -43,7 +43,9 @@ BDACardTableHelper::BDACardTableHelper(MutableBDASpace* sp) {
   // Fill in the array. It is filled by each CGRPSpace, i.e., the manager of each bda space.
   int j = 0; int i = 0;
   while (++j < sp->spaces()->length()) {
-    sp->spaces()->at(j)->save_top_ptrs(_containers, &i);
+    MutableBDASpace::CGRPSpace * grp = sp->spaces()->at(j);
+    if (grp->space()->not_empty())
+      grp->save_top_ptrs(_containers, &i);
   }
 }
 
