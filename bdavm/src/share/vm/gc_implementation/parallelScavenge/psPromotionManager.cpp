@@ -252,10 +252,6 @@ void PSPromotionManager::flush_labs() {
   if (!_young_lab.is_flushed())
     _young_lab.flush();
 
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  // Dummy value to enable the flushing of all labs in the group
-  Thread::current()->set_alloc_region(KlassRegionMap::no_region_ptr());
-#endif
   assert(!_old_lab.is_flushed() || _old_gen_is_full, "Sanity");
   if (!_old_lab.is_flushed())
     _old_lab.flush();

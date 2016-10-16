@@ -21,6 +21,9 @@ class GenQueue : public CHeapObj<F> {
  public:
 
   static GenQueue * create();
+  // The caller is responsible for deallocating the queue!
+  // This only clears the ends of the queue.
+  static void       destroy(GenQueue<E, F> * queue);
 
   inline void enqueue(E el);
   inline E    dequeue();
@@ -134,6 +137,15 @@ GenQueue<E, F>::create()
   queue->set_remove_end(NULL);
   queue->_n_elements = 0;
   return queue;
+}
+
+template <class E, MEMFLAGS F>
+void
+GenQueue<E, F>::destroy(GenQueue<E, F> * queue)
+{
+  queue->set_insert_end(NULL);
+  queue->set_remove_end(NULL);
+  queue->_n_elements = 0;
 }
 
 template <class E, MEMFLAGS F>
