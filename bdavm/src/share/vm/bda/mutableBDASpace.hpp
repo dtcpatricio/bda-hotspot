@@ -4,7 +4,9 @@
 # include "bda/bdaGlobals.hpp"
 # include "bda/gen_queue.hpp"
 # include "gc_implementation/shared/mutableSpace.hpp"
+# include "gc_implementation/parallelScavenge/parMarkBitMap.hpp"
 # include "runtime/prefetch.inline.hpp"
+
 
 // Implementation of an allocation space for big-data collection placement
 
@@ -157,6 +159,10 @@ class MutableBDASpace : public MutableSpace
     inline size_t        calculate_large_reserved_sz(size_t size);
     // Allocates the reserved_sz to the space and sets the appropriate pointers
     inline container_t * install_container_in_space(size_t reserved_sz, size_t size);
+
+    // Destructors --- these should only be called for the other's space, since for the rest
+    // the leftover segments are to be pushed to the pool for reuse.
+    inline bool clear_delete_containers();    
     
     // This is called during the final stage of OldGC when free segments are returned to the pool
     inline void          add_to_pool(container_t * c);
@@ -171,6 +177,7 @@ class MutableBDASpace : public MutableSpace
 
  private:
   GrowableArray<CGRPSpace*>* _spaces;
+  ParMarkBitMap              _segment_bitmap;
   size_t _page_size;
 
  protected:
@@ -204,6 +211,9 @@ class MutableBDASpace : public MutableSpace
   void shrink_space_noclear(MutableSpace* spc, size_t sz);
   void shrink_space_end_noclear(MutableSpace *spc, size_t sz);
 
+  // Marking of bits in the container segment bitmap
+  inline bool mark_container(container_t * c);
+  
  public:
 
   MutableBDASpace(size_t alignment);
@@ -211,7 +221,8 @@ class MutableBDASpace : public MutableSpace
 
   void set_page_size(size_t page_size) { _page_size = page_size; }
   size_t page_size() const { return _page_size; }
-  GrowableArray<CGRPSpace*>* spaces() const { return _spaces; }
+  GrowableArray<CGRPSpace*>*    spaces() const { return _spaces; }
+  ParMarkBitMap const * segment_bitmap() const { return &_segment_bitmap; }
   MutableSpace* region_for(BDARegion* region) const {
     int i = _spaces->find(&region, CGRPSpace::equals);
     return _spaces->at(i)->space();
@@ -220,10 +231,14 @@ class MutableBDASpace : public MutableSpace
   void          add_to_pool(container_t * c, uint id);
   void          set_shared_gc_pointers();
 
+  // Statistics functions
+  float avg_nsegments_in_bda();
+
   virtual void      initialize(MemRegion mr,
                                bool clear_space,
                                bool mangle_space,
                                bool setup_pages = SetupPages);
+  bool         post_initialize();
 
   // Boolean queries - the others are already implemented on mutableSpace.hpp
   bool contains(const void* p) const {
@@ -252,11 +267,16 @@ class MutableBDASpace : public MutableSpace
     int i = _spaces->find(&type, CGRPSpace::equals);
     return _spaces->at(i)->space()->used_region();
   }
-  virtual MutableSpace * non_bda_space() { return _spaces->at(0)->space(); }
+  MutableSpace * non_bda_space() { return non_bda_grp()->space(); }
+  CGRPSpace    * non_bda_grp  () { return _spaces->at(0); }
   virtual int num_bda_regions() { return _spaces->length() - 1; }
 
   inline  int  container_count();
   inline  bool is_bdaspace_empty();
+
+  // Selection of bits for the beginning and ending of container segments, respectively
+  inline HeapWord * get_next_beg_seg(HeapWord * beg, HeapWord * end) const;
+  inline HeapWord * get_next_end_seg(HeapWord * beg, HeapWord * end) const;
 
   // Methods for mangling
   virtual void set_top_for_allocations(HeapWord *v);
@@ -297,6 +317,8 @@ class MutableBDASpace : public MutableSpace
     return -1;
   }
 
+  // Clear methods and setters
+  void              clear_delete_containers_in_space(uint space_id);
   virtual void      clear(bool mangle_space);
   virtual void      set_top(HeapWord* value);
   virtual void      set_end(HeapWord* value) { _end = value; }

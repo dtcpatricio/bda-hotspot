@@ -126,7 +126,12 @@ jint ParallelScavengeHeap::initialize() {
   // Set up the GCTaskManager
   _gc_task_manager = GCTaskManager::create(ParallelGCThreads);
 
-  if (UseParallelOldGC && !PSParallelCompact::initialize()) {
+  if (UseParallelOldGC && !PSParallelCompact::initialize()
+#ifdef BDA
+      || (UseBDA && !((MutableBDASpace*)_old_gen->object_space())->post_initialize())
+#endif
+    )
+  {
     return JNI_ENOMEM;
   }
 

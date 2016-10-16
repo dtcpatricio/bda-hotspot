@@ -20,6 +20,7 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
         container->_top += size;
         break;
       } else if (tries < 3) {
+        mask_container(container);
         _large_pool->enqueue(container);
         tries++;
       } else {
@@ -71,6 +72,7 @@ MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t ** c)
         container->_top += size;
         break;
       } else if (tries < 3) {
+        mask_container(container);
         _large_pool->enqueue(container);
         tries++;
       } else {
@@ -180,6 +182,29 @@ MutableBDASpace::CGRPSpace::install_container_in_space(size_t reserved_sz, size_
 #endif
 
   return container;
+}
+
+inline bool
+MutableBDASpace::CGRPSpace::clear_delete_containers()
+{
+  // Not needed to destroy the pool since no container segment should have been
+  // enqueued there.
+  container_t * c = _containers->peek();
+  int const count = _containers->n_elements();
+  int           i = 0;
+  while (i++ < count) {
+    container_t * n = c->_next;
+    FreeHeap((void*)c, mtGC);
+    c = n;
+  }
+
+  GenQueue<container_t*, mtGC>::destroy(_containers);
+  GenQueue<container_t*, mtGC>::destroy(_pool);
+  GenQueue<container_t*, mtGC>::destroy(_large_pool);
+  
+  assert (_large_pool->n_elements() == 0, "pool shouldn't have containers.");
+  assert (_pool->n_elements() == 0, "pool shouldn't have containers.");
+  assert (_containers->n_elements() == 0, "list shouldn't have containers.");
 }
 
 inline void
@@ -304,4 +329,23 @@ MutableBDASpace::is_bdaspace_empty()
   return ret;
 }
 
+// This marks the newly allocated container in the segment bitmap for posterior usage
+// in the YoungGC
+inline bool
+MutableBDASpace::mark_container(container_t * c)
+{
+  _segment_bitmap.mark_obj(c->_start, pointer_delta(c->_end, c->_start));
+}
+
+inline HeapWord *
+MutableBDASpace::get_next_beg_seg(HeapWord * beg, HeapWord * end) const
+{
+  _segment_bitmap.find_obj_beg(beg, end);
+}
+
+inline HeapWord *
+MutableBDASpace::get_next_end_seg(HeapWord * beg, HeapWord * end) const
+{
+  _segment_bitmap.find_obj_end(beg, end);
+}
 #endif

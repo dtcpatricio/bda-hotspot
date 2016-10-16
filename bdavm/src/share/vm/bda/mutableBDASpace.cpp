@@ -4,6 +4,7 @@
 # include "gc_implementation/parallelScavenge/psParallelCompact.hpp"
 # include "memory/resourceArea.hpp"
 # include "runtime/thread.hpp"
+# include "runtime/java.hpp"
 # include "oops/oop.inline.hpp"
 # include "oops/klassRegionMap.hpp"
 
@@ -42,7 +43,7 @@ BDACardTableHelper::BDACardTableHelper(MutableBDASpace* sp) {
 
   // Fill in the array. It is filled by each CGRPSpace, i.e., the manager of each bda space.
   int j = 0; int i = 0;
-  while (++j < sp->spaces()->length()) {
+  while (j++ < sp->spaces()->length() - 1) {
     MutableBDASpace::CGRPSpace * grp = sp->spaces()->at(j);
     if (grp->space()->not_empty())
       grp->save_top_ptrs(_containers, &i);
@@ -98,17 +99,21 @@ MutableBDASpace::CGRPSpace::allocate_large_container(size_t size)
 void
 MutableBDASpace::CGRPSpace::verify()
 {
-  for(GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
-      *iterator != NULL;
-      ++iterator) {
-    container_t * c = *iterator;
-    HeapWord * p = c->_start;
-    HeapWord * t = c->_top;
-    while(p < t) {
-      oop(p)->verify();
-      p += oop(p)->size();
+  if (container_type() == KlassRegionMap::region_start_ptr()) {
+    this->space()->verify();
+  } else if (space()->not_empty()) {
+    for(GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+        *iterator != NULL;
+        ++iterator) {
+      container_t * c = *iterator;
+      HeapWord * p = c->_start;
+      HeapWord * t = c->_top;
+      while(p < t) {
+        oop(p)->verify();
+        p += oop(p)->size();
+      }
+      guarantee( p == c->_top, "end of last object must match end of space");
     }
-    guarantee( p == c->_top, "end of last object must match end of space");
   }
 }
 
@@ -148,7 +153,6 @@ MutableBDASpace::~MutableBDASpace() {
 }
 
 void MutableBDASpace::initialize(MemRegion mr, bool clear_space, bool mangle_space, bool setup_pages) {
-
   HeapWord* bottom = mr.start();
   HeapWord* end = mr.end();
 
@@ -165,9 +169,29 @@ void MutableBDASpace::initialize(MemRegion mr, bool clear_space, bool mangle_spa
 
   size_t space_size = pointer_delta(end, bottom);
   initialize_regions(space_size, bottom, end);
-
   // always clear space for new allocations
   clear(mangle_space);
+
+  
+}
+
+bool
+MutableBDASpace::post_initialize()
+{
+  assert (Universe::heap()->kind() == CollectedHeap::ParallelScavengeHeap, "Sanity");
+ 
+  ParallelScavengeHeap * heap = ParallelScavengeHeap::heap();
+  MemRegion reserved = heap->reserved_region();
+  
+  if (!_segment_bitmap.initialize(reserved)) {
+    vm_shutdown_during_initialization(
+      err_msg("Unable to allocate " SIZE_FORMAT "KB bitmaps for segment processing in "
+              "garbage collection for the requested " SIZE_FORMAT "KB heap.",
+              _segment_bitmap.reserved_byte_size()/K, reserved.byte_size()/K));
+    return false;
+  }
+
+  return true;
 }
 
 container_t *
@@ -187,7 +211,7 @@ MutableBDASpace::add_to_pool(container_t * c, uint id)
 void
 MutableBDASpace::set_shared_gc_pointers()
 {
-  for (int i = 1; i < spaces()->length(); ++i) {
+  for (int i = 0; i < spaces()->length(); ++i) {
     spaces()->at(i)->set_shared_gc_pointer();
   }
 }
@@ -346,7 +370,7 @@ MutableBDASpace::update_layout(MemRegion new_mr) {
     assert(spaces()->at(j)->space()->capacity_in_words() >= MinRegionSize,
            "segment is too short");
   }
-  assert(spaces()->at(0)->space()->bottom() == new_mr.start() &&
+  assert(spaces()->at(1)->space()->bottom() == new_mr.start() &&
          spaces()->at(j - 1)->space()->end() == new_mr.end(), "just checking");
 
   set_bottom(new_mr.start());
@@ -904,9 +928,9 @@ MutableBDASpace::unsafe_max_tlab_alloc(Thread *thr) const {
   return spaces()->at(i)->space()->free_in_bytes();
 }
 
-// // // // // // // // //
-//  Allocation methods  //
-// // // // // // // // //
+// // // // // // // // // //
+//   ALLOCATION FUNCTIONS  //
+// // // // // // // // // //
 HeapWord* MutableBDASpace::allocate(size_t size) {
   HeapWord *obj = cas_allocate(size);
   return obj;
@@ -918,6 +942,8 @@ HeapWord* MutableBDASpace::cas_allocate(size_t size) {
 
   int i = spaces()->find(&type2aloc, CGRPSpace::equals);
 
+  if (i == 0)
+    HeapWord * dummy = 0x0;
   // default to the no-collection space
   if (i == -1)
     i = 0;
@@ -953,9 +979,10 @@ MutableBDASpace::allocate_container(size_t size, BDARegion* r)
   // If it failed to allocate a container in the specified space
   // then allocate a container in the "other" space.
   if (new_ctr == NULL) {
-    new_ctr = spaces()->at(0)->push_container(size);    
+    new_ctr = spaces()->at(0)->push_container(size);
   }
 
+  mark_container(new_ctr);
   return new_ctr;
 }
 
@@ -984,12 +1011,32 @@ MutableBDASpace::allocate_element(size_t size, container_t ** c)
     }
     assert (grp != NULL, "The container must have been allocated in one of the groups");
     old_top = grp->allocate_new_segment(size, c); // reuse the variable
+    mark_container(*c);
   }
 
   return old_top;
 }
 
-void MutableBDASpace::clear(bool mangle_space) {
+//////////////// END OF ALLOCATION FUNCTIONS ////////////////
+
+void
+MutableBDASpace::clear_delete_containers_in_space(uint space_id)
+{
+  assert (space_id == 0, "should not be called to clear the segments of bda spaces.");
+  
+  // Free all container segments allocated
+  CGRPSpace * grp = spaces()->at(space_id);
+  grp->clear_delete_containers();
+
+  // Unset all bits in the segment_bitmap
+  HeapWord * const bottom = grp->space()->bottom();
+  HeapWord * const top    = grp->space()->top();
+  _segment_bitmap.clear_range(_segment_bitmap.addr_to_bit(bottom),
+                              _segment_bitmap.addr_to_bit(top));
+}
+
+void MutableBDASpace::clear(bool mangle_space)
+{
   MutableSpace::clear(mangle_space);
   for(int i = 0; i < spaces()->length(); ++i) {
     spaces()->at(i)->space()->clear(mangle_space);
@@ -1149,4 +1196,20 @@ MutableBDASpace::verify() {
     CGRPSpace* grp = spaces()->at(i);
     grp->verify();
   }
+}
+
+/**
+ * STATISTICS FUNCTIONS
+ */
+
+// avg_nsegments_in_bda() reports the average number of container segments
+// in the bda-spaces, i.e., all except the space id=0 (the other object space).
+float
+MutableBDASpace::avg_nsegments_in_bda()
+{
+  uint acc = 0;
+  for(int i = 1; i < spaces()->length(); ++i) {
+    acc += spaces()->at(i)->container_count();
+  }
+  return acc / (float)(spaces()->length() - 1);
 }
