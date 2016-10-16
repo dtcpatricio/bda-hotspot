@@ -37,7 +37,8 @@ class BDARefRootsTask : public GCTask {
 // _gc_current value in each CGRPSpace (see mutableBDASpace.hpp) where it CAS the next value
 // and returns the pointer that was read.
 //
-class OldToYoungBDARootsTask : public GCTask {
+class OldToYoungBDARootsTask : public GCTask
+{
 
  private:
   PSOldGen * _old_gen;
@@ -52,6 +53,29 @@ class OldToYoungBDARootsTask : public GCTask {
   virtual void do_it(GCTaskManager * manager, uint which);  
 };
 
+//
+// OldToYoungNonBDARootsTask works in a similar fashion as OldToYoungRootsTask of psTasks.hpp,
+// but instead of blindingly scan the contents of the whole space it uses the bitmap from
+// MutableBDASpace to jump container segment regions of the space. It is used to scan the
+// objects that do not belong to container segments.
+class OldToYoungNonBDARootsTask : public GCTask
+{
+ private:
+  PSOldGen * _old_gen;
+  HeapWord * _gen_top;
+  uint       _stripe_number;
+  uint       _stripe_total;
+
+ public:
+  OldToYoungNonBDARootsTask(PSOldGen * old_gen, HeapWord * gen_top,
+                            uint stripe_number, uint stripe_total) :
+    _old_gen(old_gen), _gen_top(gen_top), _stripe_number(stripe_number), _stripe_total(stripe_total)
+    { }
+
+  char * name () { return (char*)"non big-data old young roots task"; }
+
+  virtual void do_it(GCTaskManager * manager, uint which);
+};
 
 //
 // The RefStack is a stack whose elements are to group bda container refs
@@ -59,7 +83,8 @@ class OldToYoungBDARootsTask : public GCTask {
 // It works much as a StarTask (see taskqueue.hpp) but it groups the oop with the container it
 // belongs to in the bda-spaces to inform the collector where the oop should be promoted.
 //
-class BDARefTask {
+class BDARefTask
+{
 
   void *        _holder;
   container_t * _container;
