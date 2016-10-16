@@ -194,7 +194,7 @@ void OldToYoungRootsTask::do_it(GCTaskManager* manager, uint which) {
     // FIX ME! Assert that card_table is the type we believe it to be.
 #ifdef BDA
     card_table->scavenge_contents_parallel(_gen->start_array(),
-                                           _gen->object_space()->non_bda_space(),
+                                           ((MutableBDASpace*)_gen->object_space())->non_bda_space(),
                                            _gen_top,
                                            pm,
                                            _stripe_number,

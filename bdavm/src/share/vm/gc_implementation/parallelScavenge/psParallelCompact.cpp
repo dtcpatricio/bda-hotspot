@@ -550,7 +550,7 @@ ParallelCompactData::clear_bda_range(size_t beg_region, size_t end_region,
   const size_t region_cnt = end_region - beg_region;
   RegionData * r;
   container_t * c;
-  for (size_t i = beg_region; i < region_cnt; ++i) {
+  for (size_t i = beg_region; i < end_region; ++i) {
     r = _region_data + i; c = r->container();
     if (c->_start == c->_top) {
       // return to the pool
@@ -1018,7 +1018,7 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
   }
 
   *target_next = (HeapWord*)align_ptr_up((void*)*target_next,
-                                         MutableBDASpace::CGRPSpace::segment_sz);
+                                         MutableBDASpace::CGRPSpace::segment_sz << LogHeapWordSize);
   return true;
 }
 
@@ -1417,6 +1417,9 @@ PSParallelCompact::clear_data_covering_space(SpaceId id)
       _bda_space->spaces()->at((uint)(id -last_space_id) + 1);
     _summary_data.clear_bda_range(beg_region, end_region, space_manager);
     _summary_data.clear_empty_region_range(beg_region, end_region);
+  } else if (id == old_space_id) {
+    _bda_space->clear_delete_containers_in_space((uint)old_space_id);
+    _summary_data.clear_range(beg_region, end_region);
   } else
 #endif
     _summary_data.clear_range(beg_region, end_region);
