@@ -41,6 +41,23 @@ public class Bootstrap {
         return map;
     }
 
+  // public void fillHashMapRandom(HashMap<Long, String> m) {
+  //   // Init the map if not already
+  //   if (m == null)
+  //     m = new HashMap<Long, String>(max);
+
+  //   Random generator = new Random((long)max);
+  //   Base64.Encoder encoder = Base64.getEncoder();
+  //   for (int i = 0; i < max; i++) {
+  //     long key = generator.nextInt();
+  //     byte[] stringBytes = new byte[8];
+  //     generator.nextBytes(stringBytes);
+  //     String value = encoder.encodeToString(stringBytes);
+  //     m.put(key, value);
+  //   }
+  // }
+   
+
     public MyHashMap<Long, String> fillMapValues() {
         fillHashMap(map1, map);
         return map1;
