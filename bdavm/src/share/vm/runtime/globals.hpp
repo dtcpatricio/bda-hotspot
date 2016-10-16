@@ -3980,6 +3980,11 @@ class CommandLineFlags {
                 "Prints the reference and the space id of container "       \
                 "objects")                                                  \
                                                                             \
+  product (bool, AlertContainersInOtherSpace, false,                        \
+                "Prints an alert if there are container segments in the "   \
+                "other's space and illustrates it using the average "       \
+                "of allocated segments in the correct bda-spaces")          \
+                                                                            \
   product(bool, BDAPrintAfterGC, false,                                     \
                "Print big-data aware space after compacting GC")            \
                                                                             \

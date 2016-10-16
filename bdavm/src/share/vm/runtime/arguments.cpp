@@ -1616,6 +1616,9 @@ void Arguments::set_ergonomics_flags() {
 void Arguments::set_parallel_gc_flags() {
   assert(UseParallelGC || UseParallelOldGC, "Error");
   // Enable ParallelOld unless it was explicitly disabled (cmd line or rc file).
+  if (UseBDA) {
+    FLAG_SET_DEFAULT(UseParallelOldGC, true);
+  }
   if (FLAG_IS_DEFAULT(UseParallelOldGC)) {
     FLAG_SET_DEFAULT(UseParallelOldGC, true);
   }
