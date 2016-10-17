@@ -1017,8 +1017,11 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     cur_region += source_regions;
   }
 
-  *target_next = (HeapWord*)align_ptr_up((void*)*target_next,
-                                         MutableBDASpace::CGRPSpace::segment_sz << LogHeapWordSize);
+  // Only align if there's segments in the space, otherwise the alignment call would bump
+  // the target_next to the boundary of the first allocated region.
+  if (*target_next > source_beg)
+    *target_next = (HeapWord*)align_ptr_up((void*)*target_next,
+                                           MutableBDASpace::CGRPSpace::segment_sz << LogHeapWordSize);
   return true;
 }
 

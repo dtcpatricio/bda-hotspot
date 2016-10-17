@@ -485,15 +485,16 @@ MutableBDASpace::initialize_regions(size_t space_size,
 {
   assert(space_size % MinRegionSize == 0, "space_size not region aligned");
 
-  const int bda_nregions = spaces()->length() - 1;
-  size_t bda_space = (size_t)round_to(space_size / BDARegionRatio, MinRegionSize);
-  size_t bda_region_sz = (size_t)round_to(bda_space / bda_nregions, MinRegionSize);
+  const int    bda_nregions = spaces()->length() - 1;
+  const size_t alignment    = MutableBDASpace::CGRPSpace::segment_sz;
+  size_t bda_space    = (size_t)round_down(space_size / BDARatio, alignment);
+  size_t bda_region_sz = (size_t)round_down(bda_space / bda_nregions, alignment);
 
   // just in case some one abuses of the ratio
   int k = 1;
-  while(bda_region_sz < MinRegionSize) {
-    bda_space = (size_t)round_to(space_size / BDARegionRatio - k, MinRegionSize);
-    bda_region_sz = (size_t)round_to(bda_space / bda_nregions, MinRegionSize);
+  while(bda_region_sz < alignment) {
+    bda_space = (size_t)round_down(space_size / BDARatio - k, alignment);
+    bda_region_sz = (size_t)round_down(bda_space / bda_nregions, alignment);
     k++;
   }
 
