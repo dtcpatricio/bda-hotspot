@@ -164,18 +164,15 @@ class ObjectStartArray : public CHeapObj<mtGC> {
     assert(_covered_region.contains(addr), "Must be in covered region");
     jbyte* block = block_for_addr(addr);
     HeapWord* scroll_forward;
-    // This code prevents the scan of objects below a specified region
-    // to avoid visiting invalid nodes
-    if(addr <= low_bound)
-      scroll_forward = addr;
-    else {
-      scroll_forward = offset_addr_for_block(block--);
-    }
-
     while (scroll_forward > addr) {
       scroll_forward = offset_addr_for_block(block--);
     }
 
+    // This code prevents the scan of objects below a specified region
+    // to avoid visiting invalid nodes
+    if (scroll_forward < low_bound)
+      scroll_forward = low_bound;
+    
     HeapWord* next = scroll_forward;
     while (next <= addr) {
       scroll_forward = next;
