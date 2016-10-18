@@ -173,6 +173,11 @@ class MutableBDASpace : public MutableSpace
     inline container_t * get_container_with_addr(HeapWord * addr);
     inline void          save_top_ptrs(container_helper_t * helper, int * i);
     inline void          set_shared_gc_pointer() { _gc_current = _containers->peek(); }
+
+    // Iteration support
+    void object_iterate_containers(ObjectClosure * cl);
+    void oop_iterate_containers(ExtendedOopClosure * cl);
+    void oop_iterate_no_header_containers(OopClosure * cl);
   };
 
  private:

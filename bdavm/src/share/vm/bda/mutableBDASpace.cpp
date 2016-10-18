@@ -96,6 +96,64 @@ MutableBDASpace::CGRPSpace::allocate_large_container(size_t size)
   return container;
 }
 
+//
+// ITERATION AND VERIFICATION
+//
+void
+MutableBDASpace::CGRPSpace::object_iterate_containers(ObjectClosure * cl)
+{
+  if (container_count() > 0) {
+    assert (_containers->peek() != NULL, "GenQueue malformed. Should not be empty");
+    for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+         *iterator != NULL;
+         ++iterator) {
+      container_t * c = *iterator;
+      HeapWord * p = c->_start;
+      HeapWord * t = c->_top;
+      while (p < t) {
+        cl->do_object(oop(p));
+        p += oop(p)->size();
+      }
+    }
+  }
+}
+
+void
+MutableBDASpace::CGRPSpace::oop_iterate_containers(ExtendedOopClosure * cl)
+{
+  if (container_count() > 0) {
+    assert (_containers->peek() != NULL, "GenQueue malformed. Should not be empty");
+    for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+         *iterator != NULL;
+         ++iterator) {
+      container_t * c = *iterator;
+      HeapWord * p = c->_start;
+      HeapWord * t = c->_top;
+      while (p < t) {
+        p += oop(p)->oop_iterate(cl);
+      }
+    }
+  }
+}
+
+void
+MutableBDASpace::CGRPSpace::oop_iterate_no_header_containers(OopClosure * cl)
+{
+  if (container_count() > 0) {
+    assert (_containers->peek() != NULL, "GenQueue malformed. Should not be empty");
+    for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+         *iterator != NULL;
+         ++iterator) {
+      container_t * c = *iterator;
+      HeapWord * p = c->_start;
+      HeapWord * t = c->_top;
+      while (p < t) {
+        p += oop(p)->oop_iterate_no_header(cl);
+      }
+    }
+  }
+}
+
 void
 MutableBDASpace::CGRPSpace::verify()
 {
@@ -983,7 +1041,8 @@ MutableBDASpace::allocate_container(size_t size, BDARegion* r)
     new_ctr = spaces()->at(0)->push_container(size);
   }
 
-  mark_container(new_ctr);
+  if (new_ctr != NULL)
+    mark_container(new_ctr);
   return new_ctr;
 }
 
@@ -1115,24 +1174,85 @@ MutableBDASpace::print_short_on(outputStream* st) const {
 void
 MutableBDASpace::oop_iterate(ExtendedOopClosure* cl)
 {
+  // First iterate the containers of all spaces,
+  // then iterate the objects in the other-space that
+  // do not belong to containers.
   for(int i = 0; i < spaces()->length(); ++i) {
-    spaces()->at(i)->space()->oop_iterate(cl);
+    CGRPSpace * grp = spaces()->at(i);
+    if (grp->container_count() > 0) {
+      grp->oop_iterate_containers(cl);
+    }
+  }
+
+  MutableSpace * const other_space = spaces()->at(0)->space();
+  HeapWord * const top = other_space->top();
+  HeapWord * bottom    = other_space->bottom();
+
+  while (bottom < top) {
+    HeapWord * const tmp_top = this->get_next_beg_seg(bottom, top);
+    HeapWord * p = bottom;
+    while (p < tmp_top) {
+      p += oop(p)->oop_iterate(cl);
+    }
+    HeapWord * const new_bottom = this->get_next_end_seg(tmp_top + 1, top) + 1;
+    bottom = new_bottom;
   }
 }
 
 void
 MutableBDASpace::oop_iterate_no_header(OopClosure* cl)
 {
+  // First iterate the containers of all spaces,
+  // then iterate the objects in the other-space that
+  // do not belong to containers
   for(int i = 0; i < spaces()->length(); ++i) {
-    spaces()->at(i)->space()->oop_iterate_no_header(cl);
+    CGRPSpace * grp = spaces()->at(i);
+    if (grp->container_count() > 0) {
+      grp->oop_iterate_no_header_containers(cl);
+    }
+  }
+
+  MutableSpace * const other_space = spaces()->at(0)->space();
+  HeapWord * const top = other_space->top();
+  HeapWord * bottom    = other_space->bottom();
+
+  while (bottom < top) {
+    HeapWord * const tmp_top = this->get_next_beg_seg(bottom, top);
+    HeapWord * p = bottom;
+    while (p < tmp_top) {
+      p += oop(p)->oop_iterate_no_header(cl);
+    }
+    HeapWord * const new_bottom = this->get_next_end_seg(tmp_top + 1, top) + 1;
+    bottom = new_bottom;
   }
 }
 
 void
 MutableBDASpace::object_iterate(ObjectClosure* cl)
 {
+  // First iterate the containers of all spaces,
+  // then iterate the objects in the other-space that
+  // do not belong to containers
   for(int i = 0; i < spaces()->length(); ++i) {
-    spaces()->at(i)->space()->object_iterate(cl);
+    CGRPSpace * grp = spaces()->at(i);
+    if (grp->container_count() > 0) {
+      grp->object_iterate_containers(cl);
+    }
+  }
+
+  MutableSpace * const other_space = spaces()->at(0)->space();
+  HeapWord * const top = other_space->top();
+  HeapWord * bottom    = other_space->bottom();
+
+  while (bottom < top) {
+    HeapWord * const tmp_top = this->get_next_beg_seg(bottom, top);
+    HeapWord * p = bottom;
+    while (p < tmp_top) {
+      cl->do_object(oop(p));
+      p += oop(p)->size();
+    }
+    HeapWord * const new_bottom = this->get_next_end_seg(tmp_top + 1, top) + 1;
+    bottom = new_bottom;
   }
 }
 /////////////

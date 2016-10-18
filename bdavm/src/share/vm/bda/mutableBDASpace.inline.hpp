@@ -126,7 +126,7 @@ MutableBDASpace::CGRPSpace::calculate_reserved_sz()
   // default collection size, the amount of delegation -- delegation-level or dl --,
   // and the default number of fields (dnf) for each element.
 
-  // The algorithm computes the following expression, where 'f' is the default number
+  // The algorithm computes the following expression, where 'f' is the default size
   // of fields (assumed to be 1 hw each), 'h' the header size and 'k' the
   // DELEGATION_LEVEL, i.e., how much the elements of a collection delegate until
   // the actual data:
