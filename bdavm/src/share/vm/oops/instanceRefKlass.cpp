@@ -449,12 +449,68 @@ int InstanceRefKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) {
 }
 
 #ifdef BDA
+template <class T>
+void specialized_oop_push_bdaref_contents(InstanceRefKlass *ref, container_t * c,
+                                          PSPromotionManager* pm, oop obj) {
+  T* referent_addr = (T*)java_lang_ref_Reference::referent_addr(obj);
+  if (PSScavenge::should_scavenge(referent_addr)) {
+    ReferenceProcessor* rp = PSScavenge::reference_processor();
+    if (rp->discover_reference(obj, ref->reference_type())) {
+      // reference already enqueued, referent and next will be traversed later
+      ref->InstanceKlass::oop_push_bdaref_contents(pm, c, obj);
+      return;
+    } else {
+      // treat referent as normal oop
+      pm->claim_or_forward_bdaref(referent_addr, c);
+    }
+  }
+  // Treat discovered as normal oop, if ref is not "active",
+  // i.e. if next is non-NULL.
+  T* next_addr = (T*)java_lang_ref_Reference::next_addr(obj);
+  if (ReferenceProcessor::pending_list_uses_discovered_field()) {
+    T  next_oop = oopDesc::load_heap_oop(next_addr);
+    if (!oopDesc::is_null(next_oop)) { // i.e. ref is not "active"
+      T* discovered_addr = (T*)java_lang_ref_Reference::discovered_addr(obj);
+      debug_only(
+        if(TraceReferenceGC && PrintGCDetails) {
+          gclog_or_tty->print_cr("   Process discovered as normal "
+                                 INTPTR_FORMAT, discovered_addr);
+        }
+      )
+      if (PSScavenge::should_scavenge(discovered_addr)) {
+        pm->claim_or_forward_bdaref(discovered_addr, c);
+      }
+    }
+  } else {
+#ifdef ASSERT
+    // In the case of older JDKs which do not use the discovered
+    // field for the pending list, an inactive ref (next != NULL)
+    // must always have a NULL discovered field.
+    oop next = oopDesc::load_decode_heap_oop(next_addr);
+    oop discovered = java_lang_ref_Reference::discovered(obj);
+    assert(oopDesc::is_null(next) || oopDesc::is_null(discovered),
+           err_msg("Found an inactive reference " PTR_FORMAT " with a non-NULL discovered field",
+                   (oopDesc*)obj));
+#endif
+  }
+
+  // Treat next as normal oop;  next is a link in the reference queue.
+  if (PSScavenge::should_scavenge(next_addr)) {
+    pm->claim_or_forward_bdaref(next_addr, c);
+  }
+  ref->InstanceKlass::oop_push_bdaref_contents(pm, c, obj);
+}
+
 void
 InstanceRefKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
                                            container_t * container,
                                            oop obj)
 {
-  InstanceKlass::oop_push_bdaref_contents(pm, container, obj);
+  if (UseCompressedOops) {
+    specialized_oop_push_bdaref_contents<narrowOop>(this, container, pm, obj);
+  } else {
+    specialized_oop_push_bdaref_contents<oop>(this, container, pm, obj);
+  }
 }
 #endif // BDA
 

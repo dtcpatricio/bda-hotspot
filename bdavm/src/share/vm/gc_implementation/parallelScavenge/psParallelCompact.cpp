@@ -916,7 +916,7 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     // Accumulate how much of the container is live and set the region's destination.
     size_t source_live = 0;
     for (int i = 0; i < source_regions; ++i) {
-      RegionData * cntr_region = &_region_data[cur_region + i];
+      RegionData * const cntr_region = &_region_data[cur_region + i];
       cntr_region->set_destination(dest_addr);
 
       uint destination_count = 0;
@@ -957,16 +957,16 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
         if (segment_live <= source_size - source_live) {
           for (int i = 0; i < segment_regions; ++i) {
             const size_t seg_region_idx   = addr_to_region_idx(container_seg->_start) + (size_t)i;
-            RegionData   seg_region       = _region_data[seg_region_idx];
+            RegionData * const seg_region = &_region_data[seg_region_idx];
 
             // Skip already scanned segments
-            if (seg_region.scanned())
+            if (seg_region->scanned())
               continue;
             
-            seg_region.set_destination(dest_addr);
+            seg_region->set_destination(dest_addr);
 
             uint destination_count = 0;
-            const size_t words = seg_region.data_size();
+            const size_t words = seg_region->data_size();
             if (words > 0) {
               HeapWord * const last_addr = dest_addr + words - 1;
               const size_t dest_region_1 = addr_to_region_idx(dest_addr);
@@ -979,8 +979,8 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
                 _region_data[dest_region_1].set_source_region(seg_region_idx);
               }
             }
-            seg_region.set_destination_count(destination_count);
-            seg_region.set_scanned(); dest_addr += words;
+            seg_region->set_destination_count(destination_count);
+            seg_region->set_scanned(); dest_addr += words;
           }
           // The segment was fully claimed thus it is now empty. Reset its fields, it shall
           // be returned to the container pool in the last stage (cleanup).
