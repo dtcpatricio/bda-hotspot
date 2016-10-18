@@ -11,7 +11,7 @@ BDAScavenge::copy_and_push_safe_barrier(PSPromotionManager* pm,
                                         void * r,
                                         RefQueue::RefType rt)
 {
-  assert(PSScavenge::should_scavenge(p, true), "revisiting object?");
+  assert(PSScavenge::should_scavenge(p), "revisiting object?");
 
   oop o = oopDesc::load_decode_heap_oop_not_null(p);
   oop new_obj = o->is_forwarded()
