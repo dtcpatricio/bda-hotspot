@@ -14,7 +14,7 @@ do
             exit 1;
             ;;
         -bda)
-            usebda="-XX:+UseBDA -XX:BDARegionRatio=$2 -XX:BDAKlasses=${@:3:1}"
+            usebda="-XX:+UseBDA -XX:BDARatio=$2 -XX:BDAKlasses=${@:3:1}"
             shift 3
             ;;
         -dacapo)
