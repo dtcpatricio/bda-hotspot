@@ -94,7 +94,7 @@ RefQueue::dequeue()
   // then there must be a membar in between this calls or else the remove_end() may
   // be null at one time, before another thread that enqueued a Ref sets the remove_end() value.
   if(remove_end() == NULL) set_insert_end(NULL);
-  Atomic::dec(&_n_elements);
+  DEBUG_ONLY(Atomic::dec(&_n_elements);)
   return temp;
 }
 
