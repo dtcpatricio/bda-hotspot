@@ -48,7 +48,7 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
       while ((c = bda_space->cas_get_next_container()) != NULL) {
         do {
           c_top = _helper->top(c);
-          if (c_top == NULL) continue;
+          if (c_top == NULL || c->_start == c_top) continue;
           assert (c->_start < c_top, "containers and segments are not empty allocated");
           card_table->scavenge_bda_contents_parallel(_old_gen->start_array(),
                                                      c,
