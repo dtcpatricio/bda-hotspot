@@ -545,6 +545,12 @@ MutableBDASpace::initialize_regions(size_t space_size,
 
   const int    bda_nregions = spaces()->length() - 1;
   const size_t alignment    = MutableBDASpace::CGRPSpace::segment_sz;
+
+  // Careful with the abusers
+  if (BDARatio < 1) {
+    vm_shutdown_during_initialization(err_msg("The BDARatio cannot go below 1!"));
+  }
+  
   size_t bda_space    = (size_t)round_down(space_size / BDARatio, alignment);
   size_t bda_region_sz = (size_t)round_down(bda_space / bda_nregions, alignment);
 
