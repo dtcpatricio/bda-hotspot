@@ -72,7 +72,7 @@ BDACardTableHelper::top(container_t * c)
 container_t *
 MutableBDASpace::CGRPSpace::allocate_container(size_t size)
 {  
-  container_t * container = install_container_in_space(segment_sz, size);
+  container_t * container = install_container_in_space(CGRPSpace::segment_sz, size);
   // Here, the container pointer is installed on the RegionData object that manages
   // the address range this container spans during OldGC. This is for fast access
   // during summarize and update of the containers top pointers.

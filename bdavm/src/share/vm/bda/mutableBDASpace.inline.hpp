@@ -11,21 +11,25 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
   // Objects bigger than this size are, generally, large arrays
   // Get a container from the large_pool or allocate a special one
   // big enough for the size.
-  if (size > MutableBDASpace::MinRegionSize) {
+  if (size > MutableBDASpace::CGRPSpace::segment_sz) {
 
-    int tries = 0;
-    while ( (container = _large_pool->dequeue()) != NULL ) {
-      unmask_container(container);
-      if (pointer_delta(container->_end, container->_start) >= size) {
-        container->_top += size;
-        break;
-      } else if (tries < 3) {
-        mask_container(container);
-        _large_pool->enqueue(container);
-        tries++;
-      } else {
-        container = allocate_large_container(size);
-        break;
+    if (_large_pool->peek() == NULL) {
+      container = allocate_large_container(size);
+    } else {
+      int tries = 0;
+      while ( (container = _large_pool->dequeue()) != NULL ) {
+        unmask_container(container);
+        if (pointer_delta(container->_end, container->_start) >= size) {
+          container->_top += size;
+          break;
+        } else if (tries < 3) {
+          mask_container(container);
+          _large_pool->enqueue(container);
+          tries++;
+        } else {
+          container = allocate_large_container(size);
+          break;
+        }
       }
     }
 
@@ -37,6 +41,7 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
       unmask_container(container);
       container->_top += size;
     } else {
+      // This call already sets the top
       container = allocate_container(size);
     }
   }
@@ -63,21 +68,25 @@ MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t ** c)
   // Objects bigger than this size are, generally, large arrays
   // Get a container from the large_pool or allocate a special one
   // big enough for the size.
-  if ( size > MutableBDASpace::MinRegionSize ) {
+  if ( size > MutableBDASpace::CGRPSpace::segment_sz ) {
 
-    int tries = 0;
-    while ( (container = _large_pool->dequeue()) != NULL ) {
-      unmask_container(container);
-      if (pointer_delta(container->_end, container->_start) >= size) {
-        container->_top += size;
-        break;
-      } else if (tries < 3) {
-        mask_container(container);
-        _large_pool->enqueue(container);
-        tries++;
-      } else {
-        container = allocate_large_container(size);
-        break;
+    if (_large_pool->peek() == NULL) {
+      container = allocate_large_container(size);
+    } else {
+      int tries = 0;
+      while ( (container = _large_pool->dequeue()) != NULL ) {
+        unmask_container(container);
+        if (pointer_delta(container->_end, container->_start) >= size) {
+          container->_top += size;
+          break;
+        } else if (tries < 3) {
+          mask_container(container);
+          _large_pool->enqueue(container);
+          tries++;
+        } else {
+          container = allocate_large_container(size);
+          break;
+        }
       }
     }
 
