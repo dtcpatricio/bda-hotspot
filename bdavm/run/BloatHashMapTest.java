@@ -34,6 +34,8 @@ public class BloatHashMapTest {
                 map.put((long)j, v.set_value("Value scanned"));
             }
         }
+        System.out.println("--- Read map with color " + map.color());
+        
         for (int i = 0; i < readCount; ++i) {
             j = i % bs.max;
             if (map1.get(j) != null) {
@@ -41,6 +43,8 @@ public class BloatHashMapTest {
                 map1.put((long)j, v.set_value("Value scanned"));
             }
         }
+        System.out.println("--- Read map with color " + map1.color());
+        
         for (int i = 0; i < readCount; ++i) {
             j = i % bs.max;
             if (map2.get(j) != null) {
@@ -48,6 +52,8 @@ public class BloatHashMapTest {
                 map2.put((long)j, v.set_value("Value scanned"));
             }
         }
+        System.out.println("--- Read map with color " + map2.color());
+        
         for (int i = 0; i < readCount; ++i) {
             j = i % bs.max;
             if (map3.get(j) != null) {
@@ -55,6 +61,8 @@ public class BloatHashMapTest {
                 map3.put((long)j, v.set_value("Value scanned"));
             }
         }
+        System.out.println("--- Read map with color " + map3.color());
+        
         for (int i = 0; i < readCount; ++i) {
             j = i % bs.max;
             if (map4.get(j) != null) {
@@ -62,6 +70,8 @@ public class BloatHashMapTest {
                 map4.put((long)j, v.set_value("Value scanned"));
             }
         }
+        System.out.println("--- Read map with color " + map4.color());
+        
         for (int i = 0; i < readCount; ++i) {
             j = i % bs.max;
             if (map5.get(j) != null) {
@@ -69,6 +79,7 @@ public class BloatHashMapTest {
                 map5.put((long)j, v.set_value("Value scanned"));
             }
         }
+        System.out.println("--- Read map with color " + map5.color());
 
         long elapsedTime = System.nanoTime() - startTime;
         double divisor = 1000000000.0;
