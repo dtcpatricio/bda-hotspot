@@ -57,26 +57,9 @@
 #ifdef TARGET_ARCH_ppc
 # include "bytes_ppc.hpp"
 #endif
-#ifdef HEADER_MARK
-# include "oops/regionMark.hpp"
-# include "oops/klassRegionMap.hpp"
-#endif
 
 // Implementation of all inlined member functions defined in oop.hpp
 // We need a separate file to avoid circular references
-
-#ifdef HEADER_MARK
-inline BDARegion*
-oopDesc::load_region_oop(oop p)
-{
-  return (BDARegion* volatile)OrderAccess::load_ptr_acquire(p->region_addr());
-}
-inline void
-oopDesc::store_region_oop(BDARegion** v, BDARegion* r)
-{
-  OrderAccess::release_store_ptr((intptr_t**)v, (intptr_t*)r);
-}
-#endif
 
 inline void oopDesc::release_set_mark(markOop m) {
   OrderAccess::release_store_ptr(&_mark, m);
