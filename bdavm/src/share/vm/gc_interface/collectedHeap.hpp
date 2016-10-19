@@ -210,6 +210,7 @@ class CollectedHeap : public CHeapObj<mtInternal> {
   // Getter for the instance of the bda refqueue, which although it is static
   // it needs to be created or it is just NULL
   RefQueue * bda_refqueue() { return _bda_refqueue; }
+  bool     clear_refqueue() { bda_refqueue()->clear(); }
 #endif // BDA
 
   virtual CollectedHeap::Name kind() const { return CollectedHeap::Abstract; }

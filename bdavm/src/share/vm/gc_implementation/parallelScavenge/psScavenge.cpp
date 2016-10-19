@@ -751,8 +751,12 @@ bool PSScavenge::invoke_no_policy() {
 
     gc_task_manager()->release_idle_workers();
 #ifdef BDA
-    if (saved_tops != NULL)
-      delete saved_tops;
+    if (UseBDA) {
+      if (saved_tops != NULL)
+        delete saved_tops;
+      Universe::heap()->clear_refqueue();
+    }
+    
 #endif
   }
 

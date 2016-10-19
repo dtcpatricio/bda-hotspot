@@ -46,6 +46,7 @@ class RefQueue : public CHeapObj<mtGC> {
   // Methods for modification of the queue
   inline void  enqueue(oop obj, BDARegion * r);
   inline Ref * dequeue();
+  inline bool  clear();
   inline Ref * peek()       { return _remove_end; }
 
  protected:
@@ -97,4 +98,12 @@ RefQueue::dequeue()
   return temp;
 }
 
+// TODO: Implement caching mechanism!
+inline bool
+RefQueue::clear()
+{
+  set_insert_end(NULL);
+  set_remove_end(NULL);
+  DEBUG_ONLY(_n_elements = 0;)
+}
 #endif // SHARE_VM_BDA_REFQUEUE_HPP
