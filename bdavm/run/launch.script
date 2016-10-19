@@ -3,6 +3,10 @@
 while :
 do
     case "$1" in
+        -gud)
+             MODE=-gud
+             shift
+             ;;
         -h|--help)
             echo "Usage:"
             echo -e "-bda \t\t <Ratio for the BDA-Spaces under the overall Old Space> <Class names as strings on a comma separated list>"
@@ -57,7 +61,7 @@ else
     JAVA_ARGS="-classpath $MYDIR $DACAPO_ARGS"
 fi
 
-JVM_ARGS="-XX:+UseParallelGC -XX:+UseParallelOldGC -XX:-UseCompressedOops -XX:-UseCompressedClassPointers -XX:-UsePerfData -XX:-UseAdaptiveSizePolicy ${usebda} ${compressed} ${print} ${add_args}"
+JVM_ARGS="-XX:+UseParallelGC -XX:+UseParallelOldGC -XX:-UseCompressedOops -XX:-UseCompressedClassPointers -XX:-UsePerfData -XX:-UseAdaptiveSizePolicy ${usebda} ${print} ${add_args}"
 
 echo "JAVA_ARGS to be used $JAVA_ARGS"
 echo "JVM_ARGS to be used $JVM_ARGS"
@@ -68,4 +72,4 @@ ALT_JAVA_HOME=$JAVA_HOME
 export JAVA_ARGS
 export ALT_JAVA_HOME
 
-exec $HS_SCRIPT_DIR/hotspot -gud $JVM_ARGS
+exec $HS_SCRIPT_DIR/hotspot $MODE $JVM_ARGS
