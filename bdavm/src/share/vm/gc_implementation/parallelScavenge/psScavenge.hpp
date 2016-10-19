@@ -30,7 +30,7 @@
 #include "gc_implementation/shared/collectorCounters.hpp"
 #include "gc_implementation/shared/gcTrace.hpp"
 #include "memory/allocation.hpp"
-#include "oops/oop.hpp"
+#include "oops/oop.inline.hpp"
 #include "utilities/stack.hpp"
 
 class GCTaskManager;
