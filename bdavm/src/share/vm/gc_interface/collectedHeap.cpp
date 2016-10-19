@@ -595,7 +595,7 @@ CollectedHeap::enqueue_asm(JavaThread * java_thread, oop * obj, BDARegion * r)
 #ifdef ASSERT
   assert (obj != NULL && r != NULL, "neither object and the space can be null");
   if (PrintEnqueuedContainers) {
-    tty->print_cr ("Container reference 0x%16p enqueued for space " INT32_FORMAT,
+    gclog_or_tty->print_cr ("Container reference 0x%16p enqueued for space " INT32_FORMAT,
                    obj,
                    r->value());
   }
