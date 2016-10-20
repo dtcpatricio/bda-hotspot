@@ -54,9 +54,9 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
                                                      c,
                                                      _helper->top(c),
                                                      pm);
-          pm->drain_bda_stacks();
         } while ((c = c->_next_segment) != NULL);
       }
+      pm->drain_bda_stacks();
     }
   }
 }
