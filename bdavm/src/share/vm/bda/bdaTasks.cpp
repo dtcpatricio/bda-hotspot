@@ -18,9 +18,8 @@ BDARefRootsTask::do_it(GCTaskManager * manager, uint which)
       pm->process_dequeued_bdaroot<narrowOop>(r);
     else
       pm->process_dequeued_bdaroot<oop>(r);
-    
-    pm->drain_bda_stacks();
   }
+  pm->drain_bda_stacks();
 }
 
 

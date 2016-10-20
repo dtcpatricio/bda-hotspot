@@ -211,9 +211,9 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
       // deallocate it, so we have to test.  If the deallocation fails,
       // overwrite with a filler object.
       if (new_obj_is_tenured) {
-          if (!_old_lab.unallocate_object((HeapWord*) new_obj, new_obj_size)) {
-            CollectedHeap::fill_with_object((HeapWord*) new_obj, new_obj_size);
-          }
+        if (!_old_lab.unallocate_object((HeapWord*) new_obj, new_obj_size)) {
+          CollectedHeap::fill_with_object((HeapWord*) new_obj, new_obj_size);
+        }
       } else if (!_young_lab.unallocate_object((HeapWord*) new_obj, new_obj_size)) {
         CollectedHeap::fill_with_object((HeapWord*) new_obj, new_obj_size);
       }
@@ -231,20 +231,14 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
   // information.
   if (TraceScavenge) {
     gclog_or_tty->print_cr("{%s %s " PTR_FORMAT " -> " PTR_FORMAT " (%d)}",
-       PSScavenge::should_scavenge(&new_obj) ? "copying" : "tenuring",
-       new_obj->klass()->internal_name(), p2i((void *)o), p2i((void *)new_obj), new_obj->size());
+                           PSScavenge::should_scavenge(&new_obj) ? "copying" : "tenuring",
+                           new_obj->klass()->internal_name(), p2i((void *)o), p2i((void *)new_obj), new_obj->size());
   }
 #endif
 
   return new_obj;
 }
 #ifdef BDA
-template <class T> inline void
-PSPromotionManager::push_bdaref_stack(T * p, container_t * ct)
-{
-  (&_bdaref_stack)->push(BDARefTask(p, ct));
-}
-
 template <class T> inline void
 PSPromotionManager::claim_or_forward_bdaref(T * p, container_t * ct)
 {
@@ -377,8 +371,10 @@ PSPromotionManager::process_popped_bdaref_depth(BDARefTask t)
     oop const old = unmask_chunked_array_oop(p);
     process_bda_array_chunk(old, ct);
   } else {
-    BDAScavenge::copy_and_push_safe_barrier<T, /*promote_immediately=*/true>(
+    if (PSScavenge::should_scavenge((T*)t)) {
+      BDAScavenge::copy_and_push_safe_barrier<T, /*promote_immediately=*/true>(
         this, (T*)t, (void*)ct, RefQueue::element);
+    }
   }
 }
 
@@ -389,7 +385,7 @@ PSPromotionManager::process_dequeued_bdaroot(Ref * r)
   // Ref only keeps oop and does not encode into an narrowOop
   if (PSScavenge::should_scavenge((T*)r->ref_addr())) {
     BDAScavenge::copy_and_push_safe_barrier<T, true>(this, (T*)r->ref_addr(), (void*)r->region(),
-                                                       RefQueue::container);
+                                                     RefQueue::container);
   }
 }
 

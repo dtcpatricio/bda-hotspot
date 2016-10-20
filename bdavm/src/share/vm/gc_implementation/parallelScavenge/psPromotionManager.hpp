@@ -89,7 +89,7 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   OverflowTaskQueue<oop, mtGC>        _claimed_stack_breadth;
 
 #ifdef BDA
-  BDARefStack                         _bdaref_stack;
+  BDARefTaskQueue                     _bdaref_stack;
 #endif
   
   bool                                _totally_drain;
@@ -194,7 +194,10 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
                                                                        void * r,
                                                                        RefQueue::RefType rt);
   template <class T> inline void claim_or_forward_bdaref(T * p, container_t * ct);
-  template <class T> inline void push_bdaref_stack(T * p, container_t * ct);
+  template <class T> inline void push_bdaref_stack(T * p, container_t * ct)
+  {
+    bdaref_stack()->push(BDARefTask(p, ct));
+  }
   oop bda_oop_promotion_failed(oop obj, markOop obj_mark);
   template <class T> inline void process_popped_bdaref_depth(BDARefTask t);
   template <class T> inline void process_dequeued_bdaroot(Ref * r);
@@ -210,7 +213,7 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   void drain_bda_stacks();
 
   // Accessors
-  BDARefStack * bdaref_stack() {
+  BDARefTaskQueue * bdaref_stack() {
     return &_bdaref_stack;
   }
 #endif

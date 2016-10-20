@@ -785,6 +785,53 @@ private:
   int _index;
 };
 
+#ifdef BDA
+//
+// The RefStack is a stack whose elements are to group bda container refs
+// (i.e. elements of a collection) with the container they belong to. BDARefTask is that element.
+// It works much as a StarTask (see taskqueue.hpp) but it groups the oop with the container it
+// belongs to in the bda-spaces to inform the collector where the oop should be promoted.
+//
+class BDARefTask
+{
+
+  void *        _holder;
+  container_t * _container;
+
+  enum { COMPRESSED_OOP_MASK = 1 };
+  
+ public:
+  
+  BDARefTask(narrowOop * p, container_t * c) : _container(c) {
+    assert(((uintptr_t)p & COMPRESSED_OOP_MASK) == 0, "Information loss!");
+    _holder = (void*)((uintptr_t)p | COMPRESSED_OOP_MASK);
+  }
+  BDARefTask(oop * p, container_t * c) : _container(c) {
+    assert(((uintptr_t)p & COMPRESSED_OOP_MASK) == 0, "Information loss!");
+    _holder = (void*)p;
+  }
+  BDARefTask()                 { _holder = NULL; _container = NULL; }
+  operator oop * ()            { return (oop*)_holder; }
+  operator narrowOop * ()      { return (narrowOop*)((uintptr_t)_holder & ~COMPRESSED_OOP_MASK); }
+  container_t * container ()   { return _container; }
+
+  BDARefTask& operator=(const BDARefTask& t) {
+    _holder = t._holder;
+    _container = t._container;
+    return *this;
+  }
+  volatile BDARefTask& operator=(const volatile BDARefTask& t) volatile {
+    _holder = t._holder;
+    _container = t._container;
+    return *this;
+  }
+  
+  bool is_narrow() const {
+    return (((uintptr_t)_holder & COMPRESSED_OOP_MASK) != 0);
+  }
+};
+#endif // BDA
+
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -795,5 +842,8 @@ typedef GenericTaskQueueSet<OopStarTaskQueue, mtClass> OopStarTaskQueueSet;
 typedef OverflowTaskQueue<size_t, mtInternal>             RegionTaskQueue;
 typedef GenericTaskQueueSet<RegionTaskQueue, mtClass>     RegionTaskQueueSet;
 
+#ifdef BDA
+typedef OverflowTaskQueue<BDARefTask, mtClass>         BDARefTaskQueue;
+#endif
 
 #endif // SHARE_VM_UTILITIES_TASKQUEUE_HPP

@@ -161,6 +161,9 @@ PSPromotionManager::PSPromotionManager() {
 
   uint queue_size;
   claimed_stack_depth()->initialize();
+#ifdef BDA
+  bdaref_stack()->initialize();
+#endif
   queue_size = claimed_stack_depth()->max_elems();
 
   _totally_drain = (ParallelGCThreads == 1) || (GCDrainStackTargetSize == 0);
@@ -358,19 +361,25 @@ oop PSPromotionManager::oop_promotion_failed(oop obj, markOop obj_mark) {
 void
 PSPromotionManager::drain_bda_stacks()
 {
-  BDARefStack * rs = bdaref_stack();
+  BDARefTaskQueue * const tq = bdaref_stack();
 
-  while (!rs->is_empty()) {
+  do {
     BDARefTask p;
-    
-    p = rs->pop();
-    if(p.is_narrow())
-      process_popped_bdaref_depth<narrowOop>(p);
-    else
+    // TODO: Add the condition p.is_narrow() to cover all cases.
+    // Although I don't need it for the server tests.
+    while (tq->pop_overflow(p)) {
       process_popped_bdaref_depth<oop>(p);
-  }
+    }
 
-  assert (rs->is_empty(), "Sanity");
+    while (tq->pop_local(p)) {
+      process_popped_bdaref_depth<oop>(p);
+    }
+    
+  } while (!tq->taskqueue_empty() || !tq->overflow_empty());
+
+  assert(tq->taskqueue_empty(), "Sanity");
+  assert(tq->size() <= _target_stack_size, "Sanity");
+  assert(tq->overflow_empty(), "Sanity");
 }
 
 /*

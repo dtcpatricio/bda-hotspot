@@ -77,40 +77,4 @@ class OldToYoungNonBDARootsTask : public GCTask
   virtual void do_it(GCTaskManager * manager, uint which);
 };
 
-//
-// The RefStack is a stack whose elements are to group bda container refs
-// (i.e. elements of a collection) with the container they belong to. BDARefTask is that element.
-// It works much as a StarTask (see taskqueue.hpp) but it groups the oop with the container it
-// belongs to in the bda-spaces to inform the collector where the oop should be promoted.
-//
-class BDARefTask
-{
-
-  void *        _holder;
-  container_t * _container;
-
-  enum { COMPRESSED_OOP_MASK = 1 };
-  
- public:
-  
-  BDARefTask(narrowOop * p, container_t * c) : _container(c) {
-    assert(((uintptr_t)p & COMPRESSED_OOP_MASK) == 0, "Information loss!");
-    _holder = (void*)((uintptr_t)p | COMPRESSED_OOP_MASK);
-  }
-  BDARefTask(oop * p, container_t * c) : _container(c) {
-    assert(((uintptr_t)p & COMPRESSED_OOP_MASK) == 0, "Information loss!");
-    _holder = (void*)p;
-  }
-  BDARefTask()                 { _holder = NULL; _container = NULL; }
-  operator oop * ()            { return (oop*)_holder; }
-  operator narrowOop * ()      { return (narrowOop*)((uintptr_t)_holder & ~COMPRESSED_OOP_MASK); }
-  container_t * container ()   { return _container; }
-
-  bool is_narrow() const {
-    return (((uintptr_t)_holder & COMPRESSED_OOP_MASK) != 0);
-  }
-};
-
-typedef Stack<BDARefTask, mtGC> BDARefStack;
-
 #endif // SHARE_VM_BDA_BDATASKS_HPP
