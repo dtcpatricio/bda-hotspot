@@ -2,6 +2,7 @@
 #define SHARE_VM_BDA_MUTABLEBDASPACE_INLINE_HPP
 
 # include "bda/mutableBDASpace.hpp"
+# include "oops/klassRegionMap.hpp"
 
 inline container_t*
 MutableBDASpace::CGRPSpace::push_container(size_t size)
@@ -102,8 +103,11 @@ MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t ** c)
     }
     
   }
-  
-  if (container != NULL) {
+
+  // TODO: The non-bda-space cannot have linked segments because these are deallocated after
+  // FullGC, causing a load of invalid space from a parent allocated in a bda-space (which are
+  // not deallocated).
+  if (container != NULL && container_type() != KlassRegionMap::region_start_ptr()) {
     next_segment = *c;
     do {
       prev_segment = next_segment;

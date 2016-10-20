@@ -1077,7 +1077,15 @@ MutableBDASpace::allocate_element(size_t size, container_t ** c)
     }
     assert (grp != NULL, "The container must have been allocated in one of the groups");
     old_top = grp->allocate_new_segment(size, c); // reuse the variable
-    mark_container(*c);
+    // Force allocate in the general object space if it wasn't possible on the bda-space
+    if (old_top == NULL) {
+      old_top = spaces()->at(0)->allocate_new_segment(size, c);
+    }
+
+    // Now mark the container if the allocation was successful.
+    if (old_top != NULL)
+      mark_container(*c);
+    
   }
 
   return old_top;
