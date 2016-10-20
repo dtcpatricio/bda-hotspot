@@ -945,6 +945,10 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
       container_t * container_seg = (container_t*)source_container;
       while ((container_seg = container_seg->_next_segment) != NULL) {
 
+        // Jump segments allocated in a different space (usually, in the non-bda-space)
+        if (PSParallelCompact::bda_space()->non_bda_space()->contains(container_seg->_start))
+          continue;
+          
         // Iterate through the segment regions to find the amount of live data
         size_t segment_live = 0;
         const int segment_regions =
@@ -1028,7 +1032,8 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
 bool
 ParallelCompactData::fraction_of_occupancy(size_t live_data, size_t total_size)
 {
-  
+  // TODO: Is this worth implementing?
+  return true;
 }
 
 /**

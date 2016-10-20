@@ -1426,6 +1426,8 @@ class PSParallelCompact : AllStatic {
   inline static bool is_in_container(container_t * container, HeapWord * p);
   // See if the container is the same
   inline static bool is_same_container(size_t src_region_idx, size_t region_idx);
+  // Getter for the convenience bda_space ptr
+  static MutableBDASpace* bda_space() { return _bda_space; }
 #endif
   
   // Fill in the block table for the specified region.
