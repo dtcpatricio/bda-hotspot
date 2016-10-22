@@ -41,18 +41,17 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
 
     // Here we iterate through the bda spaces only, thus starting with the first which is in index 1
     // on the array of spaces.
-    _helper->prefetch_array();
     for (int spc_id = 0; spc_id < space->spaces()->length(); ++spc_id) {
       MutableBDASpace::CGRPSpace * bda_space = space->spaces()->at(spc_id);
       container_t * c; HeapWord * c_top;
       while ((c = bda_space->cas_get_next_container()) != NULL) {
         do {
-          c_top = _helper->top(c);
+          c_top = c->_saved_top;
           if (c_top == NULL || c->_start == c_top) continue;
           assert (c->_start < c_top, "containers and segments are not empty allocated");
           card_table->scavenge_bda_contents_parallel(_old_gen->start_array(),
                                                      c,
-                                                     _helper->top(c),
+                                                     c_top,
                                                      pm);
         } while ((c = c->_next_segment) != NULL);
       }

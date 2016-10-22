@@ -11,6 +11,7 @@ typedef struct container {
   HeapWord* _top;
   HeapWord* _start;
   HeapWord* _end;
+  HeapWord* _saved_top; // For scavenge from old to young;
   struct container * _next_segment; // For partition of containers into small segments.
   struct container * _prev_segment; // Ease the iteration and removal of segments
   struct container * _next; // For iteration of containers in mutableSpaces

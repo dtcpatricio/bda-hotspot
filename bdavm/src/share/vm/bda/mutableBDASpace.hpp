@@ -177,7 +177,7 @@ class MutableBDASpace : public MutableSpace
     // GC support
     inline container_t * cas_get_next_container();
     inline container_t * get_container_with_addr(HeapWord * addr);
-    inline void          save_top_ptrs(container_helper_t * helper, int * i);
+    inline void          save_top_ptrs();
     inline void          set_shared_gc_pointer() { _gc_current = _containers->peek(); }
 
     // Iteration support
@@ -240,7 +240,8 @@ class MutableBDASpace : public MutableSpace
   }
   container_t * container_for_addr(HeapWord * addr);
   void          add_to_pool(container_t * c, uint id);
-  void          set_shared_gc_pointers();
+  inline void   set_shared_gc_pointers();
+  inline void   save_tops_for_scavenge();
 
   // Statistics functions
   float avg_nsegments_in_bda();

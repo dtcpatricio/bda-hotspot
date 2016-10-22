@@ -302,19 +302,20 @@ MutableBDASpace::CGRPSpace::get_container_with_addr(HeapWord* addr)
 }
 
 inline void
-MutableBDASpace::CGRPSpace::save_top_ptrs(container_helper_t * helper, int * i)
+MutableBDASpace::CGRPSpace::save_top_ptrs()
 {
-  int from = *i;
+  // int from = *i;
+  if (container_count() > 0)
+    for(GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+        *iterator != NULL;
+        ++iterator) {
+      container_t * c = *iterator;
+      c->_saved_top = c->_top;
+      // helper[from]._container = c;
+      // helper[from++]._top = c->_top;
+    }
 
-  for(GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
-      *iterator != NULL;
-      ++iterator) {
-    container_t * c = *iterator;
-    helper[from]._container = c;
-    helper[from++]._top = c->_top;
-  }
-
-  *i = from;
+  // *i = from;
 }
 /////////////////////////////////////////
 // MutableBDASpace inline Definitions////
@@ -327,6 +328,22 @@ MutableBDASpace::container_count()
     acc += _spaces->at(i)->container_count();
   }
   return acc;
+}
+
+inline void
+MutableBDASpace::set_shared_gc_pointers()
+{
+  for (int i = 0; i < spaces()->length(); ++i) {
+    spaces()->at(i)->set_shared_gc_pointer();
+  }
+}
+
+inline void
+MutableBDASpace::save_tops_for_scavenge()
+{
+  for (int i = 0; i < spaces()->length(); ++i) {
+    spaces()->at(i)->save_top_ptrs();
+  }
 }
 
 inline bool

@@ -401,7 +401,6 @@ bool PSScavenge::invoke_no_policy() {
     // straying into the promotion labs.
     HeapWord* old_top = NULL;
 #ifdef BDA
-    BDACardTableHelper * saved_tops = NULL;
     MutableBDASpace * bda_manager = (MutableBDASpace*)old_gen->object_space();
     old_top = bda_manager->non_bda_space()->top();
 #else
@@ -436,19 +435,23 @@ bool PSScavenge::invoke_no_policy() {
         // old_top since non_bda_space() is a virtual that in a normal scenario (vanilla),
         // it returns the actual object_space(), while in bdavm it returns the segment of the
         // non-bda space.
-        saved_tops = new BDACardTableHelper(bda_manager);
+        // saved_tops = new BDACardTableHelper(bda_manager);
+        bda_manager->save_tops_for_scavenge();
           
         // FIXME: Our GC requires the existence of a pointer to a container_t which is
         // read among threads and the next in the queued CAS'd in. Ideally, the workload
         // should be better balanced between the threads.
         bda_manager->set_shared_gc_pointers();
         for (uint i = 0; i < active_workers; i++) {
-          q->enqueue(new OldToYoungBDARootsTask(old_gen, saved_tops));
+          q->enqueue(new OldToYoungBDARootsTask(old_gen));
         }
       }
+      
       RefQueue * refqueue = Universe::heap()->bda_refqueue();
-      for (uint j = 0; j < active_workers; j++) {
-        q->enqueue(new BDARefRootsTask(refqueue, old_gen));
+      if (!refqueue->is_empty()) {
+        for (uint j = 0; j < active_workers; j++) {
+          q->enqueue(new BDARefRootsTask(refqueue, old_gen));
+        }
       }
 #endif
 
@@ -752,8 +755,6 @@ bool PSScavenge::invoke_no_policy() {
     gc_task_manager()->release_idle_workers();
 #ifdef BDA
     if (UseBDA) {
-      if (saved_tops != NULL)
-        delete saved_tops;
       Universe::heap()->clear_refqueue();
     }
     

@@ -40,21 +40,18 @@ size_t MutableBDASpace::CGRPSpace::segment_sz = 0;
 /////////////// BDACardTableHelper ////////////////
 /////////////// ////////////////// /////////////////
 BDACardTableHelper::BDACardTableHelper(MutableBDASpace* sp) {
-  _length = sp->container_count();
-  _containers = NEW_RESOURCE_ARRAY(container_helper_t, _length);
-
-  // Fill in the array. It is filled by each CGRPSpace, i.e., the manager of each bda space.
-  int j = 0; int i = 0;
+  // Not needed for now
+  int j = 0;
   while (j++ < sp->spaces()->length() - 1) {
     MutableBDASpace::CGRPSpace * grp = sp->spaces()->at(j);
     if (grp->space()->not_empty())
-      grp->save_top_ptrs(_containers, &i);
+      grp->save_top_ptrs();
   }
 }
 
 BDACardTableHelper::~BDACardTableHelper()
 {
-  FREE_RESOURCE_ARRAY(container_helper_t, _containers, _length);  
+  // FREE_RESOURCE_ARRAY(container_helper_t, _containers, _length);  
 }
 
 HeapWord *
@@ -270,14 +267,6 @@ MutableBDASpace::add_to_pool(container_t * c, uint id)
 {
   CGRPSpace * grp = _spaces->at(id);
   grp->add_to_pool(c);
-}
-
-void
-MutableBDASpace::set_shared_gc_pointers()
-{
-  for (int i = 0; i < spaces()->length(); ++i) {
-    spaces()->at(i)->set_shared_gc_pointer();
-  }
 }
 
 bool

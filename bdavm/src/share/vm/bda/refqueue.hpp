@@ -48,6 +48,7 @@ class RefQueue : public CHeapObj<mtGC> {
   inline Ref * dequeue();
   inline bool  clear();
   inline Ref * peek()       { return _remove_end; }
+  inline bool  is_empty();
 
  protected:
   
@@ -105,5 +106,12 @@ RefQueue::clear()
   set_insert_end(NULL);
   set_remove_end(NULL);
   DEBUG_ONLY(_n_elements = 0;)
+  return true;
+}
+
+inline bool
+RefQueue::is_empty()
+{
+  return insert_end() == NULL && remove_end() == NULL;
 }
 #endif // SHARE_VM_BDA_REFQUEUE_HPP

@@ -42,11 +42,10 @@ class OldToYoungBDARootsTask : public GCTask
 
  private:
   PSOldGen * _old_gen;
-  BDACardTableHelper * _helper;
 
  public:
-  OldToYoungBDARootsTask(PSOldGen * old_gen, BDACardTableHelper * helper) :
-    _old_gen(old_gen), _helper(helper) { }
+  OldToYoungBDARootsTask(PSOldGen * old_gen) :
+    _old_gen(old_gen) { }
 
   char * name() { return (char*)"big-data old to young roots task"; }
 
