@@ -76,8 +76,10 @@ MutableBDASpace::CGRPSpace::allocate_container(size_t size)
   // Here, the container pointer is installed on the RegionData object that manages
   // the address range this container spans during OldGC. This is for fast access
   // during summarize and update of the containers top pointers.
-  if (container != NULL)
+  if (container != NULL) {
+    _manager->mark_container(container);
     PSParallelCompact::install_container_in_region(container);
+  }
   
   return container;
 }
@@ -90,8 +92,10 @@ MutableBDASpace::CGRPSpace::allocate_large_container(size_t size)
   // Here, the container pointer is installed on the RegionData object that manages
   // the address range this container spans during OldGC. This is for fast access
   // during summarize and update of the containers top pointers.
-  if (container != NULL)
+  if (container != NULL) {
+    _manager->mark_container(container);
     PSParallelCompact::install_container_in_region(container);
+  }
   
   return container;
 }
@@ -196,9 +200,9 @@ MutableBDASpace::MutableBDASpace(size_t alignment) : MutableSpace(alignment) {
   // It is implied that the KlassRegionMap must be initialized before since it parses
   // the BDAKlasses string.
   BDARegion* region = KlassRegionMap::region_start_ptr();
-  spaces()->append(new CGRPSpace(alignment, region)); ++region;
+  spaces()->append(new CGRPSpace(alignment, region, this)); ++region;
   for(int i = 0; i < n_regions; i++)  {
-    spaces()->append(new CGRPSpace(alignment, region));
+    spaces()->append(new CGRPSpace(alignment, region, this));
     region += 2;
   }
 }
@@ -1002,18 +1006,10 @@ HeapWord* MutableBDASpace::allocate(size_t size) {
 }
 
 HeapWord* MutableBDASpace::cas_allocate(size_t size) {
-  Thread* thr = Thread::current();
-  BDARegion* type2aloc = thr->alloc_region();
 
-  int i = spaces()->find(&type2aloc, CGRPSpace::equals);
-
-  if (i == 0)
-    HeapWord * dummy = 0x0;
-  // default to the no-collection space
-  if (i == -1)
-    i = 0;
-
-  CGRPSpace* cs = spaces()->at(i);
+  // Default to 0 always. The others only allocate through the
+  // allocate_container and allocate_new_segment calls
+  CGRPSpace* cs = spaces()->at(0);
   MutableSpace* ms = cs->space();
   HeapWord* obj = ms->cas_allocate(size);
 
@@ -1047,8 +1043,6 @@ MutableBDASpace::allocate_container(size_t size, BDARegion* r)
     new_ctr = spaces()->at(0)->push_container(size);
   }
 
-  if (new_ctr != NULL)
-    mark_container(new_ctr);
   return new_ctr;
 }
 
@@ -1081,13 +1075,7 @@ MutableBDASpace::allocate_element(size_t size, container_t ** c)
     if (old_top == NULL) {
       old_top = spaces()->at(0)->allocate_new_segment(size, c);
     }
-
-    // Now mark the container if the allocation was successful.
-    if (old_top != NULL)
-      mark_container(*c);
-    
   }
-
   return old_top;
 }
 

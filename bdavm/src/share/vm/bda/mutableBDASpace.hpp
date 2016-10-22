@@ -64,8 +64,10 @@ class MutableBDASpace : public MutableSpace
  
   // This class wraps the addressable space of the MutableBDASpace
   // for a particular collection type, or none at all.
-  class CGRPSpace : public CHeapObj<mtGC> {
-
+  class CGRPSpace : public CHeapObj<mtGC>
+  {
+    friend class MutableBDASpace;
+    
     enum { CONTAINER_IN_POOL_MASK = 1 };
     
     MutableSpace *                 _space;
@@ -84,6 +86,9 @@ class MutableBDASpace : public MutableSpace
     
     // GC support
     container_t *                  _gc_current;
+
+    // A pointer to the parent
+    MutableBDASpace *              _manager;
 
     // Helper function to calculate the power of base over exponent using bit-wise
     // operations. It is inlined for such.
@@ -109,7 +114,8 @@ class MutableBDASpace : public MutableSpace
     // This value is kept since it is the same for every regular segment.
     static size_t segment_sz;
 
-    CGRPSpace(size_t alignment, BDARegion * region) : _type(region) {
+    CGRPSpace(size_t alignment, BDARegion * region, MutableBDASpace * manager) :
+      _type(region), _manager(manager) {
       _space = new MutableSpace(alignment);
       _containers = GenQueue<container_t*, mtGC>::create();
       _pool = GenQueue<container_t*, mtGC>::create();
