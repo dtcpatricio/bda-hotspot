@@ -30,8 +30,10 @@ public class BloatHashMapTest {
         for (int i = 0; i < readCount; ++i) {
             j = i % bs.max;
             if (map.get(j) != null) {
-                Value v = map.get(j);
-                map.put((long)j, v.set_value("Value scanned"));
+              Value v = map.get(j);
+              Long  k = new Long(i);
+              Value n = new Value(v.value() + "scanned", v.color());
+              map.put(k, n);
             }
         }
         System.out.println("--- Read map with color " + map.color());
@@ -40,7 +42,9 @@ public class BloatHashMapTest {
             j = i % bs.max;
             if (map1.get(j) != null) {
                 Value v = map1.get(j);
-                map1.put((long)j, v.set_value("Value scanned"));
+                Long  k = new Long(i * 1);
+                Value n = new Value(v.value() + "scanned", v.color());
+                map1.put(k, n);
             }
         }
         System.out.println("--- Read map with color " + map1.color());
@@ -48,8 +52,10 @@ public class BloatHashMapTest {
         for (int i = 0; i < readCount; ++i) {
             j = i % bs.max;
             if (map2.get(j) != null) {
-                Value v = map2.get(j);
-                map2.put((long)j, v.set_value("Value scanned"));
+              Value v = map2.get(j);
+              Long  k = new Long(i * 2);
+              Value n = new Value(v.value() + "scanned", v.color());
+              map2.put(k, n);
             }
         }
         System.out.println("--- Read map with color " + map2.color());
@@ -57,8 +63,10 @@ public class BloatHashMapTest {
         for (int i = 0; i < readCount; ++i) {
             j = i % bs.max;
             if (map3.get(j) != null) {
-                Value v = map3.get(j);
-                map3.put((long)j, v.set_value("Value scanned"));
+              Value v = map3.get(j);
+              Long  k = new Long(i * 3);
+              Value n = new Value(v.value() + "scanned", v.color());
+              map3.put(k, n);
             }
         }
         System.out.println("--- Read map with color " + map3.color());
@@ -66,8 +74,10 @@ public class BloatHashMapTest {
         for (int i = 0; i < readCount; ++i) {
             j = i % bs.max;
             if (map4.get(j) != null) {
-                Value v = map4.get(j);
-                map4.put((long)j, v.set_value("Value scanned"));
+              Value v = map4.get(j);
+              Long  k = new Long(i * 4);
+              Value n = new Value(v.value() + "scanned", v.color());
+              map4.put(k, n);
             }
         }
         System.out.println("--- Read map with color " + map4.color());
@@ -75,17 +85,21 @@ public class BloatHashMapTest {
         for (int i = 0; i < readCount; ++i) {
             j = i % bs.max;
             if (map5.get(j) != null) {
-                Value v = map5.get(j);
-                map5.put((long)j, v.set_value("Value scanned"));
+              Value v = map5.get(j);
+              Long  k = new Long(i * 5);
+              Value n = new Value(v.value() + "scanned", v.color());
+              map5.put(k, n);
             }
         }
         System.out.println("--- Read map with color " + map5.color());
 
         for (int i = 0; i < readCount / 2; ++i) {
           j = i % bs.max;
-          if (map5.get(j) != null) {
-            Value v = map5.get(j);
-            map6.put((long)j, v.set_value("Value scanned"));
+          if (map6.get(j) != null) {
+            Value v = map6.get(j);
+            Long  k = new Long(i * 6);
+            Value n = new Value(v.value() + "scanned", v.color());
+            map6.put(k, n);
           }
         }
         System.out.println("--- Read map with color " + map6.color());
