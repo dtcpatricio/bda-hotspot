@@ -1,4 +1,3 @@
-// import java.util.HashMap;
 /*
  * Fills a big hashmap with tons of entries, and then tries to compute
  * new hash values for it
@@ -20,7 +19,8 @@ public class BloatHashMapTest {
         MyHashMap<Long, Value> map3 = bs.getMap3();
         MyHashMap<Long, Value> map4 = bs.getMap4();
         MyHashMap<Long, Value> map5 = bs.getMap5();
-    
+        MyHashMap<Long, Value> map6 = bs.getMap6();
+        
         // Read values on and on and report time taken
 
         System.out.println("---- Starting to read ----");
@@ -80,6 +80,15 @@ public class BloatHashMapTest {
             }
         }
         System.out.println("--- Read map with color " + map5.color());
+
+        for (int i = 0; i < readCount / 2; ++i) {
+          j = i % bs.max;
+          if (map5.get(j) != null) {
+            Value v = map5.get(j);
+            map6.put((long)j, v.set_value("Value scanned"));
+          }
+        }
+        System.out.println("--- Read map with color " + map6.color());
 
         long elapsedTime = System.nanoTime() - startTime;
         double divisor = 1000000000.0;
