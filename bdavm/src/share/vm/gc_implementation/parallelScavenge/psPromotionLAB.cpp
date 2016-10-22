@@ -155,13 +155,7 @@ bool PSOldPromotionLAB::lab_is_valid(MemRegion lab) {
   assert(_start_array->covered_region().contains(lab), "Sanity");
 
   PSOldGen* old_gen = heap->old_gen();
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  Thread *thr = Thread::current();
-  BDARegion* type = thr->alloc_region();
-  MemRegion used = ((BDCMutableSpace*)old_gen->object_space())->used_region(type);
-#else
   MemRegion used = old_gen->object_space()->used_region();
-#endif
 
   if (used.contains(lab)) {
     return true;
