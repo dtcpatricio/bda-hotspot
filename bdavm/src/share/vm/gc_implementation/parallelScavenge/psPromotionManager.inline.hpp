@@ -265,7 +265,7 @@ PSPromotionManager::claim_or_forward_bdaref(T * p, container_t * ct)
 
 template<bool promote_immediately> oop
 PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::RefType rt)
-{
+{  
   // TODO: Promote immediately does not work for now, thus the oop o is promoted to
   // old without further tests
 
@@ -316,7 +316,9 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::Ref
       } else {
         // lost the cas header race
         guarantee(o->is_forwarded(), "Object must be forwarded if the cas failed.");
-        // Leave it empty since it will be compacted during PSParallelCompact.
+        // Deallocate the object. In this case, the container is left empty.
+        container->_top = container->_start;
+        // Dont't update this before the unallocation!
         new_obj = o->forwardee();
       }
     } else {
@@ -351,10 +353,15 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::Ref
       } else {
         // lost the cas header race
         guarantee(o->is_forwarded(), "Object must be forwarded if the cas failed.");
-        // Leave it empty since it will be compacted during PSParallelCompact.
+        // Deallocate the object (each thread is single responsible for the containers it allocs)
+        container->_top -= new_obj_size;
+        // Don't update this before the unallocation
         new_obj = o->forwardee();
       }
     }
+  } else {
+    assert (o->is_forwarded(), "Sanity");
+    new_obj = o->forwardee();
   }
 
   return new_obj;
@@ -371,10 +378,8 @@ PSPromotionManager::process_popped_bdaref_depth(BDARefTask t)
     oop const old = unmask_chunked_array_oop(p);
     process_bda_array_chunk(old, ct);
   } else {
-    if (PSScavenge::should_scavenge((T*)t)) {
       BDAScavenge::copy_and_push_safe_barrier<T, /*promote_immediately=*/true>(
         this, (T*)t, (void*)ct, RefQueue::element);
-    }
   }
 }
 
