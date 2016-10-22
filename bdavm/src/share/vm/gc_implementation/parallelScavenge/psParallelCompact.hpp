@@ -694,7 +694,7 @@ ParallelCompactData::EmptyRegionData::return_to_array(size_t region)
 inline size_t
 ParallelCompactData::EmptyRegionData::remove()
 {
-  assert (_empty_region_idx != _next_append, "removing empty region without appending");
+  assert (_empty_region_idx < _next_append, "removing empty region without appending");
   return _empty_region_array[_empty_region_idx++];
 }
 

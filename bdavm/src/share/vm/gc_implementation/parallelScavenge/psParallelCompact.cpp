@@ -884,8 +884,15 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
 
   // Now loop through unclaimed regions and process the segment and its children
   while (cur_region < end_region) {
+
     // Skip already scanned regions
     if (_region_data[cur_region].scanned()) {
+      // If this region's segment is empty, and is the first region of the segment,
+      // add to the empty_region_array.
+      container_t * const segment = _region_data[cur_region].container();
+      if ((segment->_start == segment->_top) && (addr_to_region_idx(segment->_start) == cur_region)) {
+        _empty_region_data.append(cur_region);
+      }      
       ++cur_region;
       continue;
     }
@@ -898,7 +905,6 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     else
       target_region = cur_region;
     
-    HeapWord * dest_addr = region_to_addr(target_region);
     container_t * source_container = _region_data[cur_region].container();
     container_t * target_container = _region_data[target_region].container();
     const size_t  source_size      = pointer_delta(source_container->_end,
@@ -909,9 +915,38 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     const int  target_regions   = addr_to_region_idx(target_container->_end) - target_region;
 
     // Some sources may come from large containers. This may cause the target to overflow,
-    // incurring incorrect behaviour. If it is the case, compact this container onto itself.
-    if (source_regions > target_regions)
-      target_region = cur_region;
+    // incurring incorrect behaviour.
+    if (source_regions > target_regions) {
+      assert (target_region != cur_region, "they must be different.");
+      // Compute source size and see if it fits on this target_container.
+      size_t source_live = 0;
+      for (int i = 0; i < source_regions; ++i) {
+        RegionData * const cntr_region = &_region_data[cur_region + i];
+        source_live += cntr_region->data_size();
+      }
+      // Now if source_live is too much for target_size then compact the region onto itself
+      // and return the target_region to the empty
+      if (source_live > target_size) {
+        _empty_region_data.return_to_array(target_region);
+        // Do not update this before the prior call!
+        target_region = cur_region;
+      }
+    }
+      
+    // Summarization of the spaces is here.
+    //
+    // The algorithm goes by first getting the source_live words and setting the regions
+    // the source spans to the destination addr and respective destination counts.
+    // Then, if they exist, the segments are fetched. The live_size of each segment is computed
+    // and a check to see if it fits is made. If it fits then process the segment's regions
+    // and, in the end, set the segment's top pointer to the start of the container. This
+    // ensures that the segment is now empty.
+    // In the end, add the starting region of each processed segment to the empty_region_array.
+    // However, do not add the segments processed when iterating extensions of a container,
+    // this is left for the check in the beginning of the loop to ensure correct ordering.
+    
+    // Set the dest_addr
+    HeapWord * dest_addr = region_to_addr(target_region);
     
     // Accumulate how much of the container is live and set the region's destination.
     size_t source_live = 0;
@@ -958,7 +993,7 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
         }
         
         // If it doesn't overflow then get the segment and set it up
-        if (segment_live <= source_size - source_live) {
+        if (segment_live <= target_size - source_live) {
           for (int i = 0; i < segment_regions; ++i) {
             const size_t seg_region_idx   = addr_to_region_idx(container_seg->_start) + (size_t)i;
             RegionData * const seg_region = &_region_data[seg_region_idx];
@@ -1007,6 +1042,7 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
       _empty_region_data.append(cur_region);
     } else if (target_region != cur_region) {
       // append the source in case it was depleted
+      assert (target_region < cur_region, "should be a previous region.");
       source_container->_top = source_container->_start;
       _empty_region_data.append(cur_region);
     }
@@ -1023,9 +1059,13 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
 
   // Only align if there's segments in the space, otherwise the alignment call would bump
   // the target_next to the boundary of the first allocated region.
-  if (*target_next > source_beg)
-    *target_next = (HeapWord*)align_ptr_up((void*)*target_next,
-                                           MutableBDASpace::CGRPSpace::segment_sz << LogHeapWordSize);
+  if (*target_next > source_beg) {
+    RegionData  * const last_region_ptr = addr_to_region_ptr(*target_next);
+    container_t * const last_contnr_ptr = last_region_ptr->container();
+    assert (last_region_ptr->destination() != 0, "wrong last region ptr");
+    *target_next = last_contnr_ptr->_end;
+  }
+  
   return true;
 }
 
@@ -2872,7 +2912,15 @@ bool PSParallelCompact::absorb_live_data_from_eden(PSAdaptiveSizePolicy* size_po
   }
 
   // Fill the unused part of the old gen.
-  MutableSpace* const old_space = old_gen->object_space();
+#ifdef BDA
+  MutableSpace * old_space = NULL;
+  if (UseBDA)
+    old_space = _bda_space->spaces()->at(0)->space();
+  else
+    old_space = old_gen->object_space();
+#else
+  MutableSpace * const old_space = old_gen->object_space();
+#endif
   HeapWord* const unused_start = old_space->top();
   size_t const unused_words = pointer_delta(old_space->end(), unused_start);
 
@@ -3487,6 +3535,7 @@ void PSParallelCompact::update_deferred_objects(ParCompactionManager* cm,
 // next live word.  Unless marked, the word corresponding to beg is assumed to
 // be dead.  Callers must either ensure beg does not correspond to the middle of
 // an object, or account for those live words in some other way.  Callers must
+
 // also ensure that there are enough live words in the range [beg, end) to skip.
 HeapWord*
 PSParallelCompact::skip_live_words(HeapWord* beg, HeapWord* end, size_t count)
