@@ -557,14 +557,18 @@ MutableBDASpace::initialize_regions(size_t space_size,
     vm_shutdown_during_initialization(err_msg("The BDARatio cannot go below 1!"));
   }
   
-  size_t bda_space    = (size_t)round_down(space_size / BDARatio, alignment);
-  size_t bda_region_sz = (size_t)round_down(bda_space / bda_nregions, alignment);
+  size_t bda_space    = (size_t)align_size_down((intptr_t)(space_size / BDARatio),
+                                                (intptr_t)alignment);
+  size_t bda_region_sz = (size_t)align_size_down((intptr_t)(bda_space / bda_nregions),
+                                                 (intptr_t)alignment);
 
   // just in case some one abuses of the ratio
   int k = 1;
   while(bda_region_sz < alignment) {
-    bda_space = (size_t)round_down(space_size / BDARatio - k, alignment);
-    bda_region_sz = (size_t)round_down(bda_space / bda_nregions, alignment);
+    bda_space = (size_t)align_size_down((intptr_t)(space_size / BDARatio - k),
+                                        (intptr_t)alignment);
+    bda_region_sz = (size_t)align_size_down((intptr_t)(bda_space / bda_nregions),
+                                            (intptr_t)alignment);
     k++;
   }
 
