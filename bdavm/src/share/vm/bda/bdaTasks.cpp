@@ -3,6 +3,7 @@
 # include "gc_implementation/parallelScavenge/psPromotionManager.hpp"
 # include "gc_implementation/parallelScavenge/psPromotionManager.inline.hpp"
 
+#ifdef BDA
 //
 // BDARefRootsTask
 //
@@ -103,3 +104,5 @@ OldToYoungNonBDARootsTask::do_it(GCTaskManager * manager, uint which)
     pm->drain_stacks(false);
   }
 }
+
+#endif // BDA

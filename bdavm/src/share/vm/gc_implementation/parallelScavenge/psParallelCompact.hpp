@@ -1658,7 +1658,9 @@ class MoveAndUpdateClosure: public ParMarkBitMapClosure {
 
   // Accessors.
   HeapWord* destination() const         { return _destination; }
+#ifdef BDA
   container_t * container() const       { return _container; }
+#endif
   // If the object will fit (size <= words_remaining()), copy it to the current
   // destination, update the interior oops and the start array and return either
   // full (if the closure is full) or incomplete.  If the object will not fit,
@@ -1693,7 +1695,10 @@ MoveAndUpdateClosure::MoveAndUpdateClosure(ParMarkBitMap* bitmap,
                                            HeapWord* destination,
                                            size_t words,
                                            container_t * container = NULL) :
-  ParMarkBitMapClosure(bitmap, cm, words), _start_array(start_array), _container(container)
+  ParMarkBitMapClosure(bitmap, cm, words), _start_array(start_array)
+#ifdef BDA
+  , _container(container)
+#endif
 {
   _destination = destination;
 }

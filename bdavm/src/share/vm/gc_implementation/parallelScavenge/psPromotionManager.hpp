@@ -100,7 +100,9 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
 
   PromotionFailedInfo                 _promotion_failed_info;
 
+#ifdef BDA
   BDAPromotionStats                   _promotion_stats;
+#endif
   
   // Accessors
   static PSOldGen* old_gen()         { return _old_gen; }

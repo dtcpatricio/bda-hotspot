@@ -34,6 +34,8 @@ int    MutableBDASpace::CGRPSpace::delegation_level = 0;
 int    MutableBDASpace::CGRPSpace::default_collection_size = 0;
 size_t MutableBDASpace::CGRPSpace::segment_sz = 0;
 
+#ifdef BDA
+
 /////////////// ////////////////// ///////////////
 /////////////// BDACardTableHelper ////////////////
 /////////////// ////////////////// /////////////////
@@ -1336,3 +1338,5 @@ MutableBDASpace::avg_nsegments_in_bda()
   }
   return acc / (float)(spaces()->length() - 1);
 }
+
+#endif // BDA
