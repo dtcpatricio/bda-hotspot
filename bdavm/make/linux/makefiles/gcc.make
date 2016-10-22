@@ -237,7 +237,7 @@ CFLAGS += -fno-strict-aliasing
 # declarations.
 ifeq ($(USE_CLANG),)
   ifeq "$(shell expr \( $(CC_VER_MAJOR) \> 6 \) )" "0"
-    CFLAGS += -std=gnu++98
+    CFLAGS += -std=c++98
     WARNINGS_ARE_ERRORS += -Wno-deprecated-declarations
   endif
 endif
