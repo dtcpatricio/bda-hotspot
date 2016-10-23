@@ -56,7 +56,7 @@ REL_MYDIR=`dirname $0`
 MYDIR=`cd $REL_MYDIR && pwd`
 
 if [ -z "$DACAPO_ARGS" ]; then
-    JAVA_ARGS="-classpath $MYDIR $prog"
+    JAVA_ARGS="-classpath $MYDIR/Microbenchmark $prog"
 else
     JAVA_ARGS="-classpath $MYDIR $DACAPO_ARGS"
 fi

@@ -8,61 +8,42 @@ public class Bootstrap {
   // We'll have to try with Integer.MAX_VALUE, but with a bigger heap
   // to prevent OutOfMemory errors.
   public static int max = 25000;
+  public static int numberMaps = 40;
 
-  private MyHashMap<Long, Value> map;
-  private MyHashMap<Long, Value> map1;
-  private MyHashMap<Long, Value> map2;
-  private MyHashMap<Long, Value> map3;
-  private MyHashMap<Long, Value> map4;
-  private MyHashMap<Long, Value> map5;
-  private MyHashMap<Long, Value> map6;
-
+  private List<MyHashMap<Long, Value>> interestingMaps;
   private List<HashMap<Long, Value>> notInterestingMaps;
 
     // also used as the color
     private int map_counts = 0; 
 
-  public MyHashMap<Long, Value> getMap0() { return map; }
-  public MyHashMap<Long, Value> getMap1() { return map1; }
-  public MyHashMap<Long, Value> getMap2() { return map2; }
-  public MyHashMap<Long, Value> getMap3() { return map3; }
-  public MyHashMap<Long, Value> getMap4() { return map4; }
-  public MyHashMap<Long, Value> getMap5() { return map5; }
-  public MyHashMap<Long, Value> getMap6() { return map6; }
+  public MyHashMap<Long, Value> getInterestingMap(int i)
+    {
+        if (i >= interestingMaps.size())
+            return null;
+        else
+            return interestingMaps.get(i);
+    }
+
+  public int numberOfInterestingMaps()
+    {
+        return interestingMaps.size();
+    }
   
-  
-  private MyHashMap<Long, Value> ConstructorHelper(int sz) {
+  private MyHashMap<Long, Value> ConstructorHelper(int sz)
+    {
       MyHashMap<Long, Value> m = new MyHashMap<Long, Value>(sz, map_counts++);
-    System.out.println("\nCreated map number " + map_counts);
-    return m;
+      System.out.println("\nCreated map number " + map_counts);
+      return m;
   }
 
   public Bootstrap() {
     notInterestingMaps = new LinkedList<HashMap<Long, Value>>();
-    map = ConstructorHelper(max);
-    fillHashMapWithRandom(map);
-    map1 = ConstructorHelper(max);
-    fillHashMapWithRandom(map1);
-    map2 = ConstructorHelper(max);
-    fillHashMapWithRandom(map2);
-    map3 = ConstructorHelper(max);
-    fillHashMapWithRandom(map3);
-    map4 = ConstructorHelper(max);
-    fillHashMapWithRandom(map4);
-    map5 = ConstructorHelper(max);
-    fillHashMapWithRandom(map5);
-    map6 = ConstructorHelper(max * 10);
-    fillHashMapWithRandom(map6);
-  }
-
-  public MyHashMap<Long, Value> fillMapRandom() {
-    fillHashMapWithRandom(map);
-    return map;
-  }
-
-  public MyHashMap<Long, Value> fillMapValues() {
-    fillHashMap(map1, map);
-    return map1;
+    interestingMaps    = new LinkedList<MyHashMap<Long, Value>>();
+    for (int i = 0; i < numberMaps; i++) {
+        MyHashMap map = ConstructorHelper(max);
+        fillHashMapWithRandom(map);
+        interestingMaps.add(map);
+    }
   }
 
   private void fillHashMapWithRandom(MyHashMap<Long, Value> map) {

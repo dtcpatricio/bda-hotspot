@@ -1,15 +1,15 @@
 public class Value {
 
     private String _value;
-    private int    _color;
+    private int    bdaColor;
 
     Value (String value, int color) {
         _value = value;
-        _color = color;
+        bdaColor = color;
     }
 
     public String value() { return _value; }
-    public int    color() { return _color; }
+    public int    color() { return bdaColor; }
 
     public Value  set_value(String v) {
         _value = v;
