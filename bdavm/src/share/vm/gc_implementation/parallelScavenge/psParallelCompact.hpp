@@ -419,7 +419,7 @@ public:
   {
    public:
     void          initialize(PSVirtualSpace * vspace);
-    void          clear(size_t region_cnt);
+    void          clear(size_t cnt);
     inline void   append(size_t region);
     inline void   return_to_array(size_t region);
     inline size_t remove();
@@ -474,10 +474,7 @@ public:
   void clear_bda_range(HeapWord * beg, HeapWord * end, MutableBDASpace::CGRPSpace * sp) {
     clear_bda_range(addr_to_region_idx(beg), addr_to_region_idx(end), sp);
   }
-  void clear_empty_region_range(size_t beg_region, size_t end_region);
-  void clear_empty_region_range(HeapWord * beg, HeapWord * end) {
-    clear_empty_region_range(addr_to_region_idx(beg), addr_to_region_idx(end));
-  }
+  void clear_empty_region_range();
   inline void install_bda_container(container_t * container);
 #endif
   

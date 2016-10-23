@@ -524,19 +524,19 @@ ParallelCompactData::EmptyRegionData::initialize(PSVirtualSpace * vspace)
 }
 
 void
-ParallelCompactData::EmptyRegionData::clear(size_t region_cnt)
+ParallelCompactData::EmptyRegionData::clear(size_t count)
 {
-  memset(_empty_region_array, 0, region_cnt * sizeof(size_t));
+  memset(_empty_region_array, 0, count * sizeof(size_t));
   _empty_region_idx = 0; _next_append = 0;
 }
 
 void
-ParallelCompactData::clear_empty_region_range(size_t beg_region, size_t end_region)
+ParallelCompactData::clear_empty_region_range()
 {
-  assert (beg_region <= _region_count, "beg_region out of range");
-  assert (end_region <= _region_count, "end_region out of range");
-  const size_t region_cnt = end_region - beg_region;
-  _empty_region_data.clear(region_cnt);
+  assert (_region_count != 0, "was region data initialized?");
+  const size_t regions_spanned = MutableBDASpace::CGRPSpace::segment_sz / RegionSize;
+  const size_t count = _region_count / regions_spanned;
+  _empty_region_data.clear(count);
 }
 
 void
@@ -1464,7 +1464,7 @@ PSParallelCompact::clear_data_covering_space(SpaceId id)
     MutableBDASpace::CGRPSpace * space_manager =
       _bda_space->spaces()->at((uint)(id -last_space_id) + 1);
     _summary_data.clear_bda_range(beg_region, end_region, space_manager);
-    _summary_data.clear_empty_region_range(beg_region, end_region);
+    _summary_data.clear_empty_region_range();
   } else if (id == old_space_id) {
     _bda_space->clear_delete_containers_in_space((uint)old_space_id);
     _summary_data.clear_range(beg_region, end_region);
