@@ -21,13 +21,12 @@ public class ProcessThread extends Thread
             int j; int max = map.size(); int count = readCount;
             for (int i = 0; i < count; ++i) {
                 j = i % max;
-                map.get(j);
-                // if (map.containsKey(j)) {
-                //     Value v = map.get(j);
-                //     // Long  k = new Long(i);
-                //     // Value n = new Value(v.value() + "scanned", v.color());
-                //     // map.put(k, n);
-                // }
+                if (map.containsKey(j)) {
+                    Value v = map.get(j);
+                    Long  k = new Long(i);
+                    Value n = new Value(v.value() + "scanned", v.color());
+                    map.put(k, n);
+                }
             }
             System.out.println("Thread " + threadId + " --- Read map with color " + map.color());
         }
