@@ -80,7 +80,7 @@ class CardTableExtension : public CardTableModRefBS {
                                          uint stripe_total);
   
   void scavenge_bda_contents_parallel(ObjectStartArray * start_array,
-                                      container_t * c,
+                                      container_t c,
                                       HeapWord * space_top,
                                       PSPromotionManager * pm);
 #endif

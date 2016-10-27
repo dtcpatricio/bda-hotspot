@@ -795,25 +795,25 @@ private:
 class BDARefTask
 {
 
-  void *        _holder;
-  container_t * _container;
+  void *      _holder;
+  container_t _container;
 
   enum { COMPRESSED_OOP_MASK = 1 };
   
  public:
   
-  BDARefTask(narrowOop * p, container_t * c) : _container(c) {
+  BDARefTask(narrowOop * p, container_t c) : _container(c) {
     assert(((uintptr_t)p & COMPRESSED_OOP_MASK) == 0, "Information loss!");
     _holder = (void*)((uintptr_t)p | COMPRESSED_OOP_MASK);
   }
-  BDARefTask(oop * p, container_t * c) : _container(c) {
+  BDARefTask(oop * p, container_t c) : _container(c) {
     assert(((uintptr_t)p & COMPRESSED_OOP_MASK) == 0, "Information loss!");
     _holder = (void*)p;
   }
   BDARefTask()                 { _holder = NULL; _container = NULL; }
   operator oop * ()            { return (oop*)_holder; }
   operator narrowOop * ()      { return (narrowOop*)((uintptr_t)_holder & ~COMPRESSED_OOP_MASK); }
-  container_t * container ()   { return _container; }
+  container_t container ()   { return _container; }
 
   BDARefTask& operator=(const BDARefTask& t) {
     _holder = t._holder;

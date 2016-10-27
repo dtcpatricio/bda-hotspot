@@ -34,7 +34,7 @@
 #define PARALLEL_GC_DECLS                                               \
   virtual void oop_push_contents(PSPromotionManager* pm, oop obj);      \
   virtual void oop_push_bdaref_contents(PSPromotionManager * pm,        \
-                                        container_t * container,        \
+                                        container_t container,        \
                                         oop obj);                       \
   /* Parallel Old GC support                                            \
                                                                         \
@@ -63,7 +63,7 @@
 #define PARALLEL_GC_DECLS_PV                                            \
   virtual void oop_push_contents(PSPromotionManager* pm, oop obj) = 0;  \
   virtual void oop_push_bdaref_contents(PSPromotionManager * pm,        \
-                                        container_t * container,        \
+                                        container_t container,        \
                                         oop obj) = 0;                      \
   virtual void oop_follow_contents(ParCompactionManager* cm, oop obj) = 0; \
   virtual int  oop_update_pointers(ParCompactionManager* cm, oop obj) = 0;

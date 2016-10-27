@@ -2439,7 +2439,7 @@ int InstanceKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) {
 #ifdef BDA
 void
 InstanceKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
-                                        container_t * container,
+                                        container_t container,
                                         oop obj)
 {
   InstanceKlass_BDA_OOP_MAP_REVERSE_ITERATE ( \

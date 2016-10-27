@@ -7,7 +7,7 @@
 inline container_t*
 MutableBDASpace::CGRPSpace::push_container(size_t size)
 {
-  container_t * container;
+  container_t container;
 
   // Objects bigger than this size are, generally, large arrays
   // Get a container from the large_pool or allocate a special one
@@ -60,11 +60,11 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
 }
 
 inline HeapWord *
-MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t ** c)
+MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t* c)
 {
-  container_t * container;
-  container_t * next_segment;
-  container_t * prev_segment;
+  container_t container;
+  container_t next_segment;
+  container_t prev_segment;
 
   // Objects bigger than this size are, generally, large arrays
   // Get a container from the large_pool or allocate a special one
@@ -166,7 +166,7 @@ MutableBDASpace::CGRPSpace::calculate_large_reserved_sz(size_t size)
   return reserved_sz;
 }
 
-inline container_t *
+inline container_t
 MutableBDASpace::CGRPSpace::install_container_in_space(size_t reserved_sz, size_t size)
 {
   HeapWord * ptr;
@@ -202,11 +202,11 @@ MutableBDASpace::CGRPSpace::clear_delete_containers()
 {
   // Not needed to destroy the pool since no container segment should have been
   // enqueued there.
-  container_t * c = _containers->peek();
+  container_t c = _containers->peek();
   int const count = _containers->n_elements();
   int           i = 0;
   while (i++ < count) {
-    container_t * n = c->_next;
+    container_t n = c->_next;
     FreeHeap((void*)c, mtGC);
     c = n;
   }
@@ -221,27 +221,27 @@ MutableBDASpace::CGRPSpace::clear_delete_containers()
 }
 
 inline void
-MutableBDASpace::CGRPSpace::mask_container(container_t *& c)
+MutableBDASpace::CGRPSpace::mask_container(container_t& c)
 {
   assert (((uintptr_t)c->_end & CONTAINER_IN_POOL_MASK) == 0, "Information loss!");
   c->_end = (HeapWord*)((uintptr_t)c->_end | CONTAINER_IN_POOL_MASK);
 }
 
 inline void
-MutableBDASpace::CGRPSpace::unmask_container(container_t *& c)
+MutableBDASpace::CGRPSpace::unmask_container(container_t& c)
 {
   assert (((uintptr_t)c->_end & CONTAINER_IN_POOL_MASK) != 0, "Malformed masking!");
   c->_end = (HeapWord*)((uintptr_t)c->_end & ~CONTAINER_IN_POOL_MASK);
 }
  
 inline bool
-MutableBDASpace::CGRPSpace::not_in_pool(container_t * c)
+MutableBDASpace::CGRPSpace::not_in_pool(container_t c)
 {
   return (((uintptr_t)c->_end & CONTAINER_IN_POOL_MASK) == 0);
 }
 
 inline void
-MutableBDASpace::CGRPSpace::add_to_pool(container_t * c)
+MutableBDASpace::CGRPSpace::add_to_pool(container_t c)
 {
   if (not_in_pool(c)) {
     _containers->remove_element(c);
@@ -272,10 +272,10 @@ MutableBDASpace::CGRPSpace::power_function(int base, int exp)
 // Another way is changing the way segments are linked by using the next_segment ptr only, and
 // keeping the next ptr only for parent containers. This may have drawbacks in the scanning of all
 // segments (for example, during OldGC post compact phase).
-inline container_t *
+inline container_t
 MutableBDASpace::CGRPSpace::cas_get_next_container()
 {
-  container_t * c = NULL;
+  container_t c = NULL;
   while (_gc_current != NULL) {
     c = _gc_current;
     if (c == NULL)
@@ -287,11 +287,11 @@ MutableBDASpace::CGRPSpace::cas_get_next_container()
   return c;
 }
 
-inline container_t *
+inline container_t
 MutableBDASpace::CGRPSpace::get_container_with_addr(HeapWord* addr)
 {
-  container_t * c;
-  for (GenQueueIterator<container_t *, mtGC> iterator = _containers->iterator();
+  container_t c;
+  for (GenQueueIterator<container_t, mtGC> iterator = _containers->iterator();
        *iterator != NULL;
        ++iterator) {
     c = *iterator;
@@ -309,7 +309,7 @@ MutableBDASpace::CGRPSpace::save_top_ptrs()
     for(GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
         *iterator != NULL;
         ++iterator) {
-      container_t * c = *iterator;
+      container_t c = *iterator;
       c->_saved_top = c->_top;
       // helper[from]._container = c;
       // helper[from++]._top = c->_top;
@@ -362,7 +362,7 @@ MutableBDASpace::is_bdaspace_empty()
 // This marks the newly allocated container in the segment bitmap for posterior usage
 // in the YoungGC
 inline bool
-MutableBDASpace::mark_container(container_t * c)
+MutableBDASpace::mark_container(container_t c)
 {
   _segment_bitmap.mark_obj(c->_start, pointer_delta(c->_end, c->_start));
 }

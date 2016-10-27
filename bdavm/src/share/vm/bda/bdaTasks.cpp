@@ -43,7 +43,7 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
     // on the array of spaces.
     for (int spc_id = 0; spc_id < space->spaces()->length(); ++spc_id) {
       MutableBDASpace::CGRPSpace * bda_space = space->spaces()->at(spc_id);
-      container_t * c; HeapWord * c_top;
+      container_t c; HeapWord * c_top;
       while ((c = bda_space->cas_get_next_container()) != NULL) {
         do {
           c_top = c->_saved_top;

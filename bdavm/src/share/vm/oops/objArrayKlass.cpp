@@ -647,7 +647,7 @@ int ObjArrayKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) {
 #ifdef BDA
 void
 ObjArrayKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
-                                       container_t * container,
+                                       container_t container,
                                        oop obj)
 {
   assert(obj->is_objArray(), "obj must be obj-array");

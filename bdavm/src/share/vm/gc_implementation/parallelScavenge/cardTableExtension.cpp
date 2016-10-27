@@ -719,7 +719,7 @@ HeapWord* CardTableExtension::lowest_prev_committed_start(int ind) const {
 #ifdef BDA
 void
 CardTableExtension::scavenge_bda_contents_parallel(ObjectStartArray * start_array,
-                                                   container_t * c,
+                                                   container_t c,
                                                    HeapWord * c_top,
                                                    PSPromotionManager * pm)
 {

@@ -151,7 +151,7 @@ int InstanceClassLoaderKlass::oop_update_pointers(ParCompactionManager* cm, oop 
 #ifdef BDA
 void
 InstanceClassLoaderKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
-                                                   container_t * container,
+                                                   container_t container,
                                                    oop obj)
 {
   InstanceKlass::oop_push_bdaref_contents(pm, container, obj);

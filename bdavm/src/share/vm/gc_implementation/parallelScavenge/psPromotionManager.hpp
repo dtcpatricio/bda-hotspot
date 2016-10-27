@@ -195,8 +195,8 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   template<bool promote_immediately> oop copy_bdaref_to_survivor_space(oop o,
                                                                        void * r,
                                                                        RefQueue::RefType rt);
-  template <class T> inline void claim_or_forward_bdaref(T * p, container_t * ct);
-  template <class T> inline void push_bdaref_stack(T * p, container_t * ct)
+  template <class T> inline void claim_or_forward_bdaref(T * p, container_t ct);
+  template <class T> inline void push_bdaref_stack(T * p, container_t ct)
   {
     bdaref_stack()->push(BDARefTask(p, ct));
   }
@@ -205,11 +205,11 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   template <class T> inline void process_dequeued_bdaroot(Ref * r);
 
   // Array chunking
-  inline void process_bda_array_chunk(oop old, container_t * ct);
+  inline void process_bda_array_chunk(oop old, container_t ct);
   template <class T> inline void process_bda_array_chunk_work(oop obj,
                                                               int start,
                                                               int end,
-                                                              container_t * ct);
+                                                              container_t ct);
 
   // Drain the refstack
   void drain_bda_stacks();

@@ -28,7 +28,7 @@ class BDACardTableHelper : public CHeapObj<mtGC> {
   BDACardTableHelper(MutableBDASpace * sp);
   ~BDACardTableHelper();
 
-  HeapWord * top (container_t * c);
+  HeapWord * top (container_t c);
   inline void prefetch_array();
 };
 
@@ -85,7 +85,7 @@ class MutableBDASpace : public MutableSpace
     GenQueue<container_t*, mtGC> * _large_pool;
     
     // GC support
-    container_t *                  _gc_current;
+    container_t                  _gc_current;
 
     // A pointer to the parent
     MutableBDASpace *              _manager;
@@ -95,14 +95,14 @@ class MutableBDASpace : public MutableSpace
     static inline int    power_function(int base, int exp);
     // Calculates a container segment size, allocates one in the space and initializes it.
     // It allocates both containers with parent object and segments with children object only.
-    container_t * allocate_container(size_t size);
+    container_t allocate_container(size_t size);
     // Also calculates a container segment size, but only based on the size_t
-    container_t * allocate_large_container(size_t size);
+    container_t allocate_large_container(size_t size);
     // Masks containers by ORing the CONTAINER_IN_POOL_MASK on the _start field of the struct
     // Any subsequent use must unmask the container because an ORed _start is invalid since
     // containers/segments are aligned byte aligned.
-    inline void mask_container(container_t *& c );
-    inline void unmask_container(container_t *& c );
+    inline void mask_container(container_t& c );
+    inline void unmask_container(container_t& c );
 
    public:
 
@@ -126,19 +126,19 @@ class MutableBDASpace : public MutableSpace
       for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
            *iterator != NULL;
            ++iterator) {
-        container_t * c = *iterator;
+        container_t c = *iterator;
         FreeHeap((void*)c, mtGC);
       }
       for (GenQueueIterator<container_t*, mtGC> iterator = _pool->iterator();
            *iterator != NULL;
            ++iterator) {
-        container_t * c = *iterator;
+        container_t c = *iterator;
         FreeHeap((void*)c, mtGC);
       }
       for (GenQueueIterator<container_t*, mtGC> iterator = _large_pool->iterator();
            *iterator != NULL;
            ++iterator) {
-        container_t * c = *iterator;
+        container_t c = *iterator;
         FreeHeap((void*)c, mtGC);
       }
     }
@@ -155,28 +155,28 @@ class MutableBDASpace : public MutableSpace
     void verify();
     
     // This is called for new collections, i.e., that need a parent container
-    inline container_t * push_container(size_t size);
+    inline container_t push_container(size_t size);
     // This is called for already existing collections when they need a new segment
-    inline HeapWord *    allocate_new_segment(size_t size, container_t ** c);
+    inline HeapWord *    allocate_new_segment(size_t size, container_t* c);
     // This is called to calculate the segment size based on the user's launch parameters
     static inline size_t        calculate_reserved_sz();
     // This is called to calculate a large segment size for large arrays. It bumps size
     // to the MinRegionSize in order to reserved the most possible.
     inline size_t        calculate_large_reserved_sz(size_t size);
     // Allocates the reserved_sz to the space and sets the appropriate pointers
-    inline container_t * install_container_in_space(size_t reserved_sz, size_t size);
+    inline container_t install_container_in_space(size_t reserved_sz, size_t size);
 
     // Destructors --- these should only be called for the other's space, since for the rest
     // the leftover segments are to be pushed to the pool for reuse.
     inline bool clear_delete_containers();    
     
     // This is called during the final stage of OldGC when free segments are returned to the pool
-    inline void          add_to_pool(container_t * c);
-    inline bool          not_in_pool(container_t * c);
+    inline void          add_to_pool(container_t c);
+    inline bool          not_in_pool(container_t c);
     
     // GC support
-    inline container_t * cas_get_next_container();
-    inline container_t * get_container_with_addr(HeapWord * addr);
+    inline container_t cas_get_next_container();
+    inline container_t get_container_with_addr(HeapWord * addr);
     inline void          save_top_ptrs();
     inline void          set_shared_gc_pointer() { _gc_current = _containers->peek(); }
 
@@ -223,7 +223,7 @@ class MutableBDASpace : public MutableSpace
   void shrink_space_end_noclear(MutableSpace *spc, size_t sz);
 
   // Marking of bits in the container segment bitmap
-  inline bool mark_container(container_t * c);
+  inline bool mark_container(container_t c);
   
  public:
 
@@ -238,8 +238,8 @@ class MutableBDASpace : public MutableSpace
     int i = _spaces->find(&region, CGRPSpace::equals);
     return _spaces->at(i)->space();
   }
-  container_t * container_for_addr(HeapWord * addr);
-  void          add_to_pool(container_t * c, uint id);
+  container_t container_for_addr(HeapWord * addr);
+  void          add_to_pool(container_t c, uint id);
   inline void   set_shared_gc_pointers();
   inline void   save_tops_for_scavenge();
 
@@ -310,9 +310,9 @@ class MutableBDASpace : public MutableSpace
   // Allocation methods
   virtual HeapWord* allocate(size_t size);
   virtual HeapWord* cas_allocate(size_t size);
-  container_t *     allocate_container (size_t size, BDARegion * r);
+  container_t     allocate_container (size_t size, BDARegion * r);
   // This version updates the container with a new one if a new segment was needed.
-  HeapWord*         allocate_element(size_t size, container_t ** r);
+  HeapWord*         allocate_element(size_t size, container_t* r);
 
   // Helper methods for scavenging
   virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) {

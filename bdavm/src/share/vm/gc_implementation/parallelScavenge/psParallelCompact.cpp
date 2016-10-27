@@ -549,7 +549,7 @@ ParallelCompactData::clear_bda_range(size_t beg_region, size_t end_region,
 
   const size_t region_cnt = end_region - beg_region;
   RegionData * r;
-  container_t * c;
+  container_t c;
   for (size_t i = beg_region; i < end_region; ++i) {
     r = _region_data + i; c = r->container();
     if (c->_start == c->_top) {
@@ -889,7 +889,7 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     if (_region_data[cur_region].scanned()) {
       // If this region's segment is empty, and is the first region of the segment,
       // add to the empty_region_array.
-      container_t * const segment = _region_data[cur_region].container();
+      container_t const segment = _region_data[cur_region].container();
       if ((segment->_start == segment->_top) && (addr_to_region_idx(segment->_start) == cur_region)) {
         _empty_region_data.append(cur_region);
       }      
@@ -905,8 +905,8 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     else
       target_region = cur_region;
     
-    container_t * source_container = _region_data[cur_region].container();
-    container_t * target_container = _region_data[target_region].container();
+    container_t source_container = _region_data[cur_region].container();
+    container_t target_container = _region_data[target_region].container();
     const size_t  source_size      = pointer_delta(source_container->_end,
                                                    source_container->_start);
     const size_t  target_size      = pointer_delta(target_container->_end,
@@ -977,7 +977,7 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     if (fraction_of_occupancy (source_live, source_size)) {
       // True means that is worth investing in find a suitable segment to
       // compact here.
-      container_t * container_seg = (container_t*)source_container;
+      container_t container_seg = (container_t*)source_container;
       while ((container_seg = container_seg->_next_segment) != NULL) {
 
         // Jump segments allocated in a different space (usually, in the non-bda-space)
@@ -1061,7 +1061,7 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
   // the target_next to the boundary of the first allocated region.
   if (*target_next > source_beg) {
     RegionData  * const last_region_ptr = addr_to_region_ptr(*target_next);
-    container_t * const last_contnr_ptr = last_region_ptr->container();
+    container_t const last_contnr_ptr = last_region_ptr->container();
     assert (last_region_ptr->destination() != 0, "wrong last region ptr");
     *target_next = last_contnr_ptr->_end;
   }

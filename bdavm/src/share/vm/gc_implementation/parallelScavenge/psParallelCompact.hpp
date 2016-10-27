@@ -252,7 +252,7 @@ public:
 
 #ifdef BDA
     // The container that manages the address range this region is set for
-    container_t * container() const { return _container; }
+    container_t container() const { return _container; }
 
     // Returns true if region was already scanned during summary.
     bool          scanned()   const { return (_scanned & scanned_bit) != 0; }
@@ -331,7 +331,7 @@ public:
       _partial_obj_size = (region_sz_t) words;
     }
 #ifdef BDA
-    void set_container_ptr(container_t * container) { _container = container; }
+    void set_container_ptr(container_t container) { _container = container; }
     // Sets the bit of the region to indicate it has been processed during summary.
     // No need to MT, but if summary becomes MT then this must be atomic.
     void set_scanned() { _scanned = scanned_bit; }
@@ -373,7 +373,7 @@ public:
 #ifdef BDA
     // A pointer to the container that spans this Region address range. Used for fast access
     // to the container.
-    container_t *         _container;
+    container_t         _container;
     uint16_t              _scanned;
     // These bits indicate if the region has been scanned during summary
     static const uint16_t scanned_bit;
@@ -475,7 +475,7 @@ public:
     clear_bda_range(addr_to_region_idx(beg), addr_to_region_idx(end), sp);
   }
   void clear_empty_region_range();
-  inline void install_bda_container(container_t * container);
+  inline void install_bda_container(container_t container);
 #endif
   
   void clear();
@@ -855,10 +855,10 @@ ParallelCompactData::is_block_aligned(HeapWord* addr) const
 
 #ifdef BDA
 inline void
-ParallelCompactData::install_bda_container(container_t * container)
+ParallelCompactData::install_bda_container(container_t container)
 {
-  size_t first_region_idx = addr_to_region_idx(container->_start);
-  size_t last_region_idx = addr_to_region_idx(container->_end);
+  size_t first_region_idx = addr_to_region_idx(container->start);
+  size_t last_region_idx = addr_to_region_idx(container->end);
   while (first_region_idx < last_region_idx) {
     _region_data[first_region_idx].set_container_ptr(container);
     ++first_region_idx;
@@ -1418,9 +1418,9 @@ class PSParallelCompact : AllStatic {
 #ifdef BDA
   // Install the container_t ptr in the RegionData that manages the container address range
   // Call the ParallelCompactData for the effect.
-  inline static void install_container_in_region(container_t * container);
+  inline static void install_container_in_region(container_t container);
   // See if HeapWord* p is in container* -- use is_in of PSParallelCompact
-  inline static bool is_in_container(container_t * container, HeapWord * p);
+  inline static bool is_in_container(container_t container, HeapWord * p);
   // See if the container is the same
   inline static bool is_same_container(size_t src_region_idx, size_t region_idx);
   // Getter for the convenience bda_space ptr
@@ -1614,23 +1614,23 @@ inline ObjectStartArray* PSParallelCompact::start_array(SpaceId id) {
 
 #ifdef BDA
 inline void
-PSParallelCompact::install_container_in_region(container_t * container)
+PSParallelCompact::install_container_in_region(container_t container)
 {
   assert (container != NULL, "Sanity");
   _summary_data.install_bda_container(container);
 }
 inline bool
-PSParallelCompact::is_in_container(container_t * container, HeapWord * p)
+PSParallelCompact::is_in_container(container_t container, HeapWord * p)
 {
   assert (container != NULL, "Sanity");
   // top is inclusive since a region may have 0 words
-  return is_in (p, container->_start, container->_top + 1);
+  return is_in (p, container->start, container->top + 1);
 }
 inline bool
 PSParallelCompact::is_same_container(size_t src_region_idx, size_t region_idx)
 {
-  container_t * c1 = summary_data().region(src_region_idx)->container();
-  container_t * c2 = summary_data().region(region_idx)->container();
+  container_t c1 = summary_data().region(src_region_idx)->container();
+  container_t c2 = summary_data().region(region_idx)->container();
   return  c1 == c2;
 }
 #endif // BDA
@@ -1651,12 +1651,12 @@ class MoveAndUpdateClosure: public ParMarkBitMapClosure {
   inline MoveAndUpdateClosure(ParMarkBitMap* bitmap, ParCompactionManager* cm,
                               ObjectStartArray* start_array,
                               HeapWord* destination, size_t words,
-                              container_t * container);
+                              container_t container);
 
   // Accessors.
   HeapWord* destination() const         { return _destination; }
 #ifdef BDA
-  container_t * container() const       { return _container; }
+  container_t container() const       { return _container; }
 #endif
   // If the object will fit (size <= words_remaining()), copy it to the current
   // destination, update the interior oops and the start array and return either
@@ -1681,7 +1681,7 @@ class MoveAndUpdateClosure: public ParMarkBitMapClosure {
   ObjectStartArray* const _start_array;
   HeapWord*               _destination;         // Next addr to be written.
 #ifdef BDA
-  container_t *     const _container;           // The container this closure is filling
+  container_t     const _container;           // The container this closure is filling
 #endif
 };
 
@@ -1691,7 +1691,7 @@ MoveAndUpdateClosure::MoveAndUpdateClosure(ParMarkBitMap* bitmap,
                                            ObjectStartArray* start_array,
                                            HeapWord* destination,
                                            size_t words,
-                                           container_t * container = NULL) :
+                                           container_t container = NULL) :
   ParMarkBitMapClosure(bitmap, cm, words), _start_array(start_array)
 #ifdef BDA
   , _container(container)

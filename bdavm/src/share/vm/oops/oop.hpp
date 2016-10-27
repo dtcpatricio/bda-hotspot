@@ -307,7 +307,7 @@ class oopDesc {
 
 #ifdef BDA
   // Parallel Scavenge
-  void push_bdaref_contents(PSPromotionManager * pm, container_t * container);
+  void push_bdaref_contents(PSPromotionManager * pm, container_t container);
 #endif // BDA
   
 #endif // INCLUDE_ALL_GCS

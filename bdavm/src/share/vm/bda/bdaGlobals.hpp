@@ -8,21 +8,18 @@
 typedef uint32_t bdareg_t;
 
 typedef struct container {
-  HeapWord* _top;
-  HeapWord* _start;
-  HeapWord* _end;
-  HeapWord* _saved_top; // For scavenge from old to young;
-  struct container * _next_segment; // For partition of containers into small segments.
-  struct container * _prev_segment; // Ease the iteration and removal of segments
-  struct container * _next; // For iteration of containers in mutableSpaces
-  struct container * _previous; // Serves both the container segments and the double link list
-  DEBUG_ONLY(char   _space_id;)
-} container_t;
+  HeapWord * top;
+  HeapWord * start;
+  HeapWord * end;
+  HeapWord * saved_top; // For scavenge from old to young;
+  struct container * next_segment; // For partition of containers into small segments.
+  struct container * prev_segment; // Ease the iteration and removal of segments
+  struct container * next; // For iteration of containers in mutableSpaces
+  struct container * previous; // Serves both the container segments and the double link list
+  DEBUG_ONLY(char    space_id;)
+} * container_t;
 
-typedef struct container_helper {
-  HeapWord *    _top;
-  container_t * _container;
-} container_helper_t;
+
 
 /*
  * BDARegion is a wrapper to a bdareg_t value. What it does is provide

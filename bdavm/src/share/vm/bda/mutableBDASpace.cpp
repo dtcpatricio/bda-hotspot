@@ -55,7 +55,7 @@ BDACardTableHelper::~BDACardTableHelper()
 }
 
 HeapWord *
-BDACardTableHelper::top(container_t * c)
+BDACardTableHelper::top(container_t c)
 {
   for (int i = 0; i < _length; ++i) {
     if (_containers[i]._container == c) {
@@ -68,10 +68,10 @@ BDACardTableHelper::top(container_t * c)
 //////////// ////////////////////////// //////////
 //////////// MutableBDASpace::CGRPSpace //////////
 //////////// ////////////////////////// //////////
-container_t *
+container_t
 MutableBDASpace::CGRPSpace::allocate_container(size_t size)
 {  
-  container_t * container = install_container_in_space(CGRPSpace::segment_sz, size);
+  container_t container = install_container_in_space(CGRPSpace::segment_sz, size);
   // Here, the container pointer is installed on the RegionData object that manages
   // the address range this container spans during OldGC. This is for fast access
   // during summarize and update of the containers top pointers.
@@ -83,11 +83,11 @@ MutableBDASpace::CGRPSpace::allocate_container(size_t size)
   return container;
 }
 
-container_t *
+container_t
 MutableBDASpace::CGRPSpace::allocate_large_container(size_t size)
 {
   size_t reserved_sz = calculate_large_reserved_sz(size);
-  container_t * container = install_container_in_space(reserved_sz, size);
+  container_t container = install_container_in_space(reserved_sz, size);
   // Here, the container pointer is installed on the RegionData object that manages
   // the address range this container spans during OldGC. This is for fast access
   // during summarize and update of the containers top pointers.
@@ -110,7 +110,7 @@ MutableBDASpace::CGRPSpace::object_iterate_containers(ObjectClosure * cl)
     for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
          *iterator != NULL;
          ++iterator) {
-      container_t * c = *iterator;
+      container_t c = *iterator;
       HeapWord * p = c->_start;
       HeapWord * t = c->_top;
       while (p < t) {
@@ -129,7 +129,7 @@ MutableBDASpace::CGRPSpace::oop_iterate_containers(ExtendedOopClosure * cl)
     for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
          *iterator != NULL;
          ++iterator) {
-      container_t * c = *iterator;
+      container_t c = *iterator;
       HeapWord * p = c->_start;
       HeapWord * t = c->_top;
       while (p < t) {
@@ -147,7 +147,7 @@ MutableBDASpace::CGRPSpace::oop_iterate_no_header_containers(OopClosure * cl)
     for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
          *iterator != NULL;
          ++iterator) {
-      container_t * c = *iterator;
+      container_t c = *iterator;
       HeapWord * p = c->_start;
       HeapWord * t = c->_top;
       while (p < t) {
@@ -166,7 +166,7 @@ MutableBDASpace::CGRPSpace::verify()
     for(GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
         *iterator != NULL;
         ++iterator) {
-      container_t * c = *iterator;
+      container_t c = *iterator;
       HeapWord * p = c->_start;
       HeapWord * t = c->_top;
       while(p < t) {
@@ -255,7 +255,7 @@ MutableBDASpace::post_initialize()
   return true;
 }
 
-container_t *
+container_t
 MutableBDASpace::container_for_addr(HeapWord * addr)
 {
   CGRPSpace * grp = _spaces->at(grp_index_contains_obj(addr));
@@ -263,7 +263,7 @@ MutableBDASpace::container_for_addr(HeapWord * addr)
 }
 
 void
-MutableBDASpace::add_to_pool(container_t * c, uint id)
+MutableBDASpace::add_to_pool(container_t c, uint id)
 {
   CGRPSpace * grp = _spaces->at(id);
   grp->add_to_pool(c);
@@ -1024,13 +1024,13 @@ HeapWord* MutableBDASpace::cas_allocate(size_t size) {
   return obj;
 }
 
-container_t *
+container_t
 MutableBDASpace::allocate_container(size_t size, BDARegion* r)
 {
   int i = spaces()->find(r, CGRPSpace::equals);
   assert(i > 0, "Containers can only be allocated in bda spaces already initialized");
   CGRPSpace * cs = spaces()->at(i);
-  container_t * new_ctr = cs->push_container(size);
+  container_t new_ctr = cs->push_container(size);
 
   // If it failed to allocate a container in the specified space
   // then allocate a container in the "other" space.
@@ -1046,7 +1046,7 @@ MutableBDASpace::allocate_container(size_t size, BDARegion* r)
 // by each GC thread seperately. If StealTasks are implemented and some kind of
 // synchronization is required, then implement the bumping pointer with a CAS.
 HeapWord*
-MutableBDASpace::allocate_element(size_t size, container_t ** c)
+MutableBDASpace::allocate_element(size_t size, container_t* c)
 {
   HeapWord * old_top = (*c)->_top;
   HeapWord * new_top = old_top + size;

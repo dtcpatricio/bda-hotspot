@@ -45,7 +45,7 @@ inline void oopDesc::push_contents(PSPromotionManager* pm) {
 
 #ifdef BDA
 inline void
-oopDesc::push_bdaref_contents(PSPromotionManager * pm, container_t * container)
+oopDesc::push_bdaref_contents(PSPromotionManager * pm, container_t container)
 {
   Klass * k = klass();
   if (!k->oop_is_typeArray()) {

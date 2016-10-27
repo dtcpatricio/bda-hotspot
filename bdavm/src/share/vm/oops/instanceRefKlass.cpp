@@ -450,7 +450,7 @@ int InstanceRefKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) {
 
 #ifdef BDA
 template <class T>
-void specialized_oop_push_bdaref_contents(InstanceRefKlass *ref, container_t * c,
+void specialized_oop_push_bdaref_contents(InstanceRefKlass *ref, container_t c,
                                           PSPromotionManager* pm, oop obj) {
   T* referent_addr = (T*)java_lang_ref_Reference::referent_addr(obj);
   if (PSScavenge::should_scavenge(referent_addr)) {
@@ -503,7 +503,7 @@ void specialized_oop_push_bdaref_contents(InstanceRefKlass *ref, container_t * c
 
 void
 InstanceRefKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
-                                           container_t * container,
+                                           container_t container,
                                            oop obj)
 {
   if (UseCompressedOops) {

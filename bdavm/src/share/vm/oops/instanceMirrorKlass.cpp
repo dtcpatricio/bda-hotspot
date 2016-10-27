@@ -353,7 +353,7 @@ int InstanceMirrorKlass::oop_update_pointers(ParCompactionManager* cm, oop obj) 
 #ifdef BDA
 void
 InstanceMirrorKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
-                                              container_t * container,
+                                              container_t container,
                                               oop obj)
 {
   InstanceKlass::oop_push_bdaref_contents(pm, container, obj);

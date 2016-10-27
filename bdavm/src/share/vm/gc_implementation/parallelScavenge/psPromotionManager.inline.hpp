@@ -240,7 +240,7 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
 }
 #ifdef BDA
 template <class T> inline void
-PSPromotionManager::claim_or_forward_bdaref(T * p, container_t * ct)
+PSPromotionManager::claim_or_forward_bdaref(T * p, container_t ct)
 {
   assert(PSScavenge::should_scavenge(p, true), "revisiting object?");
   assert(Universe::heap()->kind() == CollectedHeap::ParallelScavengeHeap,
@@ -270,7 +270,7 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::Ref
   // old without further tests
 
   oop new_obj = NULL;
-  container_t * container = NULL;
+  container_t container = NULL;
   MutableBDASpace * old_space = (MutableBDASpace *) old_gen()->object_space();
 
   markOop test_mark = o->mark();
@@ -372,7 +372,7 @@ inline void
 PSPromotionManager::process_popped_bdaref_depth(BDARefTask t)
 {
   StarTask p((T*)t);
-  container_t * ct = t.container();
+  container_t ct = t.container();
   if (is_oop_masked(p)) {
     assert(PSChunkLargeArrays, "invariant");
     oop const old = unmask_chunked_array_oop(p);
@@ -400,7 +400,7 @@ PSPromotionManager::process_dequeued_bdaroot(Ref * r)
 // the process_array_chunk_work<>
 //
 inline void
-PSPromotionManager::process_bda_array_chunk(oop old, container_t * c)
+PSPromotionManager::process_bda_array_chunk(oop old, container_t c)
 {
   assert(PSChunkLargeArrays, "invariant");
   assert(old->is_objArray(), "invariant");
@@ -433,7 +433,7 @@ template <class T> void
 PSPromotionManager::process_bda_array_chunk_work(oop obj,
                                                  int start,
                                                  int end,
-                                                 container_t * c)
+                                                 container_t c)
 {
   assert (start <= end, "invariant");
   T* const base      = (T*)objArrayOop(obj)->base();
