@@ -9,7 +9,7 @@ template<class E, MEMFLAGS F, unsigned int N = TASKQUEUE_SIZE>
 class ContainerOverflowTaskQueue : public OverflowTaskQueue<E, F, N>
 {
 
-  container_t* _collection;
+  container_t _collection;
 
  public:
 

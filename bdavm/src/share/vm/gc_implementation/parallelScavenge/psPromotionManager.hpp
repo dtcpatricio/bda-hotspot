@@ -90,6 +90,7 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
 
 #ifdef BDA
   BDARefTaskQueue                     _bdaref_stack;
+  container_t                         _last_segment;
 #endif
   
   bool                                _totally_drain;
@@ -213,12 +214,14 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
 
   // Drain the refstack
   void drain_bda_stacks();
-
+  // Close the segment this thread was filling
+  void fill_last_segment();
   // Accessors
   BDARefTaskQueue * bdaref_stack() {
     return &_bdaref_stack;
   }
 #endif
+  
   oop oop_promotion_failed(oop obj, markOop obj_mark);
 
   void reset();

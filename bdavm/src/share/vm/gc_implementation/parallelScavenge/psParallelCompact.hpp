@@ -373,8 +373,8 @@ public:
 #ifdef BDA
     // A pointer to the container that spans this Region address range. Used for fast access
     // to the container.
-    container_t         _container;
-    uint16_t              _scanned;
+    container_t          _container;
+    uint16_t             _scanned;
     // These bits indicate if the region has been scanned during summary
     static const uint16_t scanned_bit;
     static const uint16_t unscanned_bit;
@@ -857,9 +857,10 @@ ParallelCompactData::is_block_aligned(HeapWord* addr) const
 inline void
 ParallelCompactData::install_bda_container(container_t container)
 {
-  size_t first_region_idx = addr_to_region_idx(container->start);
-  size_t last_region_idx = addr_to_region_idx(container->end);
-  while (first_region_idx < last_region_idx) {
+  size_t first_region_idx = addr_to_region_idx(container->_start);
+  size_t last_region_idx = addr_to_region_idx(container->_end);
+  // end is inclusive to the container thus the loop must go to last_region_idx
+  while (first_region_idx <= last_region_idx) {
     _region_data[first_region_idx].set_container_ptr(container);
     ++first_region_idx;
   }
@@ -1624,7 +1625,7 @@ PSParallelCompact::is_in_container(container_t container, HeapWord * p)
 {
   assert (container != NULL, "Sanity");
   // top is inclusive since a region may have 0 words
-  return is_in (p, container->start, container->top + 1);
+  return is_in (p, container->_start, container->_top + 1);
 }
 inline bool
 PSParallelCompact::is_same_container(size_t src_region_idx, size_t region_idx)

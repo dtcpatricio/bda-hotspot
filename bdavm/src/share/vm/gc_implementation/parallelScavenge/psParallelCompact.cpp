@@ -911,8 +911,8 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
                                                    source_container->_start);
     const size_t  target_size      = pointer_delta(target_container->_end,
                                                    target_container->_start);
-    const int  source_regions   = addr_to_region_idx(source_container->_end) - cur_region;
-    const int  target_regions   = addr_to_region_idx(target_container->_end) - target_region;
+    const int  source_regions   = addr_to_region_idx(source_container->_hard_end) - cur_region;
+    const int  target_regions   = addr_to_region_idx(target_container->_hard_end) - target_region;
 
     // Some sources may come from large containers. This may cause the target to overflow,
     // incurring incorrect behaviour.
@@ -977,7 +977,7 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     if (fraction_of_occupancy (source_live, source_size)) {
       // True means that is worth investing in find a suitable segment to
       // compact here.
-      container_t container_seg = (container_t*)source_container;
+      container_t container_seg = (container_t)source_container;
       while ((container_seg = container_seg->_next_segment) != NULL) {
 
         // Jump segments allocated in a different space (usually, in the non-bda-space)
@@ -987,7 +987,7 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
         // Iterate through the segment regions to find the amount of live data
         size_t segment_live = 0;
         const int segment_regions =
-          addr_to_region_idx(container_seg->_end) - addr_to_region_idx(container_seg->_start);
+          addr_to_region_idx(container_seg->_hard_end) - addr_to_region_idx(container_seg->_start);
         for (int i = 0; i < segment_regions; ++i) {
           segment_live += (addr_to_region_ptr(container_seg->_start) + (intptr_t)i)->data_size();
         }
@@ -1063,7 +1063,7 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     RegionData  * const last_region_ptr = addr_to_region_ptr(*target_next);
     container_t const last_contnr_ptr = last_region_ptr->container();
     assert (last_region_ptr->destination() != 0, "wrong last region ptr");
-    *target_next = last_contnr_ptr->_end;
+    *target_next = last_contnr_ptr->_hard_end;
   }
   
   return true;
@@ -1076,132 +1076,6 @@ ParallelCompactData::fraction_of_occupancy(size_t live_data, size_t total_size)
   return true;
 }
 
-/**
- * DEPRECATED CODE!! Remove when it no longer shall be used
- */
-// bool
-// ParallelCompactData::summarize_bda_regions(
-//   SplitInfo& split_info,
-//   HeapWord* source_beg, HeapWord* source_end,
-//   HeapWord** source_next,
-//   BDASummaryMap summary_map)
-// {
-//   if (TraceParallelOldGCSummaryPhase) {
-//     HeapWord* const source_next_val = source_next == NULL ? NULL : *source_next;
-//     tty->print_cr("sb=" PTR_FORMAT " se=" PTR_FORMAT " sn=" PTR_FORMAT,
-//                   source_beg, source_end, source_next_val);
-//   }
-
-//   size_t cur_region = addr_to_region_idx(source_beg);
-//   const size_t end_region = addr_to_region_idx(region_align_up(source_end));
-//   // Placeholder value for the empty regions
-//   HeapWord **dest_addr = summary_map.next_addr_at(PSParallelCompact::old_space_id);
-
-//   while (cur_region < end_region) {
-//     HeapWord *target_end, **target_next;
-//     if(_region_data[cur_region].partial_obj_size() > 0) {
-//       PSParallelCompact::SpaceId previous_id =
-//         PSParallelCompact::space_id(_region_data[cur_region - 1].destination());
-//       if(previous_id > PSParallelCompact::old_space_id) {
-//         target_end = summary_map.end_at(previous_id - PSParallelCompact::last_space_id + 1);
-//         target_next = summary_map.next_addr_at(previous_id - PSParallelCompact::last_space_id + 1);
-//       } else {
-//         assert(previous_id == PSParallelCompact::old_space_id, "should be old-id");
-//         target_end = summary_map.end_at(previous_id);
-//         target_next = summary_map.next_addr_at(previous_id);
-//       }
-//       dest_addr = target_next;
-//     } else {
-//       int target_id = _bda_counters->most_counts_id(cur_region);
-
-//       target_end = summary_map.end_at(target_id);
-
-//       target_next = summary_map.next_addr_at(target_id);
-
-//       dest_addr = target_next;
-//     }
-        
-
-//     // The destination can now be set
-//     _region_data[cur_region].set_destination(*dest_addr);
-
-//     size_t words = _region_data[cur_region].data_size();
-//     if (words > 0) {
-//       // If cur_region does not fit entirely into the target space, find a point
-//       // at which the source space can be 'split' so that part is copied to the
-//       // target space and the rest is copied elsewhere.
-//       if (*dest_addr + words > target_end) {
-//         assert(source_next != NULL, "source_next is NULL when splitting");
-//         // Ugly ugly way... we could change the summarize, but I guess this
-//         // will do for now
-//         // if(target_next == target0_next) {
-//         //   *target1_next = dest1;
-//         //   *target2_next = dest2;
-//         // } else if(target_next == target1_next) {
-//         //   *target0_next = dest0;
-//         //   *target2_next = dest2;
-//         // } else {
-//         //   *target0_next = dest0;
-//         //   *target1_next = dest1;
-//         // }
-//         *source_next = summarize_split_space(cur_region, split_info, *dest_addr,
-//                                              target_end, target_next);
-//         return false;
-//       }
-
-//       // Compute the destination_count for cur_region, and if necessary, update
-//       // source_region for a destination region.  The source_region field is
-//       // updated if cur_region is the first (left-most) region to be copied to a
-//       // destination region.
-//       //
-//       // The destination_count calculation is a bit subtle.  A region that has
-//       // data that compacts into itself does not count itself as a destination.
-//       // This maintains the invariant that a zero count means the region is
-//       // available and can be claimed and then filled.
-//       uint destination_count = 0;
-//       if (split_info.is_split(cur_region)) {
-//         // The current region has been split:  the partial object will be copied
-//         // to one destination space and the remaining data will be copied to
-//         // another destination space.  Adjust the initial destination_count and,
-//         // if necessary, set the source_region field if the partial object will
-//         // cross a destination region boundary.
-//         destination_count = split_info.destination_count();
-//         if (destination_count == 2) {
-//           size_t dest_idx = addr_to_region_idx(split_info.dest_region_addr());
-//           _region_data[dest_idx].set_source_region(cur_region);
-//         }
-//       }
-
-//       HeapWord* const last_addr = *dest_addr + words - 1;
-//       const size_t dest_region_1 = addr_to_region_idx(*dest_addr);
-//       const size_t dest_region_2 = addr_to_region_idx(last_addr);
-
-//       // Initially assume that the destination regions will be the same and
-//       // adjust the value below if necessary.  Under this assumption, if
-//       // cur_region == dest_region_2, then cur_region will be compacted
-//       // completely into itself.
-//       destination_count += cur_region == dest_region_2 ? 0 : 1;
-//       if (dest_region_1 != dest_region_2) {
-//         // Destination regions differ; adjust destination_count.
-//         destination_count += 1;
-//         // Data from cur_region will be copied to the start of dest_region_2.
-//         _region_data[dest_region_2].set_source_region(cur_region);
-//       } else if (region_offset(*dest_addr) == 0) {
-//         // Data from cur_region will be copied to the start of the destination
-//         // region.
-//         _region_data[dest_region_1].set_source_region(cur_region);
-//       }
-
-//       _region_data[cur_region].set_destination_count(destination_count);
-//       _region_data[cur_region].set_data_location(region_to_addr(cur_region));
-//       *dest_addr += words;
-//     }
-
-//     ++cur_region;
-//   }
-
-//   return true;
-// }
 #endif // BDA
 
 HeapWord* ParallelCompactData::calc_new_pointer(HeapWord* addr) {

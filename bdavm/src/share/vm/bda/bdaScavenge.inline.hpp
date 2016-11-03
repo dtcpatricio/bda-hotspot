@@ -3,7 +3,7 @@
 //
 // T* is an oop* or a narrowOop*.
 // void* is a general pointer which will vary between BDARegion* for bdaroots and
-// container_t* for bdarefs.
+// container_t for bdarefs.
 // 
 template<class T, bool promote_immediately> inline void
 BDAScavenge::copy_and_push_safe_barrier(PSPromotionManager* pm,
