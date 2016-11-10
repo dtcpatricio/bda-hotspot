@@ -32,38 +32,16 @@ const size_t MutableBDASpace::BlockSizeBytes  = BlockSize << LogHeapWordSize;
 int    MutableBDASpace::CGRPSpace::dnf = 0;
 int    MutableBDASpace::CGRPSpace::delegation_level = 0;
 int    MutableBDASpace::CGRPSpace::default_collection_size = 0;
+int    MutableBDASpace::CGRPSpace::node_fields = 0;
 size_t MutableBDASpace::CGRPSpace::segment_sz = 0;
 
+// Initialization of the filler_header_array. Must be updated later.
+size_t MutableBDASpace::_filler_header_size = 0;
+
+// For offset allocation on the start array
+ObjectStartArray * MutableBDASpace::_start_array = NULL;
+
 #ifdef BDA
-
-/////////////// ////////////////// ///////////////
-/////////////// BDACardTableHelper ////////////////
-/////////////// ////////////////// /////////////////
-BDACardTableHelper::BDACardTableHelper(MutableBDASpace* sp) {
-  // Not needed for now
-  int j = 0;
-  while (j++ < sp->spaces()->length() - 1) {
-    MutableBDASpace::CGRPSpace * grp = sp->spaces()->at(j);
-    if (grp->space()->not_empty())
-      grp->save_top_ptrs();
-  }
-}
-
-BDACardTableHelper::~BDACardTableHelper()
-{
-  // FREE_RESOURCE_ARRAY(container_helper_t, _containers, _length);  
-}
-
-HeapWord *
-BDACardTableHelper::top(container_t c)
-{
-  for (int i = 0; i < _length; ++i) {
-    if (_containers[i]._container == c) {
-      return _containers[i]._top;
-    }
-  }
-  return NULL;
-}
 
 //////////// ////////////////////////// //////////
 //////////// MutableBDASpace::CGRPSpace //////////
@@ -77,7 +55,13 @@ MutableBDASpace::CGRPSpace::allocate_container(size_t size)
   // during summarize and update of the containers top pointers.
   if (container != NULL) {
     _manager->mark_container(container);
+    _manager->allocate_block(container->_start);
     PSParallelCompact::install_container_in_region(container);
+#ifdef ASSERT
+    if (BDAllocationVerboseLevel > 1) {
+      print_allocation(container);
+    }
+#endif
   }
   
   return container;
@@ -93,7 +77,13 @@ MutableBDASpace::CGRPSpace::allocate_large_container(size_t size)
   // during summarize and update of the containers top pointers.
   if (container != NULL) {
     _manager->mark_container(container);
+    _manager->allocate_block(container->_start);
     PSParallelCompact::install_container_in_region(container);
+#ifdef ASSERT
+    if (BDAllocationVerboseLevel > 1) {
+      print_allocation(container, true);
+    }
+#endif
   }
   
   return container;
@@ -107,7 +97,7 @@ MutableBDASpace::CGRPSpace::object_iterate_containers(ObjectClosure * cl)
 {
   if (container_count() > 0) {
     assert (_containers->peek() != NULL, "GenQueue malformed. Should not be empty");
-    for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+    for (GenQueueIterator<container_t, mtGC> iterator = _containers->iterator();
          *iterator != NULL;
          ++iterator) {
       container_t c = *iterator;
@@ -126,7 +116,7 @@ MutableBDASpace::CGRPSpace::oop_iterate_containers(ExtendedOopClosure * cl)
 {
   if (container_count() > 0) {
     assert (_containers->peek() != NULL, "GenQueue malformed. Should not be empty");
-    for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+    for (GenQueueIterator<container_t, mtGC> iterator = _containers->iterator();
          *iterator != NULL;
          ++iterator) {
       container_t c = *iterator;
@@ -144,7 +134,7 @@ MutableBDASpace::CGRPSpace::oop_iterate_no_header_containers(OopClosure * cl)
 {
   if (container_count() > 0) {
     assert (_containers->peek() != NULL, "GenQueue malformed. Should not be empty");
-    for (GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+    for (GenQueueIterator<container_t, mtGC> iterator = _containers->iterator();
          *iterator != NULL;
          ++iterator) {
       container_t c = *iterator;
@@ -163,7 +153,7 @@ MutableBDASpace::CGRPSpace::verify()
   if (container_type() == KlassRegionMap::region_start_ptr()) {
     this->space()->verify();
   } else if (space()->not_empty()) {
-    for(GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+    for(GenQueueIterator<container_t, mtGC> iterator = _containers->iterator();
         *iterator != NULL;
         ++iterator) {
       container_t c = *iterator;
@@ -178,18 +168,130 @@ MutableBDASpace::CGRPSpace::verify()
   }
 }
 
+void
+MutableBDASpace::CGRPSpace::print_container_fragmentation_stats() const
+{
+  double avg = 0.0;
+  double var = 0.0;
+  double dev = 0.0;
+  int    i   = 1;
+  for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
+       *it != NULL;
+       ++it )
+  {
+    container_t const c = *it;
+    HeapWord *  const bot = c->_start;
+    HeapWord *  const top = c->_top;
+    HeapWord *  const end = c->_end;
+
+    // Compute fragmentation for this segment
+    double frag = pointer_delta (top, bot) / (double)pointer_delta (end, bot);
+    
+    // Compute the average segment fragmentation and variance.
+    // Both the average and the variance are calculated using the
+    // incremental method in a similar fashion to what Donald Knuth presents of
+    // B. P. Welford's method.
+
+    double const old_avg = avg;
+
+    avg += (frag - old_avg) / i;
+
+    // Don't compute variance if i < 2
+    if ( i > 1 ) {
+      var += (frag - old_avg) * (frag - avg);
+    }
+
+    i++;
+  }
+
+  dev = sqrt(var);
+  
+  // Print the statistical information
+  gclog_or_tty->print_cr("Space " INT32_FORMAT, container_type()->value() - 1);
+  gclog_or_tty->print_cr("  Average fragmentation = %.*e", avg);
+  gclog_or_tty->print_cr("  Variance in fragmentation = %.*e", var);
+  gclog_or_tty->print_cr("  Standard Deviation in fragmentation = %.*e", dev);
+}
+
+void
+MutableBDASpace::CGRPSpace::print_allocation(container_t c, bool large) const
+{
+  if (large)
+    gclog_or_tty->print(" %-25s", "LARGE Container Alloc");
+  else
+    gclog_or_tty->print(" %-25s", "Container Alloc");
+  
+  gclog_or_tty->print(" Size " SIZE_FORMAT "K", pointer_delta(c->_end, c->_start)/K);
+  gclog_or_tty->print_cr(" [ " INTPTR_FORMAT ", " INTPTR_FORMAT ")",
+                         c->_start, c->_end);
+}
+
+#ifdef ASSERT
+void
+MutableBDASpace::CGRPSpace::print_allocation_stats(outputStream * st) const
+{  
+  st->print_cr(" %-25s Space ID = " INT32_FORMAT " allocated " INT32_FORMAT " segments during GC]",
+               "--[BDA Alloc Stats ::", this->container_type()->value(), _segments_since_last_gc);
+}
+#endif
+
+void
+MutableBDASpace::CGRPSpace::print_used(outputStream * st) const
+{
+  int n = 1;
+  
+  if (container_count() == 0)
+    return;
+
+  st->print_cr("");
+  st->print_cr(" --[%-20s Space ID = " INT32_FORMAT " containers :]",
+                         "BDA Containers on", container_type()->value());
+  for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
+       *it != NULL;
+       ++it )
+  {
+    container_t c = *it;
+
+    // Don't print segment extensions of the parent alone, they'll be printed in the loop
+    if (c->_prev_segment != NULL) {
+      continue;
+    }
+
+    st->print_cr("  Container (" INT32_FORMAT ")", n++);
+    int k = 1;
+    do {
+      const size_t used = pointer_delta (c->_top, c->_start);
+      st->print_cr ("    Segment (" INT32_FORMAT "): Used " SIZE_FORMAT
+                    "K [ " INTPTR_FORMAT ", " INTPTR_FORMAT ", " INTPTR_FORMAT ")",
+                    k++, used / K, c->_start, c->_top, c->_end);
+    } while ((c = c->_next_segment) != NULL);
+  }
+}
+
+#ifdef ASSERT
+void
+MutableBDASpace::CGRPSpace::reset_stats()
+{
+  _segments_since_last_gc = 0;
+  _gc_current = NULL;
+}
+#endif
+
 ////////////////// /////////////// //////////////////
 ////////////////// MutableBDASpace //////////////////
 ////////////////// /////////////// //////////////////
-MutableBDASpace::MutableBDASpace(size_t alignment) : MutableSpace(alignment) {
+MutableBDASpace::MutableBDASpace(size_t alignment, ObjectStartArray * start_array)
+  : MutableSpace(alignment) {
   int n_regions = KlassRegionMap::number_bdaregions();
   _spaces = new (ResourceObj::C_HEAP, mtGC) GrowableArray<CGRPSpace*>(n_regions, true);
   _page_size = os::vm_page_size();
+  _start_array = start_array;
 
   // Initialize these to the values on the launch args
   CGRPSpace::dnf = BDAElementNumberFields;
   CGRPSpace::default_collection_size = BDACollectionSize;
   CGRPSpace::delegation_level = BDADelegationLevel;
+  CGRPSpace::node_fields = ContainerNodeFields;
   // and set the regular segment size
   CGRPSpace::segment_sz = CGRPSpace::calculate_reserved_sz();
     
@@ -213,7 +315,10 @@ MutableBDASpace::~MutableBDASpace() {
   delete spaces();
 }
 
-void MutableBDASpace::initialize(MemRegion mr, bool clear_space, bool mangle_space, bool setup_pages) {
+void
+MutableBDASpace::initialize(MemRegion mr, bool clear_space,
+                            bool mangle_space, bool setup_pages) {
+
   HeapWord* bottom = mr.start();
   HeapWord* end = mr.end();
 
@@ -232,8 +337,6 @@ void MutableBDASpace::initialize(MemRegion mr, bool clear_space, bool mangle_spa
   initialize_regions(space_size, bottom, end);
   // always clear space for new allocations
   clear(mangle_space);
-
-  
 }
 
 bool
@@ -252,6 +355,9 @@ MutableBDASpace::post_initialize()
     return false;
   }
 
+  // Update the filler_header_size
+  _filler_header_size = align_object_size(typeArrayOopDesc::header_size(T_INT));
+  
   return true;
 }
 
@@ -922,7 +1028,7 @@ size_t
 MutableBDASpace::used_in_words() const {
   size_t s = 0;
   for (int i = 0; i < spaces()->length(); i++) {
-    s += spaces()->at(i)->space()->used_in_words();
+    s += spaces()->at(i)->used_in_words();
   }
   return s;
 }
@@ -931,7 +1037,7 @@ size_t
 MutableBDASpace::free_in_words() const {
   size_t s = 0;
   for (int i = 0; i < spaces()->length(); i++) {
-    s += spaces()->at(i)->space()->free_in_words();
+    s += spaces()->at(i)->free_in_words();
   }
   return s;
 }
@@ -939,13 +1045,13 @@ MutableBDASpace::free_in_words() const {
 size_t
 MutableBDASpace::free_in_words(int grp) const {
   assert(grp < spaces()->length(), "Sanity");
-  return spaces()->at(grp)->space()->free_in_words();
+  return spaces()->at(grp)->free_in_words();
 }
 
 size_t
 MutableBDASpace::free_in_bytes(int grp) const {
   assert(grp < spaces()->length(), "Sanity");
-  return spaces()->at(grp)->space()->free_in_bytes();
+  return spaces()->at(grp)->free_in_bytes();
 }
 
 size_t
@@ -1046,24 +1152,31 @@ MutableBDASpace::allocate_container(size_t size, BDARegion* r)
 // by each GC thread seperately. If StealTasks are implemented and some kind of
 // synchronization is required, then implement the bumping pointer with a CAS.
 HeapWord*
-MutableBDASpace::allocate_element(size_t size, container_t* c)
+MutableBDASpace::allocate_element(size_t size, container_t& c)
 {
-  HeapWord * old_top = (*c)->_top;
+  HeapWord * old_top = c->_top;
   HeapWord * new_top = old_top + size;
-  if (new_top < (*c)->_end) {
-    (*c)->_top = new_top;
+  if (new_top < c->_end) {
+    c->_top = new_top;
+    allocate_block(old_top);
   } else {
     // If it fails to allocate in the container, i.e., it is full, then
     // allocate a new segment of the container and change the argument passed
-    // accordingly.
+    // accordingly, but first fill the segment with a filler.
+    // NB: I don't call CollectedHeap::fill_with_object due to branches, this way is faster
+    assert (c->_end + _filler_header_size == c->_hard_end, "should not overflow");
+    HeapWord * const segment_end = c->_end + _filler_header_size;
+    typeArrayOop filler_oop = (typeArrayOop) old_top;
+    filler_oop->set_mark(markOopDesc::prototype());
+    filler_oop->set_klass(Universe::intArrayKlassObj());
+    const size_t filler_array_length =
+      pointer_delta(segment_end, old_top) - typeArrayOopDesc::header_size(T_INT);
+    assert((filler_array_length * (HeapWordSize/sizeof(jint))) < (size_t)max_jint, "array too big");
+    filler_oop->set_length((int)(filler_array_length * (HeapWordSize / sizeof(jint))));
 
     // Which space was this container allocated?
-    CGRPSpace * grp = NULL;
-    for (int i = 0; i < _spaces->length(); ++i) {
-      if (_spaces->at(i)->space()->contains((*c)->_start)) {
-        grp = _spaces->at(i); break;
-      }
-    }
+    CGRPSpace * grp = spaces()->at((int)c->_space_id - 1);
+
     assert (grp != NULL, "The container must have been allocated in one of the groups");
     old_top = grp->allocate_new_segment(size, c); // reuse the variable
     // Force allocate in the general object space if it wasn't possible on the bda-space
@@ -1092,25 +1205,22 @@ MutableBDASpace::clear_delete_containers_in_space(uint space_id)
                               _segment_bitmap.addr_to_bit(top));
 }
 
+#ifdef ASSERT
+void
+MutableBDASpace::reset_grp_stats()
+{
+  for (int i = 0; i < spaces()->length(); ++i) {
+    spaces()->at(i)->reset_stats();
+  }
+}
+#endif
+
 void MutableBDASpace::clear(bool mangle_space)
 {
   MutableSpace::clear(mangle_space);
   for(int i = 0; i < spaces()->length(); ++i) {
     spaces()->at(i)->space()->clear(mangle_space);
   }
-}
-
-bool MutableBDASpace::update_top() {
-  // HeapWord *curr_top = top();
-  bool changed = false;
-  // for(int i = 0; i < spaces()->length(); ++i) {
-  //   if(spaces()->at(i)->top() > curr_top) {
-  //     curr_top = spaces()->at(i)->top();
-  //     changed = true;
-  //   }
-  // }
-  // MutableSpace::set_top(curr_top);
-  return changed;
 }
 
 void
@@ -1145,26 +1255,21 @@ MutableBDASpace::set_top_for_allocations(HeapWord *p) {
 
 void
 MutableBDASpace::print_on(outputStream* st) const {
-  MutableSpace::print_on(st);
+  st->print(" %s", "space for BDAGen [");
+  MutableSpace::print_on(st); st->print_cr("]");
   for (int i = 0; i < spaces()->length(); ++i) {
-    CGRPSpace *cs = spaces()->at(i);
-    st->print("\t region for type %d", cs->container_type());
-    cs->space()->print_on(st);
+    st->print ("   %s " INT32_FORMAT " [", "Space ID =", i);
+    spaces()->at(i)->space()->print_on(st);
   }
 }
 
 void
 MutableBDASpace::print_short_on(outputStream* st) const {
+  st->print_cr(" %-15s ", "BDA OldGen");
   MutableSpace::print_short_on(st);
-  st->print(" ()");
   for(int i = 0; i < spaces()->length(); ++i) {
-    st->print("region %d: ", spaces()->at(i)->container_type());
     spaces()->at(i)->space()->print_short_on(st);
-    if(i < spaces()->length() - 1) {
-      st->print(", ");
-    }
   }
-  st->print(") ");
 }
 
 /// ITERATION
@@ -1255,55 +1360,103 @@ MutableBDASpace::object_iterate(ObjectClosure* cl)
 /////////////
 
 void
-MutableBDASpace::print_current_space_layout(bool descriptive,
-                                            bool only_collections)
+MutableBDASpace::print_object_space() const
 {
   ResourceMark rm(Thread::current());
+  // TODO: FIXME: Implement a way to group objects of the same class and print a summarization
+  // of the whole space, objects included.
+  // if(descriptive) {
+  //   int j = only_collections ? 1 : 0;
+  //   for(; j < spaces()->length(); ++j) {
+  //     CGRPSpace* grp = spaces()->at(j);
+  //     MutableSpace* spc = grp->space();
+  //     BDARegion* region = grp->container_type();
+  //     gclog_or_tty->print_cr("\nRegion for objects %s :: From 0x%x to 0x%x top 0x%x",
+  //                            region->toString(),
+  //                            spc->bottom(),
+  //                            spc->end(),
+  //                            spc->top());
+  //     gclog_or_tty->print_cr("\t Fillings (words): Capacity %d :: Used space %d :: Free space %d",
+  //                   spc->capacity_in_words(),
+  //                   spc->used_in_words(),
+  //                   spc->free_in_words());
+  //     gclog_or_tty->print_cr("\t Space layout:");
+  //     oop next_obj = (oop)spc->bottom();
+  //     while((HeapWord*)next_obj < spc->top()) {
+  //       Klass* klassPtr = next_obj->klass();
+  //       gclog_or_tty->print_cr("address: %x , klass: %s",
+  //                     next_obj,
+  //                     klassPtr->external_name());
+  //       next_obj = (oop)((HeapWord*)next_obj + next_obj->size());
+  //     }
+  //   }
+  // } 
+  // else {
+    // for(int j = 0; j < spaces()->length(); ++j) {
+  //     CGRPSpace* grp = spaces()->at(j);
+  //     MutableSpace* spc = grp->space();
+  //     BDARegion* region = grp->container_type();
+  //     gclog_or_tty->print("\nRegion for objects %x", region->value());
+  //     gclog_or_tty->print_cr(":: From ["
+  //                            INTPTR_FORMAT ") to ["
+  //                            INTPTR_FORMAT ")\t top = "
+  //                            INTPTR_FORMAT,
+  //                            spc->bottom(),
+  //                            spc->end(),
+  //                            spc->top());
+  //     gclog_or_tty->print_cr("\t :: Fillings (words): Capacity " SIZE_FORMAT "K"
+  //                            "   :: Used space " SIZE_FORMAT "K"
+  //                            "   :: Free space " SIZE_FORMAT "K",
+  //                            spc->capacity_in_words() / K,
+  //                            spc->used_in_words() / K,
+  //                            spc->free_in_words() / K);
+  //   }
+  // }
+  for (int i = 0; i < spaces()->length(); ++i) {
+    spaces()->at(i)->print_used(gclog_or_tty);
+  }
+}
 
-  if(descriptive) {
-    int j = only_collections ? 1 : 0;
-    for(; j < spaces()->length(); ++j) {
-      CGRPSpace* grp = spaces()->at(j);
-      MutableSpace* spc = grp->space();
-      BDARegion* region = grp->container_type();
-      gclog_or_tty->print_cr("\nRegion for objects %s :: From 0x%x to 0x%x top 0x%x",
-                             region->toString(),
-                             spc->bottom(),
-                             spc->end(),
-                             spc->top());
-      gclog_or_tty->print_cr("\t Fillings (words): Capacity %d :: Used space %d :: Free space %d",
-                    spc->capacity_in_words(),
-                    spc->used_in_words(),
-                    spc->free_in_words());
-      gclog_or_tty->print_cr("\t Space layout:");
-      oop next_obj = (oop)spc->bottom();
-      while((HeapWord*)next_obj < spc->top()) {
-        Klass* klassPtr = next_obj->klass();
-        gclog_or_tty->print_cr("address: %x , klass: %s",
-                      next_obj,
-                      klassPtr->external_name());
-        next_obj = (oop)((HeapWord*)next_obj + next_obj->size());
-      }
-    }
-  } else {
-    for(int j = 0; j < spaces()->length(); ++j) {
-      CGRPSpace* grp = spaces()->at(j);
-      MutableSpace* spc = grp->space();
-      BDARegion* region = grp->container_type();
-      gclog_or_tty->print("\nRegion for objects %x", region->value());
-      gclog_or_tty->print_cr(":: From ["
-                             INTPTR_FORMAT ") to ["
-                             INTPTR_FORMAT ")\t top = "
-                             INTPTR_FORMAT,
-                             spc->bottom(),
-                             spc->end(),
-                             spc->top());
-      gclog_or_tty->print_cr("\t :: Fillings (words): Capacity " SIZE_FORMAT "K"
-                             "   :: Used space " SIZE_FORMAT "K"
-                             "   :: Free space " SIZE_FORMAT "K",
-                             spc->capacity_in_words() / K,
-                             spc->used_in_words() / K,
-                             spc->free_in_words() / K);
+void
+MutableBDASpace::print_spaces_fragmentation_stats() const
+{
+  gclog_or_tty->print_cr("--[BDA Spaces fragmentation stats:]");
+  
+  for (int i = 0; i < spaces()->length(); ++i ) {
+    double avg = 0.0;
+    
+    CGRPSpace * grp = spaces()->at(i);
+
+    // Test if it's worth continuing and warn for containers in space 0
+    if ( i == 0 && grp->container_count() > 0 ) {
+      gclog_or_tty->print_cr("  (warning: Containers in Space 0  --"
+                             "  Segment Count = " INT32_FORMAT ")",
+                             grp->container_count());
+    } else if ( grp->container_count() == 0 ) continue;
+
+    // asserts
+    assert ( grp->container_count() > 0, "Shouldn't reach here without containers");
+
+    // Compute the average segment fragmentation and variance.
+    // Both the average and the variance are calculated using the
+    // incremental method in a similar fashion to what Donald Knuth presents of
+    // B. P. Welford's method.
+    grp->print_container_fragmentation_stats();
+  }
+}
+
+void
+MutableBDASpace::print_allocation_stats() const
+{
+  assert (BDAllocationVerboseLevel > 0, "Shouldn't reach here with 0 verbosity level");
+
+  // if (BDAllocationVerboseLevel > 1) {
+  
+  // } else
+  if (BDAllocationVerboseLevel > 0) {
+    for (int i = 0; i < spaces()->length(); ++i) {
+      CGRPSpace * grp = spaces()->at(i);
+      grp->print_allocation_stats(gclog_or_tty);
     }
   }
 }

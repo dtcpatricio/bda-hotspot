@@ -245,28 +245,12 @@ bool PSScavenge::invoke() {
     counters->update_full_follows_scavenge(ffs_val);
   }
 
-#ifdef HEADER_MARK
-  if (BDAPrintAfterMinorGC) {
-    ((BDCMutableSpace*)heap->old_gen()->object_space())->print_current_space_layout(
-                                              BDAPrintDescriptive,
-                                              BDAPrintOnlyCollections);
-  }
-#endif
-
   if (need_full_gc) {
     GCCauseSetter gccs(heap, GCCause::_adaptive_size_policy);
     CollectorPolicy* cp = heap->collector_policy();
     const bool clear_all_softrefs = cp->should_clear_all_soft_refs();
 
     if (UseParallelOldGC) {
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-      // Additional code to adjust the regions free size as a dependency of
-      // the generation free size before the GC
-      if(!heap->adjust_object_space()) {
-        size_t desired_free_space = heap->avg_needed_freespace();
-        heap->resize_old_gen(desired_free_space);
-      }
-#endif
       full_gc_done = PSParallelCompact::invoke_no_policy(clear_all_softrefs);
     } else {
       full_gc_done = PSMarkSweep::invoke_no_policy(clear_all_softrefs);
@@ -756,9 +740,17 @@ bool PSScavenge::invoke_no_policy() {
 #ifdef BDA
     if (UseBDA) {
       Universe::heap()->clear_refqueue();
+#ifdef ASSERT
+      if (BDAllocationVerboseLevel > 0) {
+        bda_manager->print_allocation_stats();
+      }
+      bda_manager->reset_grp_stats();
+#endif // ASSERT
+      if (BDAPrintAfterGC) {
+        bda_manager->print_object_space();
+      }
     }
-    
-#endif
+#endif // BDA
   }
 
   if (VerifyAfterGC && heap->total_collections() >= VerifyGCStartAt) {

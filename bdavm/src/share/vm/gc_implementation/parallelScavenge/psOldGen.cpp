@@ -137,7 +137,7 @@ void PSOldGen::initialize_work(const char* perf_data_name, int level) {
   //
 #ifdef BDA
   if(UseBDA) {
-    _object_space = new MutableBDASpace(virtual_space()->alignment());
+    _object_space = new MutableBDASpace(virtual_space()->alignment(), start_array());
   } else
 #endif
     _object_space = new MutableSpace(virtual_space()->alignment());

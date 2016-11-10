@@ -2499,6 +2499,10 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
     heap->record_gen_tops_before_GC();
   }
 
+  if (BDAContainerFragAtFullGC) {
+    _bda_space->print_spaces_fragmentation_stats();
+  }
+
   heap->pre_full_gc_dump(&_gc_timer);
 
   _print_phases = PrintGCDetails && PrintParallelOldGCPhaseTimes;
@@ -2666,7 +2670,7 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
 #ifdef BDA
     // Print the Old Generation regions, whether descriptively or not.
     if(UseBDA && BDAPrintAfterGC) {
-      _bda_space->print_current_space_layout(BDAPrintDescriptive, BDAPrintOnlyCollections);
+      _bda_space->print_object_space();
     }
 #endif
 

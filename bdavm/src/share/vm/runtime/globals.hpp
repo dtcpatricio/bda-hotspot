@@ -3972,18 +3972,26 @@ class CommandLineFlags {
                "size in small segments. It tries to promote locality "      \
                "in small system-level memory structures")                   \
                                                                             \
-  develop(intx, BDAContainerArraySize, 256,                                 \
-               "This sets the initial size of the array that contains "     \
-               "pointers to container_t structures, for debug builds")      \
+  product(intx, ContainerNodeFields, 2,                                     \
+               "The number of fields in the main array that are useful "    \
+               "for the calculation of the amount of data")                 \
                                                                             \
   develop (bool, PrintEnqueuedContainers, false,                            \
                 "Prints the reference and the space id of container "       \
                 "objects")                                                  \
                                                                             \
+  develop (intx, BDAllocationVerboseLevel, 0,                               \
+                "Defines the verbosity level during allocation of bda "     \
+                "containers.")                                              \
+                                                                            \
   product (bool, AlertContainersInOtherSpace, false,                        \
                 "Prints an alert if there are container segments in the "   \
                 "other's space and illustrates it using the average "       \
                 "of allocated segments in the correct bda-spaces")          \
+                                                                            \
+  product (bool, BDAContainerFragAtFullGC, false,                           \
+                "Print, at each fullGC, statistical information about "     \
+                "container fragmentation")                                  \
                                                                             \
   product(bool, BDAPrintAfterGC, false,                                     \
                "Print big-data aware space after compacting GC")            \
@@ -3996,9 +4004,6 @@ class CommandLineFlags {
                                                                             \
   product(bool, BDAPrintOnlyCollections, false,                             \
                "Print big-data aware space, but only collections")          \
-                                                                            \
-  product(uintx, BDAMinOldPLABSize, 1024,                                   \
-          "Minimum size for the old gen promotion LAB (in HeapWords)")      \
 
 /*
  *  Macros for factoring of globals

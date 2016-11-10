@@ -163,7 +163,7 @@ class ObjectStartArray : public CHeapObj<mtGC> {
   HeapWord* object_start(HeapWord* addr, HeapWord* low_bound) const {
     assert(_covered_region.contains(addr), "Must be in covered region");
     jbyte* block = block_for_addr(addr);
-    HeapWord* scroll_forward;
+    HeapWord* scroll_forward = offset_addr_for_block(block--);
     while (scroll_forward > addr) {
       scroll_forward = offset_addr_for_block(block--);
     }

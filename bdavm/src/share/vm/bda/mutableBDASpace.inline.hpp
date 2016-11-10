@@ -4,7 +4,7 @@
 # include "bda/mutableBDASpace.hpp"
 # include "oops/klassRegionMap.hpp"
 
-inline container_t*
+inline container_t
 MutableBDASpace::CGRPSpace::push_container(size_t size)
 {
   container_t container;
@@ -34,8 +34,8 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
       }
     }
 
-  // Else, allocate a normal sized container based on the average container size
-  // using the arguments provided at startup (allocate_container() in mutableBDASpace.cpp).
+    // Else, allocate a normal sized container based on the average container size
+    // using the arguments provided at startup (allocate_container() in mutableBDASpace.cpp).
   } else {
   
     if ( (container = _pool->dequeue()) != NULL ) {
@@ -51,6 +51,9 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
   if (container != NULL) {
     assert (container->_next_segment == NULL, "should have been reset");
     assert (container->_prev_segment == NULL, "should have been reset");
+#ifdef ASSERT
+    _segments_since_last_gc++;
+#endif
     // MT safe, but only for subsequent enqueues/dequeues. If mixed, then the queue may break!
     // See gen_queue.hpp for more details.
     _containers->enqueue(container);
@@ -60,7 +63,7 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
 }
 
 inline HeapWord *
-MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t* c)
+MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t& c)
 {
   container_t container;
   container_t next_segment;
@@ -91,8 +94,8 @@ MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t* c)
       }
     }
 
-  // Else, allocate a normal sized container based on the average container size
-  // using the arguments provided at startup (allocate_container() in mutableBDASpace.cpp).
+    // Else, allocate a normal sized container based on the average container size
+    // using the arguments provided at startup (allocate_container() in mutableBDASpace.cpp).
   } else {
     
     if ( (container = _pool->dequeue() ) != NULL ) {
@@ -108,7 +111,7 @@ MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t* c)
   // FullGC, causing a load of invalid space from a parent allocated in a bda-space (which are
   // not deallocated).
   if (container != NULL && container_type() != KlassRegionMap::region_start_ptr()) {
-    next_segment = *c;
+    next_segment = c;
     do {
       prev_segment = next_segment;
       next_segment = prev_segment->_next_segment;
@@ -116,7 +119,10 @@ MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t* c)
                                  &(prev_segment->_next_segment),
                                  next_segment) != next_segment);
     container->_prev_segment = prev_segment;
-    *c = container;
+    c = container;
+#ifdef ASSERT
+    _segments_since_last_gc++;
+#endif
     // MT safe, but only for subsequent enqueues/dequeues.
     _containers->enqueue(container);
   } else {    
@@ -129,9 +135,10 @@ MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t* c)
 inline size_t
 MutableBDASpace::CGRPSpace::calculate_reserved_sz()
 {
+  size_t reserved_sz_bytes = 0;
   size_t reserved_sz = 0;
-  size_t f = sizeof(HeapWord*); // default field size
-  size_t h = 2 * sizeof(HeapWord*); // size of header;
+  const size_t f = sizeof(HeapWord*); // default field size
+  const size_t h = 2 * sizeof(HeapWord*); // size of header;
   HeapWord * ptr = NULL;
 
   // Reserve space in this bda-space's MutableSpace.
@@ -145,15 +152,16 @@ MutableBDASpace::CGRPSpace::calculate_reserved_sz()
   // the actual data:
   // [ SUM_n=1 to k (f * dnf^n + h * dnf^n) ] + h + f * dnf^k
 
-  for (int n = 1; n <= delegation_level; n++) {
-    reserved_sz += power_function(dnf, n) * f + power_function(dnf, n) * h;
-  }
-  reserved_sz += h + power_function(dnf, delegation_level) * f;
-  reserved_sz *= default_collection_size * BDAContainerFraction;
+  const size_t term1 = dnf * f;
+  const size_t term2 = dnf * delegation_level * (f + h);
+  const size_t term3 = (f + h) + node_fields * ( (f + h) + term1 + term2);
+  
+  reserved_sz_bytes = term3 * default_collection_size * BDAContainerFraction;
 
   // First, align the reserved_sz with the MinRegionSize. This is important
   // so that the ParallelOld doesn't split containers in half.
-  reserved_sz = (size_t) align_size_up((intptr_t)reserved_sz, MutableBDASpace::MinRegionSize);
+  reserved_sz = (size_t) align_size_up((intptr_t)reserved_sz_bytes >> LogHeapWordSize,
+                                       MutableBDASpace::MinRegionSize);
 
   return reserved_sz;
 }
@@ -180,19 +188,19 @@ MutableBDASpace::CGRPSpace::install_container_in_space(size_t reserved_sz, size_
   // return NULL so that MutableBDASpace can handle the allocation
   // of a new container to "other" space.
   if (ptr == NULL) {
-    return (container_t*)ptr;
+    return (container_t)ptr;
   }
   
   // We allocate it with the general AllocateHeap since struct is not, by default,
   // subclass of one of the base VM classes (CHeap, ResourceObj, ... and friends).
   // It must be initialized prior to allocation because there's no default constructor.
-  container_t* container = (container_t*)AllocateHeap(sizeof(container_t), mtGC);
-  container->_start = ptr; container->_top = ptr + size; container->_end = ptr + reserved_sz;
+  container_t container = (container_t)AllocateHeap(sizeof(struct container), mtGC);
+  container->_start = ptr; container->_top = ptr + size;
+  container->_end = ptr + reserved_sz - MutableBDASpace::_filler_header_size;
   container->_next_segment = NULL; container->_next = NULL; container->_prev_segment = NULL;
-  container->_previous = NULL;
-#ifdef ASSERT
+  container->_previous = NULL; container->_saved_top = NULL;
   container->_space_id = (char)_type->value();
-#endif
+  container->_hard_end = ptr + reserved_sz;
 
   return container;
 }
@@ -211,9 +219,9 @@ MutableBDASpace::CGRPSpace::clear_delete_containers()
     c = n;
   }
 
-  GenQueue<container_t*, mtGC>::destroy(_containers);
-  GenQueue<container_t*, mtGC>::destroy(_pool);
-  GenQueue<container_t*, mtGC>::destroy(_large_pool);
+  GenQueue<container_t, mtGC>::destroy(_containers);
+  GenQueue<container_t, mtGC>::destroy(_pool);
+  GenQueue<container_t, mtGC>::destroy(_large_pool);
   
   assert (_large_pool->n_elements() == 0, "pool shouldn't have containers.");
   assert (_pool->n_elements() == 0, "pool shouldn't have containers.");
@@ -306,7 +314,7 @@ MutableBDASpace::CGRPSpace::save_top_ptrs()
 {
   // int from = *i;
   if (container_count() > 0)
-    for(GenQueueIterator<container_t*, mtGC> iterator = _containers->iterator();
+    for(GenQueueIterator<container_t, mtGC> iterator = _containers->iterator();
         *iterator != NULL;
         ++iterator) {
       container_t c = *iterator;
@@ -316,6 +324,52 @@ MutableBDASpace::CGRPSpace::save_top_ptrs()
     }
 
   // *i = from;
+}
+
+inline size_t
+MutableBDASpace::CGRPSpace::used_in_words() const
+{
+  size_t s = 0;
+  if (container_count() > 0) {
+    for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
+         *it != NULL;
+         ++it)
+    {
+      container_t c = *it;
+      s += pointer_delta(c->_top, c->_start);
+    }
+  }
+  return s;
+}
+
+inline size_t
+MutableBDASpace::CGRPSpace::free_in_words() const
+{
+  size_t s = 0;
+  // If this is the other's space, we account from top to end
+  if (container_type() != KlassRegionMap::region_start_ptr() && container_count() > 0) {
+      for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
+           *it != NULL;
+           ++it)
+      {
+        container_t c = *it;
+        s += pointer_delta(c->_end, c->_top);
+      }
+  } else {
+    return space()->free_in_words();
+  }
+  return s;
+}
+
+inline size_t
+MutableBDASpace::CGRPSpace::free_in_bytes() const
+{
+  return free_in_words() * HeapWordSize;
+}
+inline size_t
+MutableBDASpace::CGRPSpace::used_in_bytes() const
+{
+  return used_in_words() * HeapWordSize;
 }
 /////////////////////////////////////////
 // MutableBDASpace inline Definitions////
@@ -364,7 +418,13 @@ MutableBDASpace::is_bdaspace_empty()
 inline bool
 MutableBDASpace::mark_container(container_t c)
 {
-  _segment_bitmap.mark_obj(c->_start, pointer_delta(c->_end, c->_start));
+  _segment_bitmap.mark_obj(c->_start, pointer_delta(c->_hard_end, c->_start));
+}
+
+inline void
+MutableBDASpace::allocate_block(HeapWord * obj)
+{
+  _start_array->allocate_block(obj);
 }
 
 inline HeapWord *
