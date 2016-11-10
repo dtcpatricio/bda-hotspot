@@ -32,7 +32,7 @@ public class Bootstrap {
   private MyHashMap<Long, Value> ConstructorHelper(int sz)
     {
       MyHashMap<Long, Value> m = new MyHashMap<Long, Value>(sz, map_counts++);
-      System.out.println("\nCreated map number " + map_counts);
+      System.out.println("Created map number " + map_counts);
       return m;
   }
 
