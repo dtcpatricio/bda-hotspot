@@ -92,6 +92,8 @@ OldToYoungNonBDARootsTask::do_it(GCTaskManager * manager, uint which)
                                                     pm,
                                                     _stripe_number,
                                                     _stripe_total);
+      // We've reached the end of the space
+      if (tmp_top == _gen_top) break;
       HeapWord * const new_bottom = bda_space->get_next_end_seg(tmp_top + 1, _gen_top) + 1;
       assert (pointer_delta(new_bottom, bottom) >= MutableBDASpace::CGRPSpace::segment_sz ||
               new_bottom > _gen_top,
