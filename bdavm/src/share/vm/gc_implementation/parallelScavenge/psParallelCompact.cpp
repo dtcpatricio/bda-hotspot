@@ -2499,9 +2499,11 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
     heap->record_gen_tops_before_GC();
   }
 
+#ifdef BDA
   if (BDAContainerFragAtFullGC) {
     _bda_space->print_spaces_fragmentation_stats();
   }
+#endif
 
   heap->pre_full_gc_dump(&_gc_timer);
 
