@@ -100,6 +100,9 @@ bool PSPromotionManager::post_scavenge(YoungGCTracer& gc_tracer) {
       promotion_failure_occurred = true;
     }
     manager->flush_labs();
+#ifdef BDA
+    manager->fill_last_segment();
+#endif // BDA
   }
   return promotion_failure_occurred;
 }
@@ -114,10 +117,10 @@ PSPromotionManager::print_taskqueue_stats(uint i) const {
 
 void
 PSPromotionManager::print_local_stats(uint i) const {
-  #define FMT " " SIZE_FORMAT_W(10)
+#define FMT " " SIZE_FORMAT_W(10)
   tty->print_cr("%3u" FMT FMT FMT FMT, i, _masked_pushes, _masked_steals,
                 _arrays_chunked, _array_chunks_processed);
-  #undef FMT
+#undef FMT
 }
 
 static const char* const pm_stats_hdr[] = {
@@ -194,11 +197,7 @@ void PSPromotionManager::reset() {
   HeapWord* lab_base = young_space()->top();
   _young_lab.initialize(MemRegion(lab_base, (size_t)0));
   _young_gen_is_full = false;
-
-#if defined(HASH_MARK) || defined(HEADER_MARK)
-  // Dummy value to enable the flushing of all labs in the group
-  Thread::current()->set_alloc_region(KlassRegionMap::no_region_ptr());
-#endif
+  
   lab_base = old_gen()->object_space()->top();
   _old_lab.initialize(MemRegion(lab_base, (size_t)0));
 
@@ -206,6 +205,9 @@ void PSPromotionManager::reset() {
 
   _promotion_failed_info.reset();
 
+#ifdef BDA
+  _filling_segment = NULL;
+#endif // BDA
   TASKQUEUE_STATS_ONLY(reset_stats());
 }
 
@@ -266,8 +268,8 @@ void PSPromotionManager::flush_labs() {
 }
 
 template <class T> void PSPromotionManager::process_array_chunk_work(
-                                                 oop obj,
-                                                 int start, int end) {
+  oop obj,
+  int start, int end) {
   assert(start <= end, "invariant");
   T* const base      = (T*)objArrayOop(obj)->base();
   T* p               = base + start;
@@ -413,5 +415,24 @@ PSPromotionManager::bda_oop_promotion_failed(oop obj, markOop obj_mark)
 
   return obj;
 
+}
+
+void
+PSPromotionManager::fill_last_segment()
+{
+  if (_filling_segment != NULL) {
+    container_t const segment = _filling_segment;  
+    assert (segment->_end + MutableBDASpace::_filler_header_size == segment->_hard_end,
+            "should not overflow");
+    HeapWord * const segment_end = segment->_end + MutableBDASpace::_filler_header_size;
+    typeArrayOop filler_oop = (typeArrayOop) segment->_top;
+    filler_oop->set_mark(markOopDesc::prototype());
+    filler_oop->set_klass(Universe::intArrayKlassObj());
+    const size_t filler_array_length =
+      pointer_delta(segment_end, (HeapWord*)filler_oop) - typeArrayOopDesc::header_size(T_INT);
+    assert((filler_array_length * (HeapWordSize/sizeof(jint))) < (size_t)max_jint,
+           "array too big");
+    filler_oop->set_length((int)(filler_array_length * (HeapWordSize / sizeof(jint))));
+  }
 }
 #endif // BDA

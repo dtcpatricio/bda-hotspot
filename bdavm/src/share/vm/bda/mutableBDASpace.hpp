@@ -40,6 +40,8 @@ class MutableBDASpace : public MutableSpace
   static const size_t BlockSize;
   static const size_t BlockSizeBytes;
 
+  static size_t       _filler_header_size;
+
   // This class wraps the addressable space of the MutableBDASpace
   // for a particular collection type, or none at all.
   class CGRPSpace : public CHeapObj<mtGC>
@@ -200,7 +202,6 @@ class MutableBDASpace : public MutableSpace
 
  protected:
 
-  static size_t              _filler_header_size;
   static ObjectStartArray *  _start_array;
   
   void select_limits(MemRegion mr, HeapWord **start, HeapWord **tail);

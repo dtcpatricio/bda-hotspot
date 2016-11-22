@@ -90,7 +90,8 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
 
 #ifdef BDA
   BDARefTaskQueue                     _bdaref_stack;
-  container_t                         _last_segment;
+  BDAPromotionStats                   _promotion_stats;
+  container_t                         _filling_segment;
 #endif
   
   bool                                _totally_drain;
@@ -102,7 +103,7 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   PromotionFailedInfo                 _promotion_failed_info;
 
 #ifdef BDA
-  BDAPromotionStats                   _promotion_stats;
+  
 #endif
   
   // Accessors
@@ -216,6 +217,8 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   void drain_bda_stacks();
   // Close the segment this thread was filling
   void fill_last_segment();
+  // set the container this GCThread is filling
+  void set_filling_segment (container_t c) { _filling_segment = c; }    
   // Accessors
   BDARefTaskQueue * bdaref_stack() {
     return &_bdaref_stack;
