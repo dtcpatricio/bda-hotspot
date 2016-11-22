@@ -117,10 +117,10 @@ PSPromotionManager::print_taskqueue_stats(uint i) const {
 
 void
 PSPromotionManager::print_local_stats(uint i) const {
-#define FMT " " SIZE_FORMAT_W(10)
+  #define FMT " " SIZE_FORMAT_W(10)
   tty->print_cr("%3u" FMT FMT FMT FMT, i, _masked_pushes, _masked_steals,
                 _arrays_chunked, _array_chunks_processed);
-#undef FMT
+  #undef FMT
 }
 
 static const char* const pm_stats_hdr[] = {
@@ -268,8 +268,8 @@ void PSPromotionManager::flush_labs() {
 }
 
 template <class T> void PSPromotionManager::process_array_chunk_work(
-  oop obj,
-  int start, int end) {
+                                                 oop obj,
+                                                 int start, int end) {
   assert(start <= end, "invariant");
   T* const base      = (T*)objArrayOop(obj)->base();
   T* p               = base + start;
