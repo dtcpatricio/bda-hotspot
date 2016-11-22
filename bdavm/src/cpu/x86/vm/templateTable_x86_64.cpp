@@ -3379,11 +3379,6 @@ void TemplateTable::_new() {
     // Test if it is a valid BDA value
     // Must be done here after having the object allocated but before rsi
     // is consumed when storing the klass field
-
-    // int i = counter;
-    // Atomic::inc(&counter);
-    // tty->print_cr("Allocation _new called " i " times");
-    //
     Label done_enqueue;
     // Save registers
     __ push (rsi);
