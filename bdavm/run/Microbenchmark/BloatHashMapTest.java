@@ -13,13 +13,13 @@ public class BloatHashMapTest {
 
         Bootstrap bs  = new Bootstrap();
         int gc_count = 0;
-        map = bs.fillMapRandom();
-        map1 = bs.fillMapRandom();
-        MyHashMap<Long, Value> map2 = bs.getMap2();
-        MyHashMap<Long, Value> map3 = bs.getMap3();
-        MyHashMap<Long, Value> map4 = bs.getMap4();
-        MyHashMap<Long, Value> map5 = bs.getMap5();
-        MyHashMap<Long, Value> map6 = bs.getMap6();
+        map = bs.getInterestingMap(0);
+        map1 = bs.getInterestingMap(1);
+        MyHashMap<Long, Value> map2 = bs.getInterestingMap(2);
+        MyHashMap<Long, Value> map3 = bs.getInterestingMap(3);
+        MyHashMap<Long, Value> map4 = bs.getInterestingMap(4);
+        MyHashMap<Long, Value> map5 = bs.getInterestingMap(5);
+        MyHashMap<Long, Value> map6 = bs.getInterestingMap(6);
         
         // Read values on and on and report time taken
 
