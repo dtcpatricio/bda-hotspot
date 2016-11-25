@@ -226,14 +226,12 @@ MutableBDASpace::CGRPSpace::print_allocation(container_t c, bool large) const
                          c->_start, c->_end);
 }
 
-#ifdef ASSERT
 void
 MutableBDASpace::CGRPSpace::print_allocation_stats(outputStream * st) const
 {  
   st->print_cr(" %-25s Space ID = " INT32_FORMAT " allocated " INT32_FORMAT " segments during GC]",
                "--[BDA Alloc Stats ::", this->container_type()->value(), _segments_since_last_gc);
 }
-#endif
 
 void
 MutableBDASpace::CGRPSpace::print_used(outputStream * st) const
@@ -243,7 +241,7 @@ MutableBDASpace::CGRPSpace::print_used(outputStream * st) const
   if (container_count() == 0)
     return;
 
-  st->print_cr("");
+  st->print   ("\n");
   st->print_cr(" --[%-20s Space ID = " INT32_FORMAT " containers :]",
                          "BDA Containers on", container_type()->value());
   for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
@@ -268,14 +266,12 @@ MutableBDASpace::CGRPSpace::print_used(outputStream * st) const
   }
 }
 
-#ifdef ASSERT
 void
 MutableBDASpace::CGRPSpace::reset_stats()
 {
   _segments_since_last_gc = 0;
   _gc_current = NULL;
 }
-#endif
 
 ////////////////// /////////////// //////////////////
 ////////////////// MutableBDASpace //////////////////

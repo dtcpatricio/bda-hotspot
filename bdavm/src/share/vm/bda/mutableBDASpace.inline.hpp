@@ -296,7 +296,18 @@ MutableBDASpace::CGRPSpace::cas_get_next_container()
 }
 
 inline container_t
-MutableBDASpace::CGRPSpace::get_container_with_addr(HeapWord* addr)
+MutableBDASpace::CGRPSpace::get_next_n_segment(container_t c, int n) const
+{
+  assert (c != NULL, "container/segment cannot be null");
+  int i = 0; container_t ret = c;
+  while (i++ < n && ret != NULL) {
+    ret = ret->_next;
+  }
+  return ret;
+}
+
+inline container_t
+MutableBDASpace::CGRPSpace::get_container_with_addr(HeapWord* addr) const
 {
   container_t c;
   for (GenQueueIterator<container_t, mtGC> iterator = _containers->iterator();

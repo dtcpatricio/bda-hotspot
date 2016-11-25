@@ -63,18 +63,14 @@ class MutableBDASpace : public MutableSpace
     GenQueue<container_t, mtGC> * _pool;
     // Pool of large containers already allocated and ready to be assign to a space.
     GenQueue<container_t, mtGC> * _large_pool;
-    
     // GC support
     container_t                  _gc_current;
-
     // A pointer to the parent
     MutableBDASpace *              _manager;
 
-#ifdef ASSERT
     // Stats fields:
     //  Number of segments allocated or returned from the pool in the last gc
     int _segments_since_last_gc;
-#endif
     
 
     // Helper function to calculate the power of base over exponent using bit-wise
@@ -109,9 +105,7 @@ class MutableBDASpace : public MutableSpace
       _containers = GenQueue<container_t, mtGC>::create();
       _pool = GenQueue<container_t, mtGC>::create();
       _large_pool = GenQueue<container_t, mtGC>::create();
-#ifdef ASSERT
       _segments_since_last_gc = 0;
-#endif
     }
     ~CGRPSpace() {
       delete _space;
@@ -165,7 +159,9 @@ class MutableBDASpace : public MutableSpace
     
     // GC support
     inline container_t cas_get_next_container();
-    inline container_t get_container_with_addr(HeapWord * addr);
+    inline container_t get_next_n_segment(container_t c, int n) const;
+    inline container_t get_container_with_addr(HeapWord * addr) const;
+    inline container_t first_container() const { _containers->peek(); }
     inline void        save_top_ptrs();
     inline void        set_shared_gc_pointer() { _gc_current = _containers->peek(); }
 
@@ -189,10 +185,8 @@ class MutableBDASpace : public MutableSpace
     void print_allocation_stats(outputStream * st) const;
     void print_used(outputStream * st) const;
 
-#ifdef ASSERT
     // Reset stats fields
     void reset_stats();
-#endif
   };
 
  private:
@@ -368,9 +362,7 @@ class MutableBDASpace : public MutableSpace
   // Debugging non-virtual
   void print_object_space() const;
   void print_spaces_fragmentation_stats() const;
-#ifdef ASSERT
   void print_allocation_stats() const;
-#endif
 };
 
 #endif // SHARE_VM_BDA_MUTABLEBDASPACE_HPP

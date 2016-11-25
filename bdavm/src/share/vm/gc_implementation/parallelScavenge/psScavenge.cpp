@@ -427,7 +427,7 @@ bool PSScavenge::invoke_no_policy() {
         // should be better balanced between the threads.
         bda_manager->set_shared_gc_pointers();
         for (uint i = 0; i < active_workers; i++) {
-          q->enqueue(new OldToYoungBDARootsTask(old_gen));
+          q->enqueue(new OldToYoungBDARootsTask(old_gen, active_workers));
         }
       }
       

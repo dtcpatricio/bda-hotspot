@@ -43,17 +43,17 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
     // on the array of spaces.
     for (int spc_id = 0; spc_id < space->spaces()->length(); ++spc_id) {
       MutableBDASpace::CGRPSpace * bda_space = space->spaces()->at(spc_id);
-      container_t c; HeapWord * c_top;
-      while ((c = bda_space->cas_get_next_container()) != NULL) {
-        do {
-          c_top = c->_saved_top;
-          if (c_top == NULL || c->_start == c_top) continue;
-          assert (c->_start < c_top, "containers and segments are not empty allocated");
-          card_table->scavenge_bda_contents_parallel(_old_gen->start_array(),
-                                                     c,
-                                                     c_top,
-                                                     pm);
-        } while ((c = c->_next_segment) != NULL);
+      if (bda_space->container_count() == 0) continue;
+      container_t c = bda_space->get_next_n_segment(bda_space->first_container(), which);
+      HeapWord * c_top; int j = 0;
+      while (c != NULL) {
+        if (c->_saved_top == NULL || c->_start == c->_saved_top) continue;
+        assert (c->_start < c->_saved_top, "container or segment is not empty allocated");
+        card_table->scavenge_bda_contents_parallel(_old_gen->start_array(),
+                                                   c,
+                                                   c->_saved_top,
+                                                   pm);
+        c = bda_space->get_next_n_segment(c, _total_workers);
       }
       pm->drain_bda_stacks();
     }
