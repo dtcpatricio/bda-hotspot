@@ -341,7 +341,8 @@ inline size_t
 MutableBDASpace::CGRPSpace::used_in_words() const
 {
   size_t s = 0;
-  if (container_count() > 0) {
+  // If this is the other's space, we account from start to top.
+  if (container_type() != KlassRegionMap::region_start_ptr() && container_count() > 0) {
     for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
          *it != NULL;
          ++it)
@@ -349,6 +350,8 @@ MutableBDASpace::CGRPSpace::used_in_words() const
       container_t c = *it;
       s += pointer_delta(c->_top, c->_start);
     }
+  } else {
+    return space()->used_in_words();
   }
   return s;
 }
