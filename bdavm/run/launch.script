@@ -25,6 +25,10 @@ do
             DACAPO_ARGS="-jar ${@:2:5}"
             shift 6
             ;;
+        -classpath)
+            CLASSPATH="$2"
+            shift 2
+            ;;
         -printgc)
             print="${print} -XX:+BDAPrintAfterGC"
             shift
@@ -46,7 +50,8 @@ do
             shift
             ;;
         *)
-          prog=$1
+            prog="$1"
+            arguments="${@:2:$#}"
           break
           ;;
     esac
@@ -56,7 +61,7 @@ REL_MYDIR=`dirname $0`
 MYDIR=`cd $REL_MYDIR && pwd`
 
 if [ -z "$DACAPO_ARGS" ]; then
-    JAVA_ARGS="-classpath $MYDIR/Microbenchmark $prog"
+    JAVA_ARGS="-classpath $CLASSPATH $prog $arguments"
 else
     JAVA_ARGS="-classpath $MYDIR $DACAPO_ARGS"
 fi
