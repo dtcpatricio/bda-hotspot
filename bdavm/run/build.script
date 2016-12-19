@@ -24,7 +24,7 @@ do
 	    shift 2
 	    ;;
         -debugbin)
-            DEBUG_BIN=1
+            DEBUG_BIN=true
             shift
             ;;
         -bda)
