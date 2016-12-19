@@ -11,17 +11,12 @@ BDAScavenge::copy_and_push_safe_barrier(PSPromotionManager* pm,
                                         void * r,
                                         RefQueue::RefType rt)
 {
-  // assert(PSScavenge::should_scavenge(p), "revisiting object?");
-  oop new_obj;
+  assert(PSScavenge::should_scavenge(p, true), "revisiting object?");
+
   oop o = oopDesc::load_decode_heap_oop_not_null(p);
-  if (PSScavenge::should_scavenge(p)) {
-    
-    new_obj = o->is_forwarded()
-      ? o->forwardee()
-      : pm->copy_bdaref_to_survivor_space<promote_immediately>(o, r, rt);
-  } else {
-    new_obj = o;
-  }
+  oop new_obj = o->is_forwarded() ?
+    o->forwardee()
+    : pm->copy_bdaref_to_survivor_space<promote_immediately>(o, r, rt);
   
   oopDesc::encode_store_heap_oop_not_null(p, new_obj);
 

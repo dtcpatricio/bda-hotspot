@@ -47,7 +47,10 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
       container_t c = bda_space->get_next_n_segment(bda_space->first_container(), which);
       HeapWord * c_top; int j = 0;
       while (c != NULL) {
-        if (c->_saved_top == NULL || c->_start == c->_saved_top) continue;
+        if (c->_saved_top == NULL || c->_start == c->_saved_top) {
+          c = bda_space->get_next_n_segment(c, _total_workers);
+          continue;
+        }
         assert (c->_start < c->_saved_top, "container or segment is not empty allocated");
         card_table->scavenge_bda_contents_parallel(_old_gen->start_array(),
                                                    c,

@@ -185,7 +185,7 @@ MutableBDASpace::CGRPSpace::print_container_fragmentation_stats() const
     HeapWord *  const end = c->_end;
 
     // Compute fragmentation for this segment
-    double frag = pointer_delta (top, bot) / (double)pointer_delta (end, bot);
+    double frag = 1 - (pointer_delta (top, bot) / (double)pointer_delta (end, bot));
     
     // Compute the average segment fragmentation and variance.
     // Both the average and the variance are calculated using the
@@ -208,9 +208,9 @@ MutableBDASpace::CGRPSpace::print_container_fragmentation_stats() const
   
   // Print the statistical information
   gclog_or_tty->print_cr("Space " INT32_FORMAT, container_type()->value() - 1);
-  gclog_or_tty->print_cr("  Average fragmentation = %.*e", avg);
+  gclog_or_tty->print_cr("  Average fragmentation = %.*f", avg * (float)100);
   gclog_or_tty->print_cr("  Variance in fragmentation = %.*e", var);
-  gclog_or_tty->print_cr("  Standard Deviation in fragmentation = %.*e", dev);
+  gclog_or_tty->print_cr("  Standard Deviation in fragmentation = %.*f", dev);
 }
 
 void
