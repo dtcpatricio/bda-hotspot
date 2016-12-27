@@ -41,6 +41,9 @@ PaddedEnd<PSPromotionManager>* PSPromotionManager::_manager_array = NULL;
 OopStarTaskQueueSet*           PSPromotionManager::_stack_array_depth = NULL;
 PSOldGen*                      PSPromotionManager::_old_gen = NULL;
 MutableSpace*                  PSPromotionManager::_young_space = NULL;
+#ifdef BDA
+BDARefTaskQueueSet*            PSPromotionManager::_bda_stack_array = NULL;
+#endif
 
 void PSPromotionManager::initialize() {
   ParallelScavengeHeap* heap = (ParallelScavengeHeap*)Universe::heap();
@@ -62,6 +65,18 @@ void PSPromotionManager::initialize() {
   for(uint i=0; i<ParallelGCThreads; i++) {
     stack_array_depth()->register_queue(i, _manager_array[i].claimed_stack_depth());
   }
+
+#ifdef BDA
+  if (UseBDA) {
+    _bda_stack_array = new BDARefTaskQueueSet(ParallelGCThreads);
+    guarantee (_bda_stack_array != NULL, "Could not initialize promotion manager");
+    // Register the bdaref queues in the set for work stealing
+    for (uint i = 0; i < ParallelGCThreads; i++) {
+      bda_stack_array()->register_queue(i, _manager_array[i].bdaref_stack());
+    }
+  }
+#endif
+
   // The VMThread gets its own PSPromotionManager, which is not available
   // for work stealing.
 }
@@ -355,9 +370,7 @@ oop PSPromotionManager::oop_promotion_failed(oop obj, markOop obj_mark) {
 #ifdef BDA
 /*
  * The drain_stacks_depth(...) version for the BDA GC/Allocator.
- * Works pretty much the same, however, since there's no StealTasks, there's
- * no need to pop from the overflow stack first. In fact, there's only one stack
- * and it is local to the thread processing it. The threads process the stacks in
+ * Works pretty much the same as threads process the stacks in
  * depth-first.
  */
 void

@@ -23,6 +23,34 @@ BDARefRootsTask::do_it(GCTaskManager * manager, uint which)
   }
 }
 
+//
+// StealBDARefTask
+//
+void
+StealBDARefTask::do_it (GCTaskManager * manager, uint which)
+{
+  PSPromotionManager * pm =
+    PSPromotionManager::gc_thread_promotion_manager(which);
+  pm->drain_bda_stacks();
+  guarantee (pm->bda_stacks_empty(), "bda stacks should be empty at this point");
+
+  int random_seed = 17;
+  while (true) {
+    BDARefTask p;
+    if (PSPromotionManager::bda_steal_depth (which, &random_seed, p)) {
+      if (UseCompressedOops)
+        pm->process_popped_bdaref_depth<narrowOop>(p);
+      else
+        pm->process_popped_bdaref_depth<oop>(p);
+      pm->drain_bda_stacks();
+    } else {
+      if (PSPromotionManager::should_terminate_bda_steal()) {
+        break;
+      }
+    }
+  }
+  guarantee(pm->bda_stacks_empty(), "stacks should be empty at this point");
+}
 
 //
 // OldToYoungBDARootsTask

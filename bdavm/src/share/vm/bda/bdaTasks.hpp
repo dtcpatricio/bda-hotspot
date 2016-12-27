@@ -32,6 +32,22 @@ class BDARefRootsTask : public GCTask {
 };
 
 //
+// StealBDARefTask tries to grab tasks in the other gc thread task queues, until there's
+// no more BDARefTasks to pop and the scavenger can proceed with the thread's stacks.
+//
+class StealBDARefTask : public GCTask
+{
+ private:
+  
+ public:
+  StealBDARefTask () { }
+
+  char * name () { return (char*)"steal big-data ref task"; }
+
+  virtual void do_it (GCTaskManager * manager, uint which);
+};
+
+//
 // OldToYoungBDARootsTask iterates through the containers of all bda spaces and pushes
 // the contents of the oops to the bdaref_stack, for later direct promotion. It uses the
 // _gc_current value in each CGRPSpace (see mutableBDASpace.hpp) where it CAS the next value

@@ -436,6 +436,13 @@ bool PSScavenge::invoke_no_policy() {
         for (uint j = 0; j < active_workers; j++) {
           q->enqueue(new BDARefRootsTask(refqueue, old_gen));
         }
+        // Now push the steal tasks to prevent a racing thread to steal
+        // bda refs from the threads' stacks.
+        if (active_workers > 1) {
+          for (uint j = 0; j < active_workers; j++) {
+            q->enqueue(new StealBDARefTask());
+          }
+        }
       }
 #endif
 

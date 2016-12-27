@@ -844,6 +844,7 @@ typedef GenericTaskQueueSet<RegionTaskQueue, mtClass>     RegionTaskQueueSet;
 
 #ifdef BDA
 typedef OverflowTaskQueue<BDARefTask, mtClass>         BDARefTaskQueue;
+typedef GenericTaskQueueSet<BDARefTaskQueue, mtClass>  BDARefTaskQueueSet;
 #endif
 
 #endif // SHARE_VM_UTILITIES_TASKQUEUE_HPP

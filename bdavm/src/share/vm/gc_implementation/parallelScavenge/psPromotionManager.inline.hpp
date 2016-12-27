@@ -242,7 +242,7 @@ oop PSPromotionManager::copy_to_survivor_space(oop o) {
 template <class T> inline void
 PSPromotionManager::claim_or_forward_bdaref(T * p, container_t ct)
 {
-  assert(PSScavenge::should_scavenge(p, true), "revisiting object?");
+  assert(PSScavenge::should_scavenge(p), "revisiting object?");
   assert(Universe::heap()->kind() == CollectedHeap::ParallelScavengeHeap,
          "Sanity");
   assert(Universe::heap()->is_in(p), "pointer outside heap");
@@ -356,9 +356,9 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::Ref
       } else {
         // lost the cas header race
         guarantee(o->is_forwarded(), "Object must be forwarded if the cas failed.");
-        // Deallocate the object (each thread is single responsible for the containers it allocs)
-        container->_top -= new_obj_size;
-        // Don't update this before the unallocation
+        // Fill with a filler to leave this part unusable until a FullGC takes place.
+        CollectedHeap::fill_with_object((HeapWord*) new_obj, new_obj_size);
+        // Don't update this before the deallocation
         new_obj = o->forwardee();
       }
     }
@@ -398,7 +398,7 @@ PSPromotionManager::process_dequeued_bdaroot(Ref * r)
 }
 
 //
-// This version is pratically equal to process_array_chunk
+// This version is practically equal to process_array_chunk
 // but it makes a different call on the claim_or_forward_depth call of
 // the process_array_chunk_work<>
 //

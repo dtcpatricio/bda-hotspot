@@ -92,6 +92,7 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   BDARefTaskQueue                     _bdaref_stack;
   BDAPromotionStats                   _promotion_stats;
   container_t                         _filling_segment;
+  static BDARefTaskQueueSet *         _bda_stack_array;
 #endif
   
   bool                                _totally_drain;
@@ -165,6 +166,9 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
 
  protected:
   static OopStarTaskQueueSet* stack_array_depth()   { return _stack_array_depth; }
+#ifdef BDA
+  static BDARefTaskQueueSet * bda_stack_array ()    { return _bda_stack_array; }
+#endif // BDA
  public:
   // Static
   static void initialize();
@@ -206,6 +210,12 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   template <class T> inline void process_popped_bdaref_depth(BDARefTask t);
   template <class T> inline void process_dequeued_bdaroot(Ref * r);
 
+  // Stealing and steal-termination
+  static bool bda_steal_depth (uint queue_num, int * seed, BDARefTask& t)
+  {
+    return bda_stack_array()->steal(queue_num, seed, t);
+  }
+
   // Array chunking
   inline void process_bda_array_chunk(oop old, container_t ct);
   template <class T> inline void process_bda_array_chunk_work(oop obj,
@@ -223,6 +233,9 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   BDARefTaskQueue * bdaref_stack() {
     return &_bdaref_stack;
   }
+  // Tests
+  bool bda_stacks_empty ()           { return bdaref_stack()->is_empty(); }
+  static bool should_terminate_bda_steal () { return !bda_stack_array()->peek();  }
 #endif
   
   oop oop_promotion_failed(oop obj, markOop obj_mark);
