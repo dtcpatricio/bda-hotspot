@@ -163,7 +163,7 @@ MutableBDASpace::CGRPSpace::verify()
         oop(p)->verify();
         p += oop(p)->size();
       }
-      guarantee( p == c->_top, "end of last object must match end of space");
+      guarantee( p == c->_hard_end, "end of last object must match end of space");
     }
   }
 }
@@ -243,7 +243,7 @@ MutableBDASpace::CGRPSpace::print_used(outputStream * st) const
 
   st->print   ("\n");
   st->print_cr(" --[%-20s Space ID = " INT32_FORMAT " containers :]",
-                         "BDA Containers on", container_type()->value());
+               "BDA Containers on", container_type()->value());
   for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
        *it != NULL;
        ++it )
@@ -536,19 +536,19 @@ void
 MutableBDASpace::increase_space_noclear(MutableSpace* spc, size_t sz)
 {
   spc->initialize(MemRegion(spc->bottom(), spc->end() + sz),
-                    SpaceDecorator::DontClear,
-                    SpaceDecorator::DontMangle);
+                  SpaceDecorator::DontClear,
+                  SpaceDecorator::DontMangle);
 }
 
 void
 MutableBDASpace::increase_space_set_top(MutableSpace* spc,
-                                         size_t sz,
-                                         HeapWord* new_top)
+                                        size_t sz,
+                                        HeapWord* new_top)
 {
   spc->initialize(MemRegion(spc->bottom(),
                             spc->end() + sz),
-                    SpaceDecorator::DontClear,
-                    SpaceDecorator::DontMangle);
+                  SpaceDecorator::DontClear,
+                  SpaceDecorator::DontMangle);
   spc->set_top(new_top);
 }
 
@@ -556,8 +556,8 @@ void
 MutableBDASpace::shrink_space_clear(MutableSpace* spc,
                                     size_t new_size) {
   spc->initialize(MemRegion(spc->bottom() + new_size, spc->end()),
-                    SpaceDecorator::Clear,
-                    SpaceDecorator::Mangle);
+                  SpaceDecorator::Clear,
+                  SpaceDecorator::Mangle);
 }
 
 void
@@ -571,7 +571,7 @@ MutableBDASpace::shrink_space_noclear(MutableSpace* spc,
 
 void
 MutableBDASpace::shrink_space_end_noclear(MutableSpace* spc,
-                                      size_t shrink_size)
+                                          size_t shrink_size)
 {
   spc->initialize(MemRegion(spc->bottom(), spc->end() - shrink_size),
                   SpaceDecorator::DontClear,
@@ -625,8 +625,8 @@ MutableBDASpace::initialize_regions_evenly(int from_id, int to_id,
 
     assert(pointer_delta(tail, start) % page_size() == 0, "chunk size not page aligned");
     spaces()->at(i)->space()->initialize(MemRegion(start, tail),
-                                              SpaceDecorator::Clear,
-                                              SpaceDecorator::Mangle);
+                                         SpaceDecorator::Clear,
+                                         SpaceDecorator::Mangle);
     start = tail;
     tail = start + chunk;
   }
@@ -797,10 +797,10 @@ MutableBDASpace::try_fitting_on_neighbour(int moved_id)
   if (moved_occupancy_ratio + to_occupancy_ratio <= 1) {
     if (moved_occupancy_ratio >= to_occupancy_ratio) {
       new_moved_space_sz = MAX2((size_t)(moved_occupancy_ratio * to_space_capacity),
-                                   MinRegionSize);
+                                MinRegionSize);
     } else {
       new_moved_space_sz = MAX2((size_t)(to_free_ratio * to_space_capacity),
-                                       MinRegionSize);
+                                MinRegionSize);
 
     }
   } else {
@@ -1145,41 +1145,51 @@ MutableBDASpace::allocate_container(size_t size, BDARegion* r)
 
 //
 // This is lock and atomic-construct free because container_t structs are handled
-// by each GC thread seperately. If StealTasks are implemented and some kind of
+// by each GC thread separately. If StealTasks are implemented and some kind of
 // synchronization is required, then implement the bumping pointer with a CAS.
 HeapWord*
 MutableBDASpace::allocate_element(size_t size, container_t& c)
 {
-  HeapWord * old_top = c->_top;
-  HeapWord * new_top = old_top + size;
-  if (new_top < c->_end) {
-    c->_top = new_top;
-    allocate_block(old_top);
-  } else {
-    // If it fails to allocate in the container, i.e., it is full, then
-    // allocate a new segment of the container and change the argument passed
-    // accordingly, but first fill the segment with a filler.
-    // NB: I don't call CollectedHeap::fill_with_object due to branches, this way is faster
-    assert (c->_end + _filler_header_size == c->_hard_end, "should not overflow");
-    HeapWord * const segment_end = c->_end + _filler_header_size;
-    typeArrayOop filler_oop = (typeArrayOop) old_top;
-    filler_oop->set_mark(markOopDesc::prototype());
-    filler_oop->set_klass(Universe::intArrayKlassObj());
-    const size_t filler_array_length =
-      pointer_delta(segment_end, old_top) - typeArrayOopDesc::header_size(T_INT);
-    assert((filler_array_length * (HeapWordSize/sizeof(jint))) < (size_t)max_jint, "array too big");
-    filler_oop->set_length((int)(filler_array_length * (HeapWordSize / sizeof(jint))));
-
-    // Which space was this container allocated?
-    CGRPSpace * grp = spaces()->at((int)c->_space_id - 1);
-
-    assert (grp != NULL, "The container must have been allocated in one of the groups");
-    old_top = grp->allocate_new_segment(size, c); // reuse the variable
-    // Force allocate in the general object space if it wasn't possible on the bda-space
-    if (old_top == NULL) {
-      old_top = spaces()->at(0)->allocate_new_segment(size, c);
+  HeapWord * old_top;
+  // Jump to the last segment first and update the arg in the meanwhile.
+  while (c->_next_segment != NULL) {
+    c = c->_next_segment;
+  }
+  
+  // Try to allocate
+  while ((old_top = c->_top) + size < c->_end) {
+    HeapWord * new_top = old_top + size;
+    if ((HeapWord*)Atomic::cmpxchg_ptr(new_top, &(c->_top), old_top) == old_top) {
+      allocate_block (old_top);
+      return old_top;
     }
   }
+  
+  // If it fails to allocate in the container, i.e., it is full, then
+  // allocate a new segment of the container and change the argument passed
+  // accordingly, but first fill the segment with a filler.
+  // NB: I don't call CollectedHeap::fill_with_object due to branches, this way is faster
+  assert (c->_end + _filler_header_size == c->_hard_end, "should not overflow");
+  HeapWord * const segment_end = c->_end + _filler_header_size;
+  typeArrayOop filler_oop = (typeArrayOop) old_top;
+  filler_oop->set_mark(markOopDesc::prototype());
+  filler_oop->set_klass(Universe::intArrayKlassObj());
+  const size_t filler_array_length =
+    pointer_delta(segment_end, old_top) - typeArrayOopDesc::header_size(T_INT);
+  assert((filler_array_length * (HeapWordSize/sizeof(jint))) < (size_t)max_jint,
+         "array too big");
+  filler_oop->set_length((int)(filler_array_length * (HeapWordSize / sizeof(jint))));
+
+  // Which space was this container allocated?
+  CGRPSpace * grp = spaces()->at((int)c->_space_id - 1);
+
+  assert (grp != NULL, "The container must have been allocated in one of the groups");
+  old_top = grp->allocate_new_segment(size, c); // reuse the variable
+  // Force allocate in the general object space if it wasn't possible on the bda-space
+  if (old_top == NULL) {
+    old_top = spaces()->at(0)->allocate_new_segment(size, c);
+  }
+  
   return old_top;
 }
 
@@ -1388,7 +1398,7 @@ MutableBDASpace::print_object_space() const
   //   }
   // } 
   // else {
-    // for(int j = 0; j < spaces()->length(); ++j) {
+  // for(int j = 0; j < spaces()->length(); ++j) {
   //     CGRPSpace* grp = spaces()->at(j);
   //     MutableSpace* spc = grp->space();
   //     BDARegion* region = grp->container_type();

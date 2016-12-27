@@ -66,8 +66,8 @@ inline HeapWord *
 MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t& c)
 {
   container_t container;
-  container_t next_segment;
-  container_t prev_segment;
+  container_t next;
+  container_t last;
 
   // Objects bigger than this size are, generally, large arrays
   // Get a container from the large_pool or allocate a special one
@@ -107,29 +107,38 @@ MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t& c)
     
   }
 
-  // TODO: The non-bda-space cannot have linked segments because these are deallocated after
+  // The non-bda-space cannot have linked segments because these are deallocated after
   // FullGC, causing a load of invalid space from a parent allocated in a bda-space (which are
   // not deallocated).
-  if (container != NULL && container_type() != KlassRegionMap::region_start_ptr()) {
-    next_segment = c;
-    do {
-      prev_segment = next_segment;
-      next_segment = prev_segment->_next_segment;
-    } while (Atomic::cmpxchg_ptr(container,
-                                 &(prev_segment->_next_segment),
-                                 next_segment) != next_segment);
-    container->_prev_segment = prev_segment;
-    c = container;
+  if (container != NULL) {
 #ifdef ASSERT
     _segments_since_last_gc++;
 #endif
     // MT safe, but only for subsequent enqueues/dequeues.
     _containers->enqueue(container);
+
+    // only update links in bda-spaces
+    if (container_type() != KlassRegionMap::region_start_ptr()) {
+      last = c; next = last->_next_segment;
+      do {
+        if (next == NULL && Atomic::cmpxchg_ptr(container,
+                                                &(last->_next_segment),
+                                                next) == next) {
+          break;
+        }
+        last = last->_next_segment;
+        next = last->_next_segment;
+      } while (true);
+
+      container->_prev_segment = last;
+    }
+
+    // For the return val
+    c = container;
+    return container->_start;
   } else {    
     return NULL;
   }
-  
-  return container->_start;
 }
 
 inline size_t
