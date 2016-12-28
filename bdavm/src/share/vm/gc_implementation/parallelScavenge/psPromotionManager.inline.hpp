@@ -336,6 +336,9 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::Ref
         return bda_oop_promotion_failed(o, test_mark);
       }
 
+      // Set the filling container for this promotion manager
+      set_filling_segment (container);
+      
       // Copy obj
       Copy::aligned_disjoint_words((HeapWord*)o, (HeapWord*)new_obj, new_obj_size);
 
