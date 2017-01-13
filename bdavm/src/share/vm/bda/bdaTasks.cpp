@@ -117,12 +117,15 @@ OldToYoungNonBDARootsTask::do_it(GCTaskManager * manager, uint which)
 
     while (bottom < _gen_top) {
       HeapWord * const tmp_top = bda_space->get_next_beg_seg(bottom, _gen_top);
-      card_table->scavenge_nonbda_contents_parallel(_old_gen->start_array(),
-                                                    bottom,
-                                                    tmp_top,
-                                                    pm,
-                                                    _stripe_number,
-                                                    _stripe_total);
+      // No need to scan empty space
+      if (bottom != tmp_top) {
+        card_table->scavenge_nonbda_contents_parallel(_old_gen->start_array(),
+                                                      bottom,
+                                                      tmp_top,
+                                                      pm,
+                                                      _stripe_number,
+                                                      _stripe_total);
+      }
       // We've reached the end of the space
       if (tmp_top == _gen_top) break;
       HeapWord * const new_bottom = bda_space->get_next_end_seg(tmp_top + 1, _gen_top) + 1;

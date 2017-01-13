@@ -115,9 +115,6 @@ bool PSPromotionManager::post_scavenge(YoungGCTracer& gc_tracer) {
       promotion_failure_occurred = true;
     }
     manager->flush_labs();
-#ifdef BDA
-    manager->fill_last_segment();
-#endif // BDA
   }
   return promotion_failure_occurred;
 }
@@ -181,6 +178,8 @@ PSPromotionManager::PSPromotionManager() {
   claimed_stack_depth()->initialize();
 #ifdef BDA
   bdaref_stack()->initialize();
+  if (UseBDA)
+    _bda_old_lab.set_start_array(old_gen()->start_array());
 #endif
   queue_size = claimed_stack_depth()->max_elems();
 
@@ -216,6 +215,11 @@ void PSPromotionManager::reset() {
   lab_base = old_gen()->object_space()->top();
   _old_lab.initialize(MemRegion(lab_base, (size_t)0));
 
+#ifdef BDA
+  if (UseBDA)
+    _bda_old_lab.initialize(MemRegion(lab_base, (size_t)0), NULL);
+#endif
+  
   _old_gen_is_full = false;
 
   _promotion_failed_info.reset();
@@ -276,6 +280,11 @@ void PSPromotionManager::flush_labs() {
   if (!_old_lab.is_flushed())
     _old_lab.flush();
 
+#ifdef BDA
+  if (UseBDA && !_bda_old_lab.is_flushed())
+    _bda_old_lab.flush();
+#endif
+  
   // Let PSScavenge know if we overflowed
   if (_young_gen_is_full) {
     PSScavenge::set_survivor_overflow(true);
@@ -430,6 +439,7 @@ PSPromotionManager::bda_oop_promotion_failed(oop obj, markOop obj_mark)
 
 }
 
+// TODO: Not in use now ... leaving it here just in case
 void
 PSPromotionManager::fill_last_segment()
 {

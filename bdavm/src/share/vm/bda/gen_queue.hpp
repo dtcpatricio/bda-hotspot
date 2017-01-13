@@ -54,7 +54,7 @@ GenQueue<E, F>::enqueue(E el)
                                temp) != temp);
   el->_previous = temp;
   if (temp != NULL) temp->_next = el;
-  if (remove_end() == NULL) set_remove_end(el);
+  if (el->_previous == NULL && remove_end() == NULL) set_remove_end(el);
   Atomic::inc(&_n_elements);
   assert (temp == NULL || temp->_next == el, "just checking if assign was valid");
 }
@@ -75,6 +75,9 @@ GenQueue<E, F>::dequeue()
                                temp) != temp);
   if(next != NULL) next->_previous = NULL;
   if(remove_end() == NULL) set_insert_end(NULL);
+  // A removed element should not have its fields associated with the queue
+  // - _previous should be NULL by now (assert?).
+  temp->_next = NULL;
   Atomic::dec(&_n_elements);
   return temp;
 }
@@ -83,7 +86,7 @@ GenQueue<E, F>::dequeue()
 // or from the remove_end. If this element is not in any of those,
 // then _previous/_next pointers in the neighbor elements are set.
 // NOT MT SAFE!! (currently, only post_compact() uses this function,
-// though add_to_pool() method of CGRPSpace).
+// through add_to_pool() method of CGRPSpace).
 template <class E, MEMFLAGS F>
 inline void
 GenQueue<E,F>::remove_element(E el)
@@ -98,24 +101,13 @@ GenQueue<E,F>::remove_element(E el)
     el->_next->_previous = el->_previous;
   }
 
-  // If this element is a parent container then merge its segments to another's.
-  // p is 'previous' and p_s is 'previous's segment'
+  // If this element is a parent container then promote one of its segments to parent.
+  // If this new parent is empty then it shall be removed later.  
   if (el->_prev_segment == NULL) {
     if (el->_next_segment != NULL) {
-      E p, p_s;
-      if (el->_previous != NULL) {
-        p = el->_previous;
-      } else {
-        p = el->_next;
-      }
-      p_s = p;
-      while ( (p_s = p_s->_next_segment) != NULL ) {
-        p = p_s;
-      }
-      el->_next_segment->_prev_segment = p;
-      p->_next_segment = el->_next_segment;
+      el->_next_segment->_prev_segment = NULL; // this segment is now parent
     } else {
-      // Do nothing, this is a lone segment and it has already been removed.
+      // Do nothing, just fall through.
     }
   } else {
     // This is a segment in the middle of its brothers.
@@ -124,6 +116,8 @@ GenQueue<E,F>::remove_element(E el)
       el->_next_segment->_prev_segment = el->_prev_segment;
   }
 
+  // A removed element should not have its fields pointing anywhere else
+  el->_next = NULL; el->_previous = NULL;
   Atomic::dec(&_n_elements);
 }
 

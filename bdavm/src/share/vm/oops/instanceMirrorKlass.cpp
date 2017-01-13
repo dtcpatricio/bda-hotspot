@@ -357,6 +357,13 @@ InstanceMirrorKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
                                               oop obj)
 {
   InstanceKlass::oop_push_bdaref_contents(pm, container, obj);
+  InstanceMirrorKlass_OOP_ITERATE(                                      \
+    start_of_static_fields(obj),                                        \
+    java_lang_Class::static_oop_field_count(obj),                       \
+    if (PSScavenge::should_scavenge(p)) {                               \
+      pm->claim_or_forward_bdaref(p, container);                        \
+    },                                                                  \
+    assert_nothing )                                                    \
 }
 #endif // BDA
 

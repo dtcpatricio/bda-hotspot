@@ -89,6 +89,30 @@ MutableBDASpace::CGRPSpace::allocate_large_container(size_t size)
   return container;
 }
 
+bool
+MutableBDASpace::CGRPSpace::reuse_from_pool(container_t& c, size_t size)
+{
+  if (_pool->peek() != NULL) {
+    // There are segments in the pool. Use these instead.
+    size_t required_size    = calculate_large_reserved_sz (size);
+    int    regions_required = required_sz >> MutableBDASpace::Log2MinRegionSize;
+    int  norm_regs_required = segment_sz  >> MutableBDASpace::Log2MinRegionSize;
+    HeapWord * ptr = top();
+    for (int i = 0; i < regions_required; i += norm_regs_required) {
+      container_t c = PSParallelCompact::get_container_at_addr (ptr);
+      // Verify container integrity
+      if (!not_in_pool(c) && c->_start == c->ptr) {
+        ptr = c->_hard_end;
+        remove_from_pool (c);
+        _manager->unmark_container(c);
+        free (c);
+      } else {
+      
+      }
+    }
+  }
+}
+
 //
 // ITERATION AND VERIFICATION
 //
@@ -163,7 +187,7 @@ MutableBDASpace::CGRPSpace::verify()
         oop(p)->verify();
         p += oop(p)->size();
       }
-      guarantee( p == c->_hard_end, "end of last object must match end of space");
+      guarantee( p == c->_top, "end of last object must match end of allocated space");
     }
   }
 }
@@ -208,9 +232,9 @@ MutableBDASpace::CGRPSpace::print_container_fragmentation_stats() const
   
   // Print the statistical information
   gclog_or_tty->print_cr("Space " INT32_FORMAT, container_type()->value() - 1);
-  gclog_or_tty->print_cr("  Average fragmentation = %.*f", avg * (float)100);
-  gclog_or_tty->print_cr("  Variance in fragmentation = %.*e", var);
-  gclog_or_tty->print_cr("  Standard Deviation in fragmentation = %.*f", dev);
+  gclog_or_tty->print_cr("  Average fragmentation = %f", avg * (float)100);
+  gclog_or_tty->print_cr("  Variance in fragmentation = %e", var);
+  gclog_or_tty->print_cr("  Standard Deviation in fragmentation = %f", dev);
 }
 
 void
@@ -1148,51 +1172,101 @@ MutableBDASpace::allocate_container(size_t size, BDARegion* r)
 // by each GC thread separately. If StealTasks are implemented and some kind of
 // synchronization is required, then implement the bumping pointer with a CAS.
 HeapWord*
-MutableBDASpace::allocate_element(size_t size, container_t& c)
+MutableBDASpace::allocate_element(size_t size, container_t& container)
 {
   HeapWord * old_top;
+  container_t segment = container;
+  
   // Jump to the last segment first and update the arg in the meanwhile.
-  while (c->_next_segment != NULL) {
-    c = c->_next_segment;
-  }
-  
-  // Try to allocate
-  while ((old_top = c->_top) + size < c->_end) {
-    HeapWord * new_top = old_top + size;
-    if ((HeapWord*)Atomic::cmpxchg_ptr(new_top, &(c->_top), old_top) == old_top) {
-      allocate_block (old_top);
-      return old_top;
+  do {
+    // and try to allocate the plab
+    while ((old_top = segment->_top) + size < segment->_end) {
+      HeapWord * new_top = old_top + size;
+      if ((HeapWord*)Atomic::cmpxchg_ptr(new_top, &(segment->_top), old_top) == old_top) {
+        allocate_block (old_top);
+        return old_top;
+      }
     }
-  }
+  } while ((segment = segment->_next_segment) != NULL && (container = segment));
   
-  // If it fails to allocate in the container, i.e., it is full, then
-  // allocate a new segment of the container and change the argument passed
-  // accordingly, but first fill the segment with a filler.
-  // NB: I don't call CollectedHeap::fill_with_object due to branches, this way is faster
-  assert (c->_end + _filler_header_size == c->_hard_end, "should not overflow");
-  HeapWord * const segment_end = c->_end + _filler_header_size;
-  typeArrayOop filler_oop = (typeArrayOop) old_top;
-  filler_oop->set_mark(markOopDesc::prototype());
-  filler_oop->set_klass(Universe::intArrayKlassObj());
-  const size_t filler_array_length =
-    pointer_delta(segment_end, old_top) - typeArrayOopDesc::header_size(T_INT);
-  assert((filler_array_length * (HeapWordSize/sizeof(jint))) < (size_t)max_jint,
-         "array too big");
-  filler_oop->set_length((int)(filler_array_length * (HeapWordSize / sizeof(jint))));
+  // // If it fails to allocate in the container, i.e., it is full, then
+  // // allocate a new segment of the container and change the argument passed
+  // // accordingly, but first fill the segment with a filler.
+  // // NB: I don't call CollectedHeap::fill_with_object due to branches, this way is faster
+  // assert (c->_end + _filler_header_size == c->_hard_end, "should not overflow");
+  // HeapWord * const segment_end = c->_end + _filler_header_size;
+  // typeArrayOop filler_oop = (typeArrayOop) old_top;
+  // filler_oop->set_mark(markOopDesc::prototype());
+  // filler_oop->set_klass(Universe::intArrayKlassObj());
+  // const size_t filler_array_length =
+  //   pointer_delta(segment_end, old_top) - typeArrayOopDesc::header_size(T_INT);
+  // assert((filler_array_length * (HeapWordSize/sizeof(jint))) < (size_t)max_jint,
+  //        "array too big");
+  // filler_oop->set_length((int)(filler_array_length * (HeapWordSize / sizeof(jint))));
 
   // Which space was this container allocated?
-  CGRPSpace * grp = spaces()->at((int)c->_space_id - 1);
-
+  CGRPSpace * grp = spaces()->at((int)container->_space_id - 1);
   assert (grp != NULL, "The container must have been allocated in one of the groups");
-  old_top = grp->allocate_new_segment(size, c); // reuse the variable
+  old_top = grp->allocate_new_segment(size, container); // reuse the variable
+
   // Force allocate in the general object space if it wasn't possible on the bda-space
   if (old_top == NULL) {
-    old_top = spaces()->at(0)->allocate_new_segment(size, c);
+    old_top = spaces()->at(0)->allocate_new_segment(size, container);
   }
   
   return old_top;
 }
 
+HeapWord *
+MutableBDASpace::allocate_plab (container_t& container)
+{
+  HeapWord *  old_top;
+  container_t segment = container;
+  // Jump to the last segment first and update the arg in the meanwhile.
+  do {
+    // and try to allocate the plab
+    while ((old_top = segment->_top) + BDAOldPLABSize < segment->_end) {
+      HeapWord * new_top = old_top + BDAOldPLABSize;
+      if ((HeapWord*)Atomic::cmpxchg_ptr(new_top, &(segment->_top), old_top) == old_top) {
+        allocate_block (old_top);
+        return old_top;
+      }
+    }
+  } while ((segment = segment->_next_segment) != NULL && (container = segment));
+
+  // // If it fails to allocate in the container, i.e., it is full, then
+  // // allocate a new segment of the container and change the argument passed
+  // // accordingly, but first fill the segment with a filler.
+  // // There is no problem if two threads simultaneously put the filler in because the filler
+  // // will never overlap a PLAB, since the PLABs are all of the same size, and both threads will
+  // // see the same top.
+  // // NB: I don't call CollectedHeap::fill_with_object due to branches, this way is faster
+  // assert (container->_end + _filler_header_size == container->_end, "should not overflow");
+  // HeapWord * const segment_end = container->_end + _filler_header_size;
+  // typeArrayOop filler_oop = (typeArrayOop) old_top;
+  // filler_oop->set_mark(markOopDesc::prototype());
+  // filler_oop->set_klass(Universe::intArrayKlassObj());
+  // const size_t filler_array_length =
+  //   pointer_delta(segment_end, old_top) - typeArrayOopDesc::header_size(T_INT);
+  // assert((filler_array_length * (HeapWordSize/sizeof(jint))) < (size_t)max_jint,
+  //        "array too big");
+  // filler_oop->set_length((int)(filler_array_length * (HeapWordSize / sizeof(jint))));
+
+  // Which space was this container allocated?
+  CGRPSpace * grp = spaces()->at((int)container->_space_id - 1);
+  assert (grp != NULL, "The container must have been allocated in one of the groups");
+  old_top = grp->allocate_new_segment(BDAOldPLABSize, container); // reuse the variable
+
+  // Force allocate in the general object space if it wasn't possible on the bda-space
+  if (old_top == NULL) {
+    old_top = spaces()->at(0)->allocate_new_segment(BDAOldPLABSize, container);
+  }
+
+  // The container now belongs to this thread only (the one executing this code).
+  // Therefore, it needs no further CAS pushing a LAB reserved space.
+  
+  return old_top;
+}
 //////////////// END OF ALLOCATION FUNCTIONS ////////////////
 
 void

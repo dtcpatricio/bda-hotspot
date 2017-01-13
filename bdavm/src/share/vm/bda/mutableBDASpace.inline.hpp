@@ -15,7 +15,9 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
   if (size > MutableBDASpace::CGRPSpace::segment_sz) {
 
     if (_large_pool->peek() == NULL) {
-      container = allocate_large_container(size);
+      if (!reuse_from_pool(container, size)) {
+        container = allocate_large_container(size);
+      }
     } else {
       int tries = 0;
       while ( (container = _large_pool->dequeue()) != NULL ) {
@@ -28,7 +30,9 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
           _large_pool->enqueue(container);
           tries++;
         } else {
-          container = allocate_large_container(size);
+          if (!reuse_from_pool(container, size)) {
+            container = allocate_large_container(size);
+          }
           break;
         }
       }
@@ -75,7 +79,9 @@ MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t& c)
   if ( size > MutableBDASpace::CGRPSpace::segment_sz ) {
 
     if (_large_pool->peek() == NULL) {
-      container = allocate_large_container(size);
+      if (!reuse_from_pool(container, size)) {
+        container = allocate_large_container(size);
+      }
     } else {
       int tries = 0;
       while ( (container = _large_pool->dequeue()) != NULL ) {
@@ -88,7 +94,9 @@ MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t& c)
           _large_pool->enqueue(container);
           tries++;
         } else {
-          container = allocate_large_container(size);
+          if (!reuse_from_pool(container, size)) {
+            container = allocate_large_container(size);
+          }
           break;
         }
       }
@@ -264,7 +272,9 @@ MutableBDASpace::CGRPSpace::add_to_pool(container_t c)
     _containers->remove_element(c);
     mask_container(c);
     // Reset some fields (previous doesn't need to be reset because it will be set)
-    c->_next_segment = NULL; c->_next = NULL; c->_prev_segment = NULL;
+    assert (c->_top == c->_start, "container is not empty");
+    c->_next_segment = NULL; c->_prev_segment = NULL;
+    c->_saved_top = c->_top;
     if (pointer_delta(c->_end, c->_start) > segment_sz)
       _large_pool->enqueue(c);
     else
@@ -441,7 +451,16 @@ MutableBDASpace::is_bdaspace_empty()
 inline bool
 MutableBDASpace::mark_container(container_t c)
 {
-  _segment_bitmap.mark_obj(c->_start, pointer_delta(c->_hard_end, c->_start));
+  return _segment_bitmap.mark_obj(c->_start, pointer_delta(c->_hard_end, c->_start));
+}
+
+// This unmarks the newly allocated container in the segment bitmap
+inline void
+MutableBDASpace::unmark_container(container_t c)
+{
+  const idx_t beg_bit = _segment_bitmap.addr_to_bit (c->_start);
+  const idx_t end_bit = _segment_bitmap.addr_to_bit (c->_end);
+  _segment_bitmap.clear_range(beg_bit, end_bit);
 }
 
 inline void

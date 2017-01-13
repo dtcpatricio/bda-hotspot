@@ -2160,79 +2160,79 @@ template <class T> void assert_nothing(T *p) {}
 // narrowOop as the specialization type.  These test the UseCompressedOops
 // flag.
 
-#ifdef BDA // BDAVM Macro expansion
-#define InstanceKlass_BDA_OOP_MAP_ITERATE(obj, container, do_oop, assert_fn) \
-{                                                                        \
-  /* Compute oopmap block range. The common case                         \
-     is nonstatic_oop_map_size == 1. */                                  \
-  OopMapBlock* map           = start_of_nonstatic_oop_maps();            \
-  OopMapBlock* const end_map = map + nonstatic_oop_map_count();          \
-  if (UseCompressedOops) {                                               \
-    while (map < end_map) {                                              \
-      InstanceKlass_SPECIALIZED_BDA_OOP_ITERATE(narrowOop,               \
-        obj->obj_field_addr<narrowOop>(map->offset()), map->count(),     \
-        container, do_oop, assert_fn)                                    \
-      ++map;                                                             \
-    }                                                                    \
-  } else {                                                               \
-    while (map < end_map) {                                              \
-      InstanceKlass_SPECIALIZED_BDA_OOP_ITERATE(oop,                     \
-        obj->obj_field_addr<oop>(map->offset()), map->count(),           \
-        container, do_oop, assert_fn)                                    \
-      ++map;                                                             \
-    }                                                                    \
-  }                                                                      \
-}
+// #ifdef BDA // BDAVM Macro expansion
+// #define InstanceKlass_BDA_OOP_MAP_ITERATE(obj, container, do_oop, assert_fn) \
+// {                                                                        \
+//   /* Compute oopmap block range. The common case                         \
+//      is nonstatic_oop_map_size == 1. */                                  \
+//   OopMapBlock* map           = start_of_nonstatic_oop_maps();            \
+//   OopMapBlock* const end_map = map + nonstatic_oop_map_count();          \
+//   if (UseCompressedOops) {                                               \
+//     while (map < end_map) {                                              \
+//       InstanceKlass_SPECIALIZED_BDA_OOP_ITERATE(narrowOop,               \
+//         obj->obj_field_addr<narrowOop>(map->offset()), map->count(),     \
+//         container, do_oop, assert_fn)                                    \
+//       ++map;                                                             \
+//     }                                                                    \
+//   } else {                                                               \
+//     while (map < end_map) {                                              \
+//       InstanceKlass_SPECIALIZED_BDA_OOP_ITERATE(oop,                     \
+//         obj->obj_field_addr<oop>(map->offset()), map->count(),           \
+//         container, do_oop, assert_fn)                                    \
+//       ++map;                                                             \
+//     }                                                                    \
+//   }                                                                      \
+// }
 
-#define InstanceKlass_BDA_OOP_MAP_REVERSE_ITERATE(obj, do_oop, assert_fn) \
-{                                                                        \
-  OopMapBlock* const start_map = start_of_nonstatic_oop_maps();          \
-  OopMapBlock* map             = start_map + nonstatic_oop_map_count();  \
-  if (UseCompressedOops) {                                               \
-    while (start_map < map) {                                            \
-      --map;                                                             \
-      InstanceKlass_SPECIALIZED_BDA_OOP_REVERSE_ITERATE(narrowOop,       \
-        obj->obj_field_addr<narrowOop>(map->offset()), map->count(),     \
-        do_oop, assert_fn)                                               \
-    }                                                                    \
-  } else {                                                               \
-    while (start_map < map) {                                            \
-      --map;                                                             \
-      InstanceKlass_SPECIALIZED_BDA_OOP_REVERSE_ITERATE(oop,             \
-        obj->obj_field_addr<oop>(map->offset()), map->count(),           \
-        do_oop, assert_fn)                                               \
-    }                                                                    \
-  }                                                                      \
-}
+// #define InstanceKlass_BDA_OOP_MAP_REVERSE_ITERATE(obj, do_oop, assert_fn) \
+// {                                                                        \
+//   OopMapBlock* const start_map = start_of_nonstatic_oop_maps();          \
+//   OopMapBlock* map             = start_map + nonstatic_oop_map_count();  \
+//   if (UseCompressedOops) {                                               \
+//     while (start_map < map) {                                            \
+//       --map;                                                             \
+//       InstanceKlass_SPECIALIZED_BDA_OOP_REVERSE_ITERATE(narrowOop,       \
+//         obj->obj_field_addr<narrowOop>(map->offset()), map->count(),     \
+//         do_oop, assert_fn)                                               \
+//     }                                                                    \
+//   } else {                                                               \
+//     while (start_map < map) {                                            \
+//       --map;                                                             \
+//       InstanceKlass_SPECIALIZED_BDA_OOP_REVERSE_ITERATE(oop,             \
+//         obj->obj_field_addr<oop>(map->offset()), map->count(),           \
+//         do_oop, assert_fn)                                               \
+//     }                                                                    \
+//   }                                                                      \
+// }
 
-#define InstanceKlass_BOUNDED_BDA_OOP_MAP_ITERATE(obj, low, high, do_oop,    \
-                                              do_region, assert_fn)      \
-{                                                                        \
-  /* Compute oopmap block range. The common case is                      \
-     nonstatic_oop_map_size == 1, so we accept the                       \
-     usually non-existent extra overhead of examining                    \
-     all the maps. */                                                    \
-  OopMapBlock* map           = start_of_nonstatic_oop_maps();            \
-  OopMapBlock* const end_map = map + nonstatic_oop_map_count();          \
-  if (UseCompressedOops) {                                               \
-    while (map < end_map) {                                              \
-      InstanceKlass_SPECIALIZED_BOUNDED_BDA_OOP_ITERATE(narrowOop,       \
-        obj->obj_field_addr<narrowOop>(map->offset()), map->count(),     \
-        low, high, container,                                            \
-        do_oop, do_region, assert_fn)                                    \
-      ++map;                                                             \
-    }                                                                    \
-  } else {                                                               \
-    while (map < end_map) {                                              \
-      InstanceKlass_SPECIALIZED_BOUNDED_BDA_OOP_ITERATE(oop,             \
-        obj->obj_field_addr<oop>(map->offset()), map->count(),           \
-        low, high, container,                                            \
-        do_oop, do_region, assert_fn)                                    \
-      ++map;                                                             \
-    }                                                                    \
-  }                                                                      \
-}
-#endif // BDA
+// #define InstanceKlass_BOUNDED_BDA_OOP_MAP_ITERATE(obj, low, high, do_oop,    \
+//                                               do_region, assert_fn)      \
+// {                                                                        \
+//   /* Compute oopmap block range. The common case is                      \
+//      nonstatic_oop_map_size == 1, so we accept the                       \
+//      usually non-existent extra overhead of examining                    \
+//      all the maps. */                                                    \
+//   OopMapBlock* map           = start_of_nonstatic_oop_maps();            \
+//   OopMapBlock* const end_map = map + nonstatic_oop_map_count();          \
+//   if (UseCompressedOops) {                                               \
+//     while (map < end_map) {                                              \
+//       InstanceKlass_SPECIALIZED_BOUNDED_BDA_OOP_ITERATE(narrowOop,       \
+//         obj->obj_field_addr<narrowOop>(map->offset()), map->count(),     \
+//         low, high, container,                                            \
+//         do_oop, do_region, assert_fn)                                    \
+//       ++map;                                                             \
+//     }                                                                    \
+//   } else {                                                               \
+//     while (map < end_map) {                                              \
+//       InstanceKlass_SPECIALIZED_BOUNDED_BDA_OOP_ITERATE(oop,             \
+//         obj->obj_field_addr<oop>(map->offset()), map->count(),           \
+//         low, high, container,                                            \
+//         do_oop, do_region, assert_fn)                                    \
+//       ++map;                                                             \
+//     }                                                                    \
+//   }                                                                      \
+// }
+// #endif // BDA
 
 
 #define InstanceKlass_OOP_MAP_ITERATE(obj, do_oop, assert_fn)            \
@@ -2323,19 +2323,10 @@ void InstanceKlass::oop_follow_contents(ParCompactionManager* cm,
   PSParallelCompact::follow_klass(cm, obj->klass());
   // Only mark the header and let the scan of the meta-data mark
   // everything else.
-#ifdef HEADER_MARK // BDAVM Macro
-  BDARegion* r = oopDesc::load_region_oop(obj);
-  InstanceKlass_BDA_OOP_MAP_ITERATE(            \
-    obj, \
-    PSParallelCompact::mark_and_push(cm, p), \
-    BDARegion::encode_oop_element(p, r), \
-    assert_is_in)
-#else //
   InstanceKlass_OOP_MAP_ITERATE( \
     obj, \
     PSParallelCompact::mark_and_push(cm, p), \
     assert_is_in)
-#endif
 }
 #endif // INCLUDE_ALL_GCS
 
@@ -2442,11 +2433,11 @@ InstanceKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
                                         container_t container,
                                         oop obj)
 {
-  InstanceKlass_BDA_OOP_MAP_REVERSE_ITERATE ( \
-    obj, \
-    if (PSScavenge::should_scavenge(p)) { \
+  InstanceKlass_OOP_MAP_REVERSE_ITERATE (           \
+    obj,                                            \
+    if (PSScavenge::should_scavenge(p)) {           \
       pm->claim_or_forward_bdaref(p, container);    \
-    }, \
+    },                                              \
     assert_nothing )
 }
 #endif // BDA

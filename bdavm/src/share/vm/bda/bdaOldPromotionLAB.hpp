@@ -15,54 +15,25 @@
 class BDAOldPromotionLAB : public PSOldPromotionLAB {
   friend class VMStructs;
 
-private:
+ private:
 
-  class LABGroup : public CHeapObj<mtGC> {
-    BDARegion*         _type;
-    PSOldPromotionLAB* _lab;
+  container_t  _container;
 
-  public:
-    LABGroup(BDARegion* type, ObjectStartArray* start_array) : _type(type) {
-      _lab = new PSOldPromotionLAB(start_array);
-    }
-    ~LABGroup() {
-      delete _lab;
-    }
-
-    BDARegion*         type() { return _type; }
-    PSOldPromotionLAB* lab() { return _lab; }
-
-    // Comparison function to be used as argument for find in array
-    static bool equals(void* region, LABGroup* grp) {
-      return *(BDARegion**)region == grp->type();
-    }
-  };
-
-
-
-  GrowableArray<LABGroup*>* _bda_labs;
-
-public:
+ public:
   // The first constructor does not need initialization since it is the default for
-  // value objects. The array of LABGroup objects is, therefore, initialized in
-  // the set_start_array() method.
+  // value objects.
   BDAOldPromotionLAB() : PSOldPromotionLAB(NULL) {}
-  BDAOldPromotionLAB(ObjectStartArray* start_array);
+  BDAOldPromotionLAB(ObjectStartArray* start_array) : PSOldPromotionLAB(start_array) {}
 
-  GrowableArray<LABGroup*>* labs() { return _bda_labs; }
+  void initialize(MemRegion lab, container_t container);
+  void flush()
+    { PSOldPromotionLAB::flush(); }
+  // Call the set_start_array on super class
+  void set_start_array(ObjectStartArray* start_array)
+    { PSOldPromotionLAB::set_start_array(start_array); }
+  HeapWord * allocate(size_t size, container_t container);
 
-  // Intercepts PSPromotionLAB initialize() but ditches lab values and fetches new ones
-  // From BDCMutableSpace.
-  void initialize(MemRegion lab);
-  // Intercepts the flush() call and calls all flushes for the LABGroups
-  void flush();
-  // Initializes the LABGroup array and its elements
-  void set_start_array(ObjectStartArray* start_array);
-  // Takes the call to the specific PSOldPromotionLAB
-  HeapWord * allocate(size_t size);
-  // Takes the call from PSPromotionLAB
-  bool unallocate_object(HeapWord* obj, size_t obj_size);
-
+  debug_only(virtual bool lab_is_valid(MemRegion lab));
 };
 
 #endif // SHARE_VM_GC_IMPLEMENTATION_PARALLELSCAVENGE_BDAOLDPROMOTIONLAB_HPP

@@ -890,7 +890,8 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
       // If this region's segment is empty, and is the first region of the segment,
       // add to the empty_region_array.
       container_t const segment = _region_data[cur_region].container();
-      if ((segment->_start == segment->_top) && (addr_to_region_idx(segment->_start) == cur_region)) {
+      if ((segment->_start == segment->_top) &&
+          (addr_to_region_idx(segment->_start) == cur_region)) {
         _empty_region_data.append(cur_region);
       }      
       ++cur_region;
@@ -907,15 +908,15 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     
     container_t source_container = _region_data[cur_region].container();
     container_t target_container = _region_data[target_region].container();
-    const size_t  source_size      = pointer_delta(source_container->_end,
+    const size_t  source_size    = pointer_delta(source_container->_end,
                                                    source_container->_start);
-    const size_t  target_size      = pointer_delta(target_container->_end,
-                                                   target_container->_start);
-    const int  source_regions   = addr_to_region_idx(source_container->_hard_end) - cur_region;
-    const int  target_regions   = addr_to_region_idx(target_container->_hard_end) - target_region;
+          size_t  target_size    = pointer_delta(target_container->_end,
+                                                 target_container->_start);
+    const int  source_regions    = addr_to_region_idx(source_container->_hard_end) - cur_region;
+          int  target_regions    = addr_to_region_idx(target_container->_hard_end) - target_region;
 
     // Some sources may come from large containers. This may cause the target to overflow,
-    // incurring incorrect behaviour.
+    // incurring incorrect behavior.
     if (source_regions > target_regions) {
       assert (target_region != cur_region, "they must be different.");
       // Compute source size and see if it fits on this target_container.
@@ -929,7 +930,11 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
       if (source_live > target_size) {
         _empty_region_data.return_to_array(target_region);
         // Do not update this before the prior call!
+        // Update all to avoid confusion.
         target_region = cur_region;
+        target_container = source_container;
+        target_size = pointer_delta(target_container->_end, target_container->_start);
+        target_regions = addr_to_region_idx(target_container->_hard_end) - target_region;
       }
     }
       
@@ -951,6 +956,10 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     // Accumulate how much of the container is live and set the region's destination.
     size_t source_live = 0;
     for (int i = 0; i < source_regions; ++i) {
+      if (source_regions > (int)(MutableBDASpace::CGRPSpace::segment_sz >> Log2RegionSize)) {
+        HeapWord * dummy = 0x0;
+      }
+      
       RegionData * const cntr_region = &_region_data[cur_region + i];
       cntr_region->set_destination(dest_addr);
 
@@ -978,6 +987,8 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
       // True means that is worth investing in find a suitable segment to
       // compact here.
       container_t container_seg = (container_t)source_container;
+      assert (target_size >= source_live, "overflow of size_t");
+      size_t      available_sz  = target_size - source_live;
       while ((container_seg = container_seg->_next_segment) != NULL) {
 
         // Jump segments allocated in a different space (usually, in the non-bda-space)
@@ -993,7 +1004,7 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
         }
         
         // If it doesn't overflow then get the segment and set it up
-        if (segment_live <= target_size - source_live) {
+        if (segment_live <= available_sz) {
           for (int i = 0; i < segment_regions; ++i) {
             const size_t seg_region_idx   = addr_to_region_idx(container_seg->_start) + (size_t)i;
             RegionData * const seg_region = &_region_data[seg_region_idx];
@@ -1020,10 +1031,12 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
             }
             seg_region->set_destination_count(destination_count);
             seg_region->set_scanned(); dest_addr += words;
+            available_sz -= words;
+            // The segment was fully claimed thus it is now empty. Reset its fields, it shall
+            // be returned to the container pool in the last stage (cleanup).
+            if (container_seg->_top != container_seg->_start)
+              container_seg->_top = container_seg->_start;
           }
-          // The segment was fully claimed thus it is now empty. Reset its fields, it shall
-          // be returned to the container pool in the last stage (cleanup).
-          container_seg->_top = container_seg->_start;
         }
       }
     }
@@ -1339,6 +1352,8 @@ PSParallelCompact::clear_data_covering_space(SpaceId id)
       _bda_space->spaces()->at((uint)(id -last_space_id) + 1);
     _summary_data.clear_bda_range(beg_region, end_region, space_manager);
     _summary_data.clear_empty_region_range();
+    // Save new top pointers
+    space_manager->save_top_ptrs();
   } else if (id == old_space_id) {
     _bda_space->clear_delete_containers_in_space((uint)old_space_id);
     _summary_data.clear_range(beg_region, end_region);
@@ -3567,8 +3582,8 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
 #ifdef BDA
   if (src_space_id >= last_space_id) {
     // !is_in_container(closure.container(), src_region_ptr->destination())))
-    while(src_region_ptr->data_size() == 0 ||
-          (src_region_ptr < top_region_ptr &&
+    while(src_region_ptr < top_region_ptr &&
+          (src_region_ptr->data_size() == 0 ||          
            (closure.destination() != src_region_ptr->destination() +
             src_region_ptr->partial_obj_size()))) {
       ++src_region_ptr;
@@ -3583,8 +3598,8 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
   // This is in case it needs to wrap around the space.
   if (src_space_id >= last_space_id && src_region_ptr == top_region_ptr) {
     src_region_ptr = sd.addr_to_region_ptr(space(src_space_id)->bottom());
-    while(src_region_ptr->data_size() == 0 ||
-          (src_region_ptr < top_region_ptr &&
+    while(src_region_ptr < top_region_ptr &&
+          (src_region_ptr->data_size() == 0 ||          
            (closure.destination() != src_region_ptr->destination() +
             src_region_ptr->partial_obj_size()))) {
       ++src_region_ptr;
@@ -3599,6 +3614,8 @@ size_t PSParallelCompact::next_src_region(MoveAndUpdateClosure& closure,
     HeapWord* const src_region_addr = sd.region_to_addr(src_region_idx);
     if (src_region_addr > closure.source()) {
       closure.set_source(src_region_addr);
+    } else if (src_space_id >= last_space_id) {
+      closure.set_source(src_region_addr); // set anyway and see where it goes
     }
     return src_region_idx;
   }
@@ -3656,7 +3673,10 @@ void PSParallelCompact::fill_region(ParCompactionManager* cm, size_t region_idx)
   SpaceId dest_space_id = space_id(dest_addr);
 #ifdef BDA
   // Confirm that we're dealing with a bda-space
-  if (dest_space_id >= last_space_id && region_ptr->container()->_top <= dest_addr) {
+  if (dest_space_id >= last_space_id &&
+      (region_ptr->container()->_top <= dest_addr ||
+       !is_in_container(region_ptr->container(),
+                        sd.region(region_ptr->source_region())->destination()))) {
     region_ptr->set_deferred_obj_addr(NULL);
     region_ptr->set_completed();
     return; // nothing more to do
@@ -3754,6 +3774,11 @@ void PSParallelCompact::fill_region(ParCompactionManager* cm, size_t region_idx)
     if (status == ParMarkBitMap::would_overflow) {
       // The last object did not fit.  Note that interior oop updates were
       // deferred, then copy enough of the object to fill the region.
+      if (src_space_id >= last_space_id &&
+          pointer_delta(region_ptr->container()->_hard_end,
+                        region_ptr->container()->_start) > MutableBDASpace::CGRPSpace::segment_sz) {
+        HeapWord * dummy = 0x0;
+      }
       region_ptr->set_deferred_obj_addr(closure.destination());
       status = closure.copy_until_full(); // copies from closure.source()
 

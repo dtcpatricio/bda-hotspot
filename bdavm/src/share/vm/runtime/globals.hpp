@@ -3976,6 +3976,9 @@ class CommandLineFlags {
                "The number of fields in the main array that are useful "    \
                "for the calculation of the amount of data")                 \
                                                                             \
+  product(uintx, BDAOldPLABSize, 1024,                                      \
+               "The size of each BDA PLAB.")                                \
+                                                                            \
   develop (bool, PrintEnqueuedContainers, false,                            \
                 "Prints the reference and the space id of container "       \
                 "objects")                                                  \

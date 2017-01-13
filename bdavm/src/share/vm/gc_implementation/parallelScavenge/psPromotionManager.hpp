@@ -36,6 +36,7 @@
 #ifdef BDA
 # include "bda/bdaTasks.hpp"
 # include "bda/bdaStats.hpp"
+# include "bda/bdaOldPromotionLAB.hpp"
 #endif
 //
 // psPromotionManager is used by a single thread to manage object survival
@@ -89,6 +90,7 @@ class PSPromotionManager VALUE_OBJ_CLASS_SPEC {
   OverflowTaskQueue<oop, mtGC>        _claimed_stack_breadth;
 
 #ifdef BDA
+  BDAOldPromotionLAB                  _bda_old_lab;
   BDARefTaskQueue                     _bdaref_stack;
   BDAPromotionStats                   _promotion_stats;
   container_t                         _filling_segment;

@@ -165,7 +165,7 @@ handle SIGSEGV nostop noprint
 set args $JPARMS
 file $LAUNCHER
 directory $GDBSRCDIR
-# Get us to a point where we can set breakpoints in libjvm.so
+# Get us to apoint where we can set breakpoints in libjvm.so
 set breakpoint pending on
 break JNI_CreateJavaVM
 run

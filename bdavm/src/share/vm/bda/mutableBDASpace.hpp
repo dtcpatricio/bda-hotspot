@@ -81,6 +81,10 @@ class MutableBDASpace : public MutableSpace
     container_t allocate_container(size_t size);
     // Also calculates a container segment size, but only based on the size_t
     container_t allocate_large_container(size_t size);
+    // Tries to reuse segments from the normal sized segments pool in order to allocate a large
+    // segment. This is only called when there are no large segments in the large_pool or they
+    // are not enough.
+    bool        reuse_from_pool (container_t& c, size_t size);
     // Masks containers by ORing the CONTAINER_IN_POOL_MASK on the _start field of the struct
     // Any subsequent use must unmask the container because an ORed _start is invalid since
     // containers/segments are aligned byte aligned.
@@ -230,6 +234,7 @@ class MutableBDASpace : public MutableSpace
 
   // Marking of bits in the container segment bitmap
   inline bool mark_container(container_t c);
+  inline void unmark_container(container_t c);
   inline void allocate_block(HeapWord * obj);
   
  public:
@@ -321,9 +326,10 @@ class MutableBDASpace : public MutableSpace
   // Allocation methods
   virtual HeapWord* allocate(size_t size);
   virtual HeapWord* cas_allocate(size_t size);
-  container_t     allocate_container (size_t size, BDARegion * r);
+  container_t       allocate_container (size_t size, BDARegion * r);
   // This version updates the container with a new one if a new segment was needed.
   HeapWord*         allocate_element(size_t size, container_t& r);
+  HeapWord*         allocate_plab (container_t& container);
 
   // Helper methods for scavenging
   virtual HeapWord* top_region_for_stripe(HeapWord* stripe_start) {

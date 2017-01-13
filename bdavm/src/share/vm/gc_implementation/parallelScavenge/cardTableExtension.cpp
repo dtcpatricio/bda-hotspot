@@ -790,7 +790,7 @@ CardTableExtension::scavenge_bda_contents_parallel(ObjectStartArray * start_arra
     if (first_unclean_card < end_card) {
       oop * p = (oop*) start_array->object_start(addr_for(first_unclean_card),
                                                  c->_start);
-      assert ((HeapWord*)p <= addr_for(first_unclean_card), "just checking");
+      // assert ((HeapWord*)p <= addr_for(first_unclean_card), "just checking");
       assert ((p >= last_scanned) ||
               (last_scanned == first_object_within_slice),
               "Should not be possible!");

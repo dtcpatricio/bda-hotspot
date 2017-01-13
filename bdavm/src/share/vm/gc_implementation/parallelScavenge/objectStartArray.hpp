@@ -178,7 +178,8 @@ class ObjectStartArray : public CHeapObj<mtGC> {
       scroll_forward = next;
       next += oop(next)->size();
     }
-    assert(scroll_forward <= addr, "wrong order for current and arg");
+    // This cannot be asserted, because segments may not be aligned with the blocks.
+    // assert(scroll_forward <= addr, "wrong order for current and arg");
     assert(addr <= next, "wrong order for arg and next");
     return scroll_forward;
   }

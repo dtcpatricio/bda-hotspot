@@ -8,7 +8,7 @@
  *
  * This code is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+n * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  * version 2 for more details (a copy is included in the LICENSE file that
  * accompanied this code).
  *
@@ -651,9 +651,9 @@ ObjArrayKlass::oop_push_bdaref_contents(PSPromotionManager * pm,
                                        oop obj)
 {
   assert(obj->is_objArray(), "obj must be obj-array");
-  ObjArrayKlass_BDA_OOP_ITERATE( \
-    objArrayOop(obj), p, \
-    if(PSScavenge::should_scavenge(p)) { \
+  ObjArrayKlass_OOP_ITERATE(                    \
+    objArrayOop(obj), p,                        \
+    if(PSScavenge::should_scavenge(p)) {         \
       pm->claim_or_forward_bdaref(p, container); \
     })
 }

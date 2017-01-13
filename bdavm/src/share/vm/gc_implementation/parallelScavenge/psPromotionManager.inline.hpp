@@ -293,8 +293,8 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::Ref
         return bda_oop_promotion_failed(o, test_mark);
       }
 
-      // Set the filling container for this promotion manager
-      set_filling_segment (container);
+      // // Set the filling container for this promotion manager
+      // set_filling_segment (container);
       
       // Now get the start ptr which is the parent object
       new_obj = (oop)container->_start;
@@ -328,22 +328,39 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::Ref
       // If it is RefType::element it must abide to the container_t info
       container = (container_t) r;
 
-      // Here the container is changed accordingly and the new object pointer is returned
-      new_obj = (oop) old_space -> allocate_element(new_obj_size, container);
+      // Tries to allocate. It fails if the lab has no space left or if the lab
+      // is not targeted for this container/segment
+      new_obj = (oop) _bda_old_lab.allocate (new_obj_size, container);
+
+      if (new_obj == NULL) {
+        if (new_obj_size > (BDAOldPLABSize / 2)) {
+          // Allocate directly
+          new_obj = (oop) old_space -> allocate_element (new_obj_size, container);
+        } else {
+          // Allocate new lab, flush and fill
+          HeapWord * lab_base = old_space -> allocate_plab (container);
+          if (lab_base != NULL) {
+            _bda_old_lab.flush();
+            _bda_old_lab.initialize (MemRegion(lab_base, BDAOldPLABSize), container);
+            new_obj = (oop) _bda_old_lab.allocate (new_obj_size, container);
+          }
+        }
+      }
+      // // Here the container is changed accordingly and the new object pointer is returned
+      // new_obj = (oop) old_space -> allocate_element(new_obj_size, container);
 
       if (new_obj == NULL) {
         _old_gen_is_full = true;
         return bda_oop_promotion_failed(o, test_mark);
       }
 
-      // Set the filling container for this promotion manager
-      set_filling_segment (container);
-      
+      // // Set the filling container for this promotion manager
+      // set_filling_segment (container);
+
       // Copy obj
       Copy::aligned_disjoint_words((HeapWord*)o, (HeapWord*)new_obj, new_obj_size);
 
-      // Try to cas in the header. This is here just as an assertion, because threads traverse
-      // in depth and cannot steal from others, thus making the following cas always to succeed.
+      // Try to cas in the header.
       if (o->cas_forward_to(new_obj, test_mark)) {
         assert (new_obj == o->forwardee(), "Sanity");
 
@@ -359,9 +376,13 @@ PSPromotionManager::copy_bdaref_to_survivor_space(oop o, void * r, RefQueue::Ref
       } else {
         // lost the cas header race
         guarantee(o->is_forwarded(), "Object must be forwarded if the cas failed.");
-        // Fill with a filler to leave this part unusable until a FullGC takes place.
-        CollectedHeap::fill_with_object((HeapWord*) new_obj, new_obj_size);
-        // Don't update this before the deallocation
+        // Unallocate the object
+        if (!_bda_old_lab.unallocate_object ((HeapWord *) new_obj, new_obj_size)) {
+          // If it could not unallocate, fill with a filler to leave this part unusable.
+          CollectedHeap::fill_with_object((HeapWord*) new_obj, new_obj_size);
+        }
+        
+        // Don't update this before the unallocation
         new_obj = o->forwardee();
       }
     }
