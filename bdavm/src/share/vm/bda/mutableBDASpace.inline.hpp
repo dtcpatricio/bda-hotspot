@@ -4,149 +4,162 @@
 # include "bda/mutableBDASpace.hpp"
 # include "oops/klassRegionMap.hpp"
 
-inline container_t
-MutableBDASpace::CGRPSpace::push_container(size_t size)
-{
-  container_t container;
 
-  // Objects bigger than this size are, generally, large arrays
-  // Get a container from the large_pool or allocate a special one
-  // big enough for the size.
-  if (size > MutableBDASpace::CGRPSpace::segment_sz) {
 
-    if (_large_pool->peek() == NULL) {
-      if (!reuse_from_pool(container, size)) {
-        container = allocate_large_container(size);
-      }
-    } else {
-      int tries = 0;
-      while ( (container = _large_pool->dequeue()) != NULL ) {
-        unmask_container(container);
-        if (pointer_delta(container->_end, container->_start) >= size) {
-          container->_top += size;
-          break;
-        } else if (tries < 3) {
-          mask_container(container);
-          _large_pool->enqueue(container);
-          tries++;
-        } else {
-          if (!reuse_from_pool(container, size)) {
-            container = allocate_large_container(size);
-          }
-          break;
-        }
-      }
-    }
+// inline container_t
+// MutableBDASpace::CGRPSpace::push_container(size_t size)
+// {
+//   container_t container;
 
-    // Else, allocate a normal sized container based on the average container size
-    // using the arguments provided at startup (allocate_container() in mutableBDASpace.cpp).
-  } else {
+//   // Objects bigger than this size are, generally, large arrays
+//   // Get a container from the large_pool or allocate a special one
+//   // big enough for the size.
+//   if (size > MutableBDASpace::CGRPSpace::segment_sz) {
+
+//     if (_large_pool->peek() == NULL) {
+//       if (!reuse_from_pool(container, size)) {
+//         container = allocate_large_container(size);
+//       }
+//     } else {
+//       int tries = 0;
+//       while ( (container = _large_pool->dequeue()) != NULL ) {
+//         unmask_container(container);
+//         if (pointer_delta(container->_end, container->_start) >= size) {
+//           container->_top += size;
+//           break;
+//         } else if (tries < 3) {
+//           mask_container(container);
+//           _large_pool->enqueue(container);
+//           tries++;
+//         } else {
+//           if (!reuse_from_pool(container, size)) {
+//             container = allocate_large_container(size);
+//           }
+//           break;
+//         }
+//       }
+//     }
+
+//     // Else, allocate a normal sized container based on the average container size
+//     // using the arguments provided at startup (allocate_container() in mutableBDASpace.cpp).
+//   } else {
   
-    if ( (container = _pool->dequeue()) != NULL ) {
-      unmask_container(container);
-      container->_top += size;
-    } else {
-      // This call already sets the top
-      container = allocate_container(size);
-    }
-  }
+//     if ( (container = _pool->dequeue()) != NULL ) {
+//       unmask_container(container);
+//       container->_top += size;
+//     } else {
+//       // This call already sets the top
+//       container = allocate_container(size);
+//     }
+//   }
 
-  // Add to the pool
-  if (container != NULL) {
-    assert (container->_next_segment == NULL, "should have been reset");
-    assert (container->_prev_segment == NULL, "should have been reset");
-#ifdef ASSERT
-    _segments_since_last_gc++;
-#endif
-    // MT safe, but only for subsequent enqueues/dequeues. If mixed, then the queue may break!
-    // See gen_queue.hpp for more details.
-    _containers->enqueue(container);
-  }
+//   // Add to the queue
+//   if (container != NULL) {
+//     assert (container->_next_segment == NULL, "should have been reset");
+//     assert (container->_prev_segment == NULL, "should have been reset");
+// #ifdef ASSERT
+//     _segments_since_last_gc++;
+// #endif
+//     // MT safe, but only for subsequent enqueues/dequeues. If mixed, then the queue may break!
+//     // See gen_queue.hpp for more details.
+//     _containers->enqueue(container);
+//   }
 
-  return container;
-}
+//   return container;
+// }
 
-inline HeapWord *
-MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t& c)
+
+
+// inline HeapWord *
+// MutableBDASpace::CGRPSpace::allocate_new_segment(size_t size, container_t& c)
+// {
+//   container_t container;
+//   container_t next;
+//   container_t last;
+
+//   // Objects bigger than this size are, generally, large arrays
+//   // Get a container from the large_pool or allocate a special one
+//   // big enough for the size.
+//   if ( size > MutableBDASpace::CGRPSpace::segment_sz ) {
+
+//     if (_large_pool->peek() == NULL) {
+//       if (!reuse_from_pool(container, size)) {
+//         container = allocate_large_container(size);
+//       }
+//     } else {
+//       int tries = 0;
+//       while ( (container = _large_pool->dequeue()) != NULL ) {
+//         unmask_container(container);
+//         if (pointer_delta(container->_end, container->_start) >= size) {
+//           container->_top += size;
+//           break;
+//         } else if (tries < 3) {
+//           mask_container(container);
+//           _large_pool->enqueue(container);
+//           tries++;
+//         } else {
+//           if (!reuse_from_pool(container, size)) {
+//             container = allocate_large_container(size);
+//           }
+//           break;
+//         }
+//       }
+//     }
+
+//     // Else, allocate a normal sized container based on the average container size
+//     // using the arguments provided at startup (allocate_container() in mutableBDASpace.cpp).
+//   } else {
+    
+//     if ( (container = _pool->dequeue() ) != NULL ) {
+//       unmask_container(container);
+//       container->_top += size;
+//     } else {
+//       container = allocate_container(size);
+//     }
+    
+//   }
+
+//   // The non-bda-space cannot have linked segments because these are deallocated after
+//   // FullGC, causing a load of invalid space from a parent allocated in a bda-space (which are
+//   // not deallocated).
+//   if (container != NULL) {
+// #ifdef ASSERT
+//     _segments_since_last_gc++;
+// #endif
+//     // MT safe, but only for subsequent enqueues/dequeues.
+//     _containers->enqueue(container);
+
+//     // only update links in bda-spaces
+//     if (container_type() != KlassRegionMap::region_start_ptr()) {
+//       last = c; next = last->_next_segment;
+//       do {
+//         if (next == NULL && Atomic::cmpxchg_ptr(container,
+//                                                 &(last->_next_segment),
+//                                                 next) == next) {
+//           break;
+//         }
+//         last = last->_next_segment;
+//         next = last->_next_segment;
+//       } while (true);
+
+//       container->_prev_segment = last;
+//     }
+
+//     // For the return val
+//     c = container;
+//     return container->_start;
+//   } else {    
+//     return NULL;
+//   }
+// }
+
+inline void
+MutableBDASpace::CGRPSpace::free_container(container_t container)
 {
-  container_t container;
-  container_t next;
-  container_t last;
-
-  // Objects bigger than this size are, generally, large arrays
-  // Get a container from the large_pool or allocate a special one
-  // big enough for the size.
-  if ( size > MutableBDASpace::CGRPSpace::segment_sz ) {
-
-    if (_large_pool->peek() == NULL) {
-      if (!reuse_from_pool(container, size)) {
-        container = allocate_large_container(size);
-      }
-    } else {
-      int tries = 0;
-      while ( (container = _large_pool->dequeue()) != NULL ) {
-        unmask_container(container);
-        if (pointer_delta(container->_end, container->_start) >= size) {
-          container->_top += size;
-          break;
-        } else if (tries < 3) {
-          mask_container(container);
-          _large_pool->enqueue(container);
-          tries++;
-        } else {
-          if (!reuse_from_pool(container, size)) {
-            container = allocate_large_container(size);
-          }
-          break;
-        }
-      }
-    }
-
-    // Else, allocate a normal sized container based on the average container size
-    // using the arguments provided at startup (allocate_container() in mutableBDASpace.cpp).
-  } else {
-    
-    if ( (container = _pool->dequeue() ) != NULL ) {
-      unmask_container(container);
-      container->_top += size;
-    } else {
-      container = allocate_container(size);
-    }
-    
-  }
-
-  // The non-bda-space cannot have linked segments because these are deallocated after
-  // FullGC, causing a load of invalid space from a parent allocated in a bda-space (which are
-  // not deallocated).
-  if (container != NULL) {
-#ifdef ASSERT
-    _segments_since_last_gc++;
-#endif
-    // MT safe, but only for subsequent enqueues/dequeues.
-    _containers->enqueue(container);
-
-    // only update links in bda-spaces
-    if (container_type() != KlassRegionMap::region_start_ptr()) {
-      last = c; next = last->_next_segment;
-      do {
-        if (next == NULL && Atomic::cmpxchg_ptr(container,
-                                                &(last->_next_segment),
-                                                next) == next) {
-          break;
-        }
-        last = last->_next_segment;
-        next = last->_next_segment;
-      } while (true);
-
-      container->_prev_segment = last;
-    }
-
-    // For the return val
-    c = container;
-    return container->_start;
-  } else {    
-    return NULL;
-  }
+  // Assert that the container references no other.
+  assert (container->_prev_segment == NULL && container->_next_segment == NULL,
+          "segment associated with parent container");
+  FreeHeap ((void*)container, mtGC);
 }
 
 inline size_t
@@ -187,7 +200,7 @@ inline size_t
 MutableBDASpace::CGRPSpace::calculate_large_reserved_sz(size_t size)
 {
   size_t reserved_sz = 0;
-  reserved_sz = (size_t) align_size_up((intptr_t)size, MutableBDASpace::MinRegionSize);
+  reserved_sz = (size_t) align_size_up((intptr_t)size, segment_sz);
   return reserved_sz;
 }
 
@@ -221,7 +234,7 @@ MutableBDASpace::CGRPSpace::install_container_in_space(size_t reserved_sz, size_
 
   return container;
 }
-
+  
 inline bool
 MutableBDASpace::CGRPSpace::clear_delete_containers()
 {
@@ -280,6 +293,12 @@ MutableBDASpace::CGRPSpace::add_to_pool(container_t c)
     else
       _pool->enqueue(c);
   }
+}
+
+inline void
+MutableBDASpace::CGRPSpace::remove_from_pool (container_t c)
+{
+  _pool->remove_element_mt (c);
 }
 
 inline int
@@ -454,12 +473,12 @@ MutableBDASpace::mark_container(container_t c)
   return _segment_bitmap.mark_obj(c->_start, pointer_delta(c->_hard_end, c->_start));
 }
 
-// This unmarks the newly allocated container in the segment bitmap
+// This unmarks the container in the segment bitmap
 inline void
 MutableBDASpace::unmark_container(container_t c)
 {
   const idx_t beg_bit = _segment_bitmap.addr_to_bit (c->_start);
-  const idx_t end_bit = _segment_bitmap.addr_to_bit (c->_end);
+  const idx_t end_bit = _segment_bitmap.addr_to_bit (c->_hard_end - 1);
   _segment_bitmap.clear_range(beg_bit, end_bit);
 }
 

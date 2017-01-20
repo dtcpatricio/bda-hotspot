@@ -25,6 +25,7 @@ class ObjectStartArray;
 class MutableBDASpace : public MutableSpace
 {
   friend class VMStructs;
+  typedef ParMarkBitMap::idx_t idx_t;
 
  public:
   // Constant sizes in HeapWords, unless stated otherwise
@@ -76,11 +77,18 @@ class MutableBDASpace : public MutableSpace
     // Helper function to calculate the power of base over exponent using bit-wise
     // operations. It is inlined for such.
     static inline int    power_function(int base, int exp);
-    // Calculates a container segment size, allocates one in the space and initializes it.
-    // It allocates both containers with parent object and segments with children object only.
-    container_t allocate_container(size_t size);
+    // Allocates a container in the space.
+    // It allocates both containers with parent object and segments with children objects.
+    container_t allocate_container();
+    // Sets up the container with its limits and adds it to the RegionData that spans
+    // the container addressable space.
+    inline void setup_container(container_t& container, MemRegion mr, size_t obj_sz);
+    // Does both of the above
+    container_t allocate_and_setup_container(HeapWord * start, size_t reserved_sz, size_t obj_sz);
     // Also calculates a container segment size, but only based on the size_t
     container_t allocate_large_container(size_t size);
+    // Free a container's memory
+    void free_container (container_t container);
     // Tries to reuse segments from the normal sized segments pool in order to allocate a large
     // segment. This is only called when there are no large segments in the large_pool or they
     // are not enough.
@@ -160,6 +168,9 @@ class MutableBDASpace : public MutableSpace
     // This is called during the final stage of OldGC when free segments are returned to the pool
     inline void add_to_pool(container_t c);
     inline bool not_in_pool(container_t c);
+    // This is called when a large segment requires that smaller segments in the pool
+    // need to be cleared away to make room for the new one.
+    inline void remove_from_pool(container_t c);
     
     // GC support
     inline container_t cas_get_next_container();

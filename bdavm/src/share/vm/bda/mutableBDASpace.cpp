@@ -47,23 +47,21 @@ ObjectStartArray * MutableBDASpace::_start_array = NULL;
 //////////// MutableBDASpace::CGRPSpace //////////
 //////////// ////////////////////////// //////////
 container_t
-MutableBDASpace::CGRPSpace::allocate_container(size_t size)
-{  
-  container_t container = install_container_in_space(CGRPSpace::segment_sz, size);
-  // Here, the container pointer is installed on the RegionData object that manages
-  // the address range this container spans during OldGC. This is for fast access
-  // during summarize and update of the containers top pointers.
-  if (container != NULL) {
-    _manager->mark_container(container);
-    _manager->allocate_block(container->_start);
-    PSParallelCompact::install_container_in_region(container);
-#ifdef ASSERT
-    if (BDAllocationVerboseLevel > 1) {
-      print_allocation(container);
-    }
-#endif
-  }
-  
+MutableBDASpace::CGRPSpace::allocate_and_setup_container(HeapWord * start,
+                                                         size_t reserved_sz, size_t obj_sz)
+{
+  container_t container = allocate_container();
+  setup_container (container, MemRegion(start, reserved_sz), obj_sz);
+  return container;
+}
+
+container_t
+MutableBDASpace::CGRPSpace::allocate_container()
+{
+  // We allocate it with the general AllocateHeap since struct is not, by default,
+  // subclass of one of the base VM classes (CHeap, ResourceObj, ... and friends).
+  // It must be initialized prior to allocation because there's no default constructor.
+  container_t container = (container_t)AllocateHeap(sizeof(struct container), mtGC);
   return container;
 }
 
@@ -89,27 +87,141 @@ MutableBDASpace::CGRPSpace::allocate_large_container(size_t size)
   return container;
 }
 
-bool
-MutableBDASpace::CGRPSpace::reuse_from_pool(container_t& c, size_t size)
+container_t
+MutableBDASpace::CGRPSpace::push_container(size_t size)
 {
-  if (_pool->peek() != NULL) {
-    // There are segments in the pool. Use these instead.
-    size_t required_size    = calculate_large_reserved_sz (size);
-    int    regions_required = required_sz >> MutableBDASpace::Log2MinRegionSize;
-    int  norm_regs_required = segment_sz  >> MutableBDASpace::Log2MinRegionSize;
-    HeapWord * ptr = top();
-    for (int i = 0; i < regions_required; i += norm_regs_required) {
-      container_t c = PSParallelCompact::get_container_at_addr (ptr);
-      // Verify container integrity
-      if (!not_in_pool(c) && c->_start == c->ptr) {
-        ptr = c->_hard_end;
-        remove_from_pool (c);
-        _manager->unmark_container(c);
-        free (c);
-      } else {
-      
+  container_t container;
+  container_t first_seg;
+  container_t last_seg;
+  HeapWord * ptr;
+  size_t reserved_sz = segment_sz;
+
+  // Objects bigger than this size are, generally, large arrays.
+  // Get the aligned reserved size, multiple of segment_sz.
+  if (size > segment_sz) {
+    reserved_sz = calculate_large_reserved_sz(size);
+  }
+
+  // Now the amount of space is reserved with a CAS and the resulting ptr
+  // will be returned as the start of the collection struct.
+  ptr = space()->cas_allocate(reserved_sz);
+
+  // If there's no space left to allocate a new container, then
+  // return NULL so that MutableBDASpace can handle the allocation
+  // of a new container to "other" space.
+  if (ptr == NULL) {
+    return (container_t)ptr;
+  }
+
+  // Get the container/segment in the RegionData that spans the addressable space
+  container = PSParallelCompact::get_container_at_addr(ptr);
+  last_seg  = PSParallelCompact::get_container_at_addr(ptr + reserved_sz);
+  first_seg = container;
+
+  // If there is a container/segment, then use this one, setting the limits accordingly
+  if (container != NULL) {
+    // Remove from the pool by decreasing the num of elements.
+    _pool->phantom_remove();
+
+    // Now set the limits.
+    if (container->_start != ptr) {
+      container_t temp;
+      temp = PSParallelCompact::get_container_at_addr(ptr + reserved_sz - 1);
+      if (temp != container)
+        container = temp;
+      else
+        container = allocate_container();
+    }
+  
+    // Free unused segments in between and only those that are not going to be touched
+    // by other threads.
+    for (HeapWord * p = ptr + segment_sz; p < ptr + reserved_sz; p += segment_sz) {
+      container_t temp;
+      temp = PSParallelCompact::get_container_at_addr(p);
+      if (temp != container && temp != first_seg && temp != last_seg) {
+        free_container(temp);
       }
     }
+
+    // Setup the container last
+    setup_container(container, MemRegion(ptr, reserved_sz), size);
+  } else {
+    container = allocate_and_setup_container(ptr, reserved_sz, size);
+  }
+
+  // Add to the queue
+  if (container != NULL) {
+    assert (container->_next_segment == NULL, "should have been reset");
+    assert (container->_prev_segment == NULL, "should have been reset");
+#ifdef ASSERT
+    _segments_since_last_gc++;
+#endif
+    // MT safe, but only for subsequent enqueues/dequeues. If mixed, then the queue may break!
+    // See gen_queue.hpp for more details.
+    _containers->enqueue(container);
+  }
+
+  return container;
+}
+
+HeapWord *
+MutableBDASpace::CGRPSpace::allocate_new_segment (size_t size, container_t& c)
+{
+  container_t container = push_container(size);
+  container_t next,last; 
+  // The non-bda-space cannot have linked segments because these are deallocated after
+  // FullGC, causing a load of invalid space from a parent allocated in a bda-space (which is
+  // not deallocated).
+  if (container != NULL) {
+    // only update links in bda-spaces
+    if (container_type() != KlassRegionMap::region_start_ptr()) {
+      last = c; next = last->_next_segment;
+      do {
+        if (next == NULL && Atomic::cmpxchg_ptr(container,
+                                                &(last->_next_segment),
+                                                next) == next) {
+          break;
+        }
+        last = last->_next_segment;
+        next = last->_next_segment;
+      } while (true);
+
+      container->_prev_segment = last;
+    }
+
+    // For the return val
+    c = container;
+    return container->_start;
+  } else {    
+    return NULL;
+  }
+}
+
+void
+MutableBDASpace::CGRPSpace::setup_container(container_t& container, MemRegion mr, size_t obj_sz)
+{
+  container->_start = mr.start(); container->_top = mr.start() + obj_sz;
+  container->_hard_end = mr.end();
+  container->_end = mr.end() - MutableBDASpace::_filler_header_size;
+  container->_next_segment = NULL; container->_next = NULL; container->_prev_segment = NULL;
+  container->_previous = NULL; container->_saved_top = NULL;
+  container->_space_id = (char)_type->value();
+
+  // Here, the container pointer is installed on the RegionData object that manages
+  // the address range this container spans during OldGC. This is for fast access
+  // during summarize and update of the containers top pointers.
+  if (container != NULL) {
+    if (container_type() != KlassRegionMap::region_start_ptr()) {
+      PSParallelCompact::install_container_in_region(container);
+    } else {
+      _manager->mark_container(container);
+    }
+    _manager->allocate_block(container->_start);
+#ifdef ASSERT
+    if (BDAllocationVerboseLevel > 1) {
+      print_allocation(container);
+    }
+#endif
   }
 }
 
@@ -1189,21 +1301,6 @@ MutableBDASpace::allocate_element(size_t size, container_t& container)
     }
   } while ((segment = segment->_next_segment) != NULL && (container = segment));
   
-  // // If it fails to allocate in the container, i.e., it is full, then
-  // // allocate a new segment of the container and change the argument passed
-  // // accordingly, but first fill the segment with a filler.
-  // // NB: I don't call CollectedHeap::fill_with_object due to branches, this way is faster
-  // assert (c->_end + _filler_header_size == c->_hard_end, "should not overflow");
-  // HeapWord * const segment_end = c->_end + _filler_header_size;
-  // typeArrayOop filler_oop = (typeArrayOop) old_top;
-  // filler_oop->set_mark(markOopDesc::prototype());
-  // filler_oop->set_klass(Universe::intArrayKlassObj());
-  // const size_t filler_array_length =
-  //   pointer_delta(segment_end, old_top) - typeArrayOopDesc::header_size(T_INT);
-  // assert((filler_array_length * (HeapWordSize/sizeof(jint))) < (size_t)max_jint,
-  //        "array too big");
-  // filler_oop->set_length((int)(filler_array_length * (HeapWordSize / sizeof(jint))));
-
   // Which space was this container allocated?
   CGRPSpace * grp = spaces()->at((int)container->_space_id - 1);
   assert (grp != NULL, "The container must have been allocated in one of the groups");
@@ -1233,24 +1330,6 @@ MutableBDASpace::allocate_plab (container_t& container)
       }
     }
   } while ((segment = segment->_next_segment) != NULL && (container = segment));
-
-  // // If it fails to allocate in the container, i.e., it is full, then
-  // // allocate a new segment of the container and change the argument passed
-  // // accordingly, but first fill the segment with a filler.
-  // // There is no problem if two threads simultaneously put the filler in because the filler
-  // // will never overlap a PLAB, since the PLABs are all of the same size, and both threads will
-  // // see the same top.
-  // // NB: I don't call CollectedHeap::fill_with_object due to branches, this way is faster
-  // assert (container->_end + _filler_header_size == container->_end, "should not overflow");
-  // HeapWord * const segment_end = container->_end + _filler_header_size;
-  // typeArrayOop filler_oop = (typeArrayOop) old_top;
-  // filler_oop->set_mark(markOopDesc::prototype());
-  // filler_oop->set_klass(Universe::intArrayKlassObj());
-  // const size_t filler_array_length =
-  //   pointer_delta(segment_end, old_top) - typeArrayOopDesc::header_size(T_INT);
-  // assert((filler_array_length * (HeapWordSize/sizeof(jint))) < (size_t)max_jint,
-  //        "array too big");
-  // filler_oop->set_length((int)(filler_array_length * (HeapWordSize / sizeof(jint))));
 
   // Which space was this container allocated?
   CGRPSpace * grp = spaces()->at((int)container->_space_id - 1);

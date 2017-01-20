@@ -424,6 +424,7 @@ public:
     inline void   return_to_array(size_t region);
     inline size_t remove();
     inline bool   has_empty_region();
+    inline bool   has_empty_region(uint n);
     inline void   reset();
     
    private:
@@ -699,6 +700,15 @@ inline bool
 ParallelCompactData::EmptyRegionData::has_empty_region()
 {
   return _empty_region_idx != _next_append;
+}
+
+inline bool
+ParallelCompactData::EmptyRegionData::has_empty_region(uint n)
+{
+  if (has_empty_region())
+    return _empty_region_array[_next_append-1] - _empty_region_array[_empty_region_idx] >= n;
+  else
+    return false;
 }
 
 inline void
@@ -1420,6 +1430,9 @@ class PSParallelCompact : AllStatic {
   // Install the container_t ptr in the RegionData that manages the container address range
   // Call the ParallelCompactData for the effect.
   inline static void install_container_in_region(container_t container);
+  // Get the container which spans the addressable space of p using the RegionData
+  // that spans that same p.
+  inline static container_t get_container_at_addr (HeapWord * p);
   // See if HeapWord* p is in container* -- use is_in of PSParallelCompact
   inline static bool is_in_container(container_t container, HeapWord * p);
   // See if the container is the same
@@ -1619,6 +1632,12 @@ PSParallelCompact::install_container_in_region(container_t container)
 {
   assert (container != NULL, "Sanity");
   _summary_data.install_bda_container(container);
+}
+inline container_t
+PSParallelCompact::get_container_at_addr (HeapWord * p)
+{
+  RegionData * const r = _summary_data.addr_to_region_ptr(p);
+  return r->container();
 }
 inline bool
 PSParallelCompact::is_in_container(container_t container, HeapWord * p)

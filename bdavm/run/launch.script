@@ -66,7 +66,7 @@ else
     JAVA_ARGS="-classpath $MYDIR $DACAPO_ARGS"
 fi
 
-JVM_ARGS="-XX:+UseParallelGC -XX:+UseParallelOldGC -XX:-UseCompressedOops -XX:-UseCompressedClassPointers -XX:-UsePerfData -XX:-PSChunkLargeArrays -XX:-UseAdaptiveSizePolicy ${usebda} ${print} ${add_args}"
+JVM_ARGS="-XX:+UseParallelGC -XX:+UseParallelOldGC -XX:-UseCompressedOops -XX:-UseCompressedClassPointers -XX:-UsePerfData -XX:+PSChunkLargeArrays -XX:-UseAdaptiveSizePolicy ${usebda} ${print} ${add_args}"
 
 echo "JAVA_ARGS to be used $JAVA_ARGS"
 echo "JVM_ARGS to be used $JVM_ARGS"

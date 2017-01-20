@@ -928,11 +928,31 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
       // Now if source_live is too much for target_size then compact the region onto itself
       // and return the target_region to the empty
       if (source_live > target_size) {
-        _empty_region_data.return_to_array(target_region);
-        // Do not update this before the prior call!
-        // Update all to avoid confusion.
-        target_region = cur_region;
-        target_container = source_container;
+        if (_empty_region_data.has_empty_region(source_regions - target_regions)) {
+          // Attempt to grab a handful of regions from the _empty_region_array and compact there.
+          int reg_req = target_regions;
+          size_t middle_region_idx;
+          RegionData middle_region;
+          do {
+            middle_region_idx = _empty_region_data.remove();
+            middle_region = _region_data[middle_region_idx];
+            reg_req += addr_to_region_idx (middle_region.container()->_hard_end) -
+              middle_region_idx;
+            assert (middle_region.container()->_start == middle_region.container()->_top,
+                    "should not be possible");
+          } while (reg_req < source_regions);
+
+          // Setup target_container to be a large one and install it in the regions.
+          target_container->_hard_end = middle_region.container()->_hard_end;
+          target_container->_end = middle_region.container()->_end;
+          install_bda_container(target_container);
+        } else {
+          _empty_region_data.return_to_array(target_region);
+          // Do not update this before the prior call!
+          // Update all to avoid confusion.
+          target_region = cur_region;
+          target_container = source_container;
+        }
         target_size = pointer_delta(target_container->_end, target_container->_start);
         target_regions = addr_to_region_idx(target_container->_hard_end) - target_region;
       }
@@ -982,63 +1002,75 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
       source_live += words;
     }
 
-    // See if it's worth investing the lookup for a suitable segment to merge here
-    if (fraction_of_occupancy (source_live, source_size)) {
-      // True means that is worth investing in find a suitable segment to
-      // compact here.
-      container_t container_seg = (container_t)source_container;
-      assert (target_size >= source_live, "overflow of size_t");
-      size_t      available_sz  = target_size - source_live;
-      while ((container_seg = container_seg->_next_segment) != NULL) {
-
-        // Jump segments allocated in a different space (usually, in the non-bda-space)
-        if (PSParallelCompact::bda_space()->non_bda_space()->contains(container_seg->_start))
-          continue;
-          
-        // Iterate through the segment regions to find the amount of live data
-        size_t segment_live = 0;
-        const int segment_regions =
-          addr_to_region_idx(container_seg->_hard_end) - addr_to_region_idx(container_seg->_start);
-        for (int i = 0; i < segment_regions; ++i) {
-          segment_live += (addr_to_region_ptr(container_seg->_start) + (intptr_t)i)->data_size();
-        }
+    
+    // Find suitable segments to compact here.
+    container_t container_seg = (container_t)source_container->_next_segment;
+    assert (target_size >= source_live, "overflow of size_t");
+    size_t      available_sz  = target_size - source_live;
+    while (container_seg != NULL) {
+      
+      // Jump segments allocated in a different space (usually, in the non-bda-space)
+      if (PSParallelCompact::bda_space()->non_bda_space()->contains(container_seg->_start))
+        continue;
+      
+      // Iterate through the segment regions to find the amount of live data
+      size_t segment_live = 0;
+      const int segment_regions =
+        addr_to_region_idx(container_seg->_hard_end) - addr_to_region_idx(container_seg->_start);
+      for (int i = 0; i < segment_regions; ++i) {
+        segment_live += (addr_to_region_ptr(container_seg->_start) + (intptr_t)i)->data_size();
+      }
         
-        // If it doesn't overflow then get the segment and set it up
-        if (segment_live <= available_sz) {
-          for (int i = 0; i < segment_regions; ++i) {
-            const size_t seg_region_idx   = addr_to_region_idx(container_seg->_start) + (size_t)i;
-            RegionData * const seg_region = &_region_data[seg_region_idx];
+      // If it doesn't overflow then get the segment and set it up
+      if (segment_live <= available_sz) {
+        bool was_claimed = false;
+        for (int i = 0; i < segment_regions; ++i) {
+          const size_t seg_region_idx   = addr_to_region_idx(container_seg->_start) + (size_t)i;
+          RegionData * const seg_region = &_region_data[seg_region_idx];
+          
+          // Skip already scanned segments
+          if (seg_region->scanned())
+            continue;
+          
+          seg_region->set_destination(dest_addr);
 
-            // Skip already scanned segments
-            if (seg_region->scanned())
-              continue;
-            
-            seg_region->set_destination(dest_addr);
-
-            uint destination_count = 0;
-            const size_t words = seg_region->data_size();
-            if (words > 0) {
-              HeapWord * const last_addr = dest_addr + words - 1;
-              const size_t dest_region_1 = addr_to_region_idx(dest_addr);
-              const size_t dest_region_2 = addr_to_region_idx(last_addr);
-              destination_count += seg_region_idx == dest_region_2 ? 0 : 1;
-              if (dest_region_1 != dest_region_2) {
-                destination_count += 1;
-                _region_data[dest_region_2].set_source_region(seg_region_idx);
-              } else if (region_offset(dest_addr) == 0) {
-                _region_data[dest_region_1].set_source_region(seg_region_idx);
-              }
+          uint destination_count = 0;
+          const size_t words = seg_region->data_size();
+          if (words > 0) {
+            HeapWord * const last_addr = dest_addr + words - 1;
+            const size_t dest_region_1 = addr_to_region_idx(dest_addr);
+            const size_t dest_region_2 = addr_to_region_idx(last_addr);
+            destination_count += seg_region_idx == dest_region_2 ? 0 : 1;
+            if (dest_region_1 != dest_region_2) {
+              destination_count += 1;
+              _region_data[dest_region_2].set_source_region(seg_region_idx);
+            } else if (region_offset(dest_addr) == 0) {
+              _region_data[dest_region_1].set_source_region(seg_region_idx);
             }
-            seg_region->set_destination_count(destination_count);
-            seg_region->set_scanned(); dest_addr += words;
-            available_sz -= words;
-            // The segment was fully claimed thus it is now empty. Reset its fields, it shall
-            // be returned to the container pool in the last stage (cleanup).
-            if (container_seg->_top != container_seg->_start)
-              container_seg->_top = container_seg->_start;
           }
+          seg_region->set_destination_count(destination_count);
+          seg_region->set_scanned(); dest_addr += words;
+          available_sz -= words;
+          was_claimed = true;
+        }
+        // This test is necessary to update the links of claimed segments
+        if (was_claimed) {
+          // The segment was fully claimed thus it is now empty. Reset its fields, it shall
+          // be returned to the container pool in the last stage (cleanup).
+          // TODO: This is kind of bulky!
+          container_seg->_top = container_seg->_start;
+          container_t seg_to_free = container_seg;
+          container_seg = container_seg->_next_segment;
+          assert (seg_to_free->_prev_segment != NULL, "should have jumped a segment to reach here");
+          seg_to_free->_prev_segment->_next_segment = seg_to_free->_next_segment;
+          if (seg_to_free->_next_segment != NULL)
+            seg_to_free->_next_segment->_prev_segment = seg_to_free->_prev_segment;
+          seg_to_free->_prev_segment = NULL;
+          seg_to_free->_next_segment = NULL;
+          continue;
         }
       }
+      container_seg = container_seg->_next_segment;
     }
 
     // The container claimed all segments it could. Thus dest_addr is now this container's
@@ -1059,7 +1091,17 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
       source_container->_top = source_container->_start;
       _empty_region_data.append(cur_region);
     }
-          
+
+    // Fix the links between segments
+    if (target_container != source_container) {
+      target_container->_next_segment = source_container->_next_segment;
+      target_container->_prev_segment = source_container->_prev_segment;
+      if (target_container->_next_segment != NULL)
+        target_container->_next_segment->_prev_segment = target_container;
+      if (target_container->_prev_segment != NULL)
+        target_container->_prev_segment->_next_segment = target_container;
+    }
+    
     // dest_addr grows during scanning and summarizing, but is only valid per iteration,
     // thus requiring a save to target_next to set the new_top_ptr (although irrelevant in the
     // context of summary, but not when iterating).

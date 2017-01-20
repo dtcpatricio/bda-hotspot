@@ -3,6 +3,8 @@
 
 # include "memory/allocation.hpp"
 # include "runtime/atomic.inline.hpp"
+# include "runtime/mutex.hpp"
+# include "runtime/mutexLocker.hpp"
 
 // forward declaration
 template <class E, MEMFLAGS F> class GenQueueIterator;
@@ -14,6 +16,7 @@ class GenQueue : public CHeapObj<F> {
   
  private:
 
+  Monitor * _monitor;
   E _insert_end;
   E _remove_end;
   int _n_elements;
@@ -30,6 +33,8 @@ class GenQueue : public CHeapObj<F> {
   inline E    peek()        const { return _remove_end; }
   inline int  n_elements() const { return _n_elements; }
   inline void remove_element(E el);
+  inline void remove_element_mt(E el);
+  inline void phantom_remove();
 
   GenQueueIterator<E, F> iterator() const;
 
@@ -40,6 +45,8 @@ class GenQueue : public CHeapObj<F> {
   
   inline E    insert_end() const     { return _insert_end; }
   inline E    remove_end() const     { return _remove_end; }
+
+  Monitor * monitor() { return _monitor; }
 };
 
 template <class E, MEMFLAGS F>
@@ -89,7 +96,7 @@ GenQueue<E, F>::dequeue()
 // through add_to_pool() method of CGRPSpace).
 template <class E, MEMFLAGS F>
 inline void
-GenQueue<E,F>::remove_element(E el)
+GenQueue<E, F>::remove_element(E el)
 {
   if (remove_end() == el) {
     dequeue();
@@ -121,15 +128,39 @@ GenQueue<E,F>::remove_element(E el)
   Atomic::dec(&_n_elements);
 }
 
+// This function attempts to remove the element from the queue/list.
+// It uses the monitor() lock to prevent conflicting changes.
+template <class E, MEMFLAGS F>
+inline void
+GenQueue<E, F>::remove_element_mt(E el)
+{
+  {
+    MutexLockerEx ml (monitor(), Mutex::_no_safepoint_check_flag);
+    remove_element (el);
+  }
+}
+
+// This function does not remove an element, per itself, but
+// just reduces the number of elements in the queue. This is enough
+// to remove the elements in a later stage and requires less computation.
+template <class E, MEMFLAGS F>
+inline void
+GenQueue<E, F>::phantom_remove()
+{
+  Atomic::dec(&_n_elements);
+}
+
 
 template <class E, MEMFLAGS F>
 GenQueue<E, F> *
 GenQueue<E, F>::create()
 {
   GenQueue * queue = new GenQueue<E, F>();
+  Monitor  * monitor = new Monitor(Mutex::nonleaf+3, "GenQueue lock");
   queue->set_insert_end(NULL);
   queue->set_remove_end(NULL);
   queue->_n_elements = 0;
+  queue->_monitor = monitor;
   return queue;
 }
 

@@ -71,7 +71,7 @@ class ObjectStartArray : public CHeapObj<mtGC> {
   }
 
   // Mapping from object start array entry to address of first word
-  HeapWord* addr_for_block(jbyte* p) {
+  HeapWord* addr_for_block(jbyte* p) const {
     assert(_blocks_region.contains(p),
            "out of bounds access to object start array");
     size_t delta = pointer_delta(p, _offset_base, sizeof(jbyte));
@@ -165,6 +165,10 @@ class ObjectStartArray : public CHeapObj<mtGC> {
     jbyte* block = block_for_addr(addr);
     HeapWord* scroll_forward = offset_addr_for_block(block--);
     while (scroll_forward > addr) {
+      if (block >= _raw_base && addr_for_block(block) < low_bound) {
+        scroll_forward = low_bound;
+        break;
+      }
       scroll_forward = offset_addr_for_block(block--);
     }
 
