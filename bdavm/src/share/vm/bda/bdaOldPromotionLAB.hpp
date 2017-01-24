@@ -3,7 +3,6 @@
 
 #include "gc_implementation/parallelScavenge/psPromotionLAB.hpp"
 #include "bda/bdaGlobals.hpp"
-#include "oops/klassRegionMap.hpp"
 /*
  * BDAOldPromotionLAB acts as an array of PSPromotionLAB objects, specially
  * of PSOldPromotionLAB. Thus, the relation between BDAOldPromotionLAB and

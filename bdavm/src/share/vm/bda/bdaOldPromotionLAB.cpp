@@ -1,6 +1,5 @@
 #include "bda/bdaOldPromotionLAB.hpp"
-#include "gc_implementation/parallelScavenge/parallelScavengeHeap.hpp"
-
+#include "oops/oop.inline.hpp"
 
 // This is the shared initialization code. It sets up the basic pointers,
 // and allows enough extra space for a filler object. We call a virtual
