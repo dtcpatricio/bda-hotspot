@@ -422,10 +422,6 @@ bool PSScavenge::invoke_no_policy() {
         // saved_tops = new BDACardTableHelper(bda_manager);
         bda_manager->save_tops_for_scavenge();
           
-        // FIXME: Our GC requires the existence of a pointer to a container_t which is
-        // read among threads and the next in the queued CAS'd in. Ideally, the workload
-        // should be better balanced between the threads.
-        bda_manager->set_shared_gc_pointers();
         for (uint i = 0; i < active_workers; i++) {
           q->enqueue(new OldToYoungBDARootsTask(old_gen, active_workers));
         }
@@ -436,12 +432,15 @@ bool PSScavenge::invoke_no_policy() {
         for (uint j = 0; j < active_workers; j++) {
           q->enqueue(new BDARefRootsTask(refqueue, old_gen));
         }
-        // Now push the steal tasks to prevent a racing thread to steal
-        // bda refs from the threads' stacks.
-        if (active_workers > 1) {
-          for (uint j = 0; j < active_workers; j++) {
-            q->enqueue(new StealBDARefTask());
-          }
+      }
+      // Now push the steal tasks to prevent a racing thread to steal
+      // bda refs from the threads' stacks.
+      ParallelTaskTerminator bda_phase_terminator(
+        active_workers,
+        (TaskQueueSetSuper*) promotion_manager->bda_stack_array());
+      if (active_workers > 1) {
+        for (uint j = 0; j < active_workers; j++) {
+          q->enqueue(new StealBDARefTask(&bda_phase_terminator));
         }
       }
 #endif

@@ -38,12 +38,16 @@ class BDARefRootsTask : public GCTask {
 class StealBDARefTask : public GCTask
 {
  private:
-  
+  ParallelTaskTerminator * _terminator;
+
  public:
-  StealBDARefTask () { }
+  StealBDARefTask (ParallelTaskTerminator * t) :
+    _terminator(t) { }
 
   char * name () { return (char*)"steal big-data ref task"; }
 
+  ParallelTaskTerminator * terminator () { return _terminator; }
+  
   virtual void do_it (GCTaskManager * manager, uint which);
 };
 

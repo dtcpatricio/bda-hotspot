@@ -174,12 +174,17 @@ HeapWord* CollectedHeap::common_mem_allocate_noinit(KlassHandle klass, size_t si
 HeapWord* CollectedHeap::common_mem_allocate_init(KlassHandle klass, size_t size, TRAPS) {
   HeapWord* obj = common_mem_allocate_noinit(klass, size, CHECK_NULL);
   init_obj(obj, size);
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
   // Enqueues a new possible container, based on the test
   // on the KlassRegionMap, on the refqueue for later GC processing
   BDARegion * r;
   if((r = KlassRegionMap::is_bda_klass(klass())) != NULL) {
     Universe::heap()->bda_refqueue()->enqueue((oop)obj, r);
+    if (PrintEnqueuedContainers) {
+      gclog_or_tty->print_cr ("Container reference %16p enqueued for space " INT32_FORMAT,
+                              obj,
+                              exact_log2((intptr_t)r->value()));
+    }
   }
 #endif
   return obj;

@@ -77,11 +77,9 @@ MutableBDASpace::CGRPSpace::allocate_large_container(size_t size)
     _manager->mark_container(container);
     _manager->allocate_block(container->_start);
     PSParallelCompact::install_container_in_region(container);
-#ifdef ASSERT
     if (BDAllocationVerboseLevel > 1) {
       print_allocation(container, true);
     }
-#endif
   }
   
   return container;
@@ -205,7 +203,8 @@ MutableBDASpace::CGRPSpace::setup_container(container_t& container, MemRegion mr
   container->_end = mr.end() - MutableBDASpace::_filler_header_size;
   container->_next_segment = NULL; container->_next = NULL; container->_prev_segment = NULL;
   container->_previous = NULL; container->_saved_top = NULL;
-  container->_space_id = (char)_type->value();
+  container->_space_id = (char)(exact_log2((intptr_t) _type->value()));
+  debug_only(container->_scanned_flag = -1;)
 
   // Here, the container pointer is installed on the RegionData object that manages
   // the address range this container spans during OldGC. This is for fast access
@@ -217,11 +216,9 @@ MutableBDASpace::CGRPSpace::setup_container(container_t& container, MemRegion mr
       _manager->mark_container(container);
     }
     _manager->allocate_block(container->_start);
-#ifdef ASSERT
     if (BDAllocationVerboseLevel > 1) {
       print_allocation(container);
     }
-#endif
   }
 }
 
@@ -343,10 +340,48 @@ MutableBDASpace::CGRPSpace::print_container_fragmentation_stats() const
   dev = sqrt(var);
   
   // Print the statistical information
-  gclog_or_tty->print_cr("Space " INT32_FORMAT, container_type()->value() - 1);
+  gclog_or_tty->print_cr("Space " INT32_FORMAT, exact_log2((intptr_t)container_type()->value()));
   gclog_or_tty->print_cr("  Average fragmentation = %f", avg * (float)100);
   gclog_or_tty->print_cr("  Variance in fragmentation = %e", var);
   gclog_or_tty->print_cr("  Standard Deviation in fragmentation = %f", dev);
+  gclog_or_tty->print_cr("  Number of segments in space = " INT32_FORMAT, container_count());
+}
+
+void
+MutableBDASpace::CGRPSpace::print_container_contents(outputStream * st) const
+{
+  assert ( container_count() > 0, "Shouldn't be possible" );
+  st->print_cr ("%-30s " INT32_FORMAT, "Containers Segments for Space",
+                exact_log2((intptr_t)container_type()->value()));
+  {
+    ResourceMark rm;
+    
+    for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
+         *it != NULL;
+         ++it )
+    {
+      container_t c = *it;
+      if (c->_prev_segment == NULL) {
+        int segment_n = 0;
+        st->print_cr ("  %s (" PTR_FORMAT ")", "Container", c);
+        while (c != NULL) {
+          st->print_cr ("   " INT32_FORMAT " %s [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT ")",
+                        segment_n, "segment", c->_start, c->_top, c->_end);
+          HeapWord *  const t = c->_top;
+          HeapWord *        p = c->_start;
+          while (p < t) {
+            oop obj = (oop)p;
+            st->print_cr("    %-35s size: " INT32_FORMAT " words (" INT32_FORMAT " bytes)",
+                         obj->klass()->external_name(),
+                         obj->size(), obj->size() << LogHeapWordSize);
+            p += obj->size();
+          }
+          c = c->_next_segment;
+          segment_n++;
+        }
+      }
+    }
+  }
 }
 
 void
@@ -622,47 +657,41 @@ MutableBDASpace::compute_avg_freespace() {
   return MutableSpace::free_in_bytes() + (free_sz / (spaces()->length() - 1));
 }
 
+// TODO: FIXME: THIS NEEDS TO BE FIXED
 void
 MutableBDASpace::update_layout(MemRegion new_mr) {
-  Thread* thr = Thread::current();
-  BDARegion* last_region = thr->alloc_region();
-  int i = spaces()->find(&last_region, CGRPSpace::equals);
-
   // This is an expand
   if(new_mr.end() > end()) {
     size_t expand_size = pointer_delta(new_mr.end(), end());
-    // First we expand the last region, only then we update the layout
+    // First we expand the last region (the other space), only then we update the layout
     // This allow the following algorithm to check the borders without
     // repeating operations.
-    MutableSpace* last_space = spaces()->at(spaces()->length() - 1)->space();
+    MutableSpace* last_space = spaces()->at(0)->space();
     last_space->initialize(MemRegion(last_space->bottom(), new_mr.end()),
                            SpaceDecorator::DontClear,
                            SpaceDecorator::DontMangle);
-    //increase_space_noclear(last_space, expand_size);
-    // Now we expand the region that exhausted its space to the neighbours
-    //expand_region_to_neighbour(i, expand_size);
   }
   // this is a shrink
   else {
-    size_t shrink_size = pointer_delta(end(), new_mr.end());
-    // Naive implementation...
-    int last = spaces()->length() - 1;
-    if(spaces()->at(last)->space()->free_in_bytes() > shrink_size) {
-      shrink_space_end_noclear(spaces()->at(last)->space(), shrink_size);
-    } else {
-      // raise the assertion fault below
-    }
+    // size_t shrink_size = pointer_delta(end(), new_mr.end());
+    // // Naive implementation...
+    // int last = spaces()->length() - 1;
+    // if(spaces()->at(last)->space()->free_in_bytes() > shrink_size) {
+    //   shrink_space_end_noclear(spaces()->at(last)->space(), shrink_size);
+    // } else {
+    //   // raise the assertion fault below
+    // }
   }
 
   // Assert before leaving and set the whole space pointers
   // TODO: Fix the order of the regions
-  int j = 0;
-  for(; j < spaces()->length(); ++j) {
-    assert(spaces()->at(j)->space()->capacity_in_words() >= MinRegionSize,
-           "segment is too short");
-  }
-  assert(spaces()->at(1)->space()->bottom() == new_mr.start() &&
-         spaces()->at(j - 1)->space()->end() == new_mr.end(), "just checking");
+  // int j = 0;
+  // for(; j < spaces()->length(); ++j) {
+  //   assert(spaces()->at(j)->space()->capacity_in_words() >= MinRegionSize,
+  //          "segment is too short");
+  // }
+  // assert(spaces()->at(1)->space()->bottom() == new_mr.start() &&
+  //        spaces()->at(j - 1)->space()->end() == new_mr.end(), "just checking");
 
   set_bottom(new_mr.start());
   set_end(new_mr.end());
@@ -1302,7 +1331,7 @@ MutableBDASpace::allocate_element(size_t size, container_t& container)
   } while ((segment = segment->_next_segment) != NULL && (container = segment));
   
   // Which space was this container allocated?
-  CGRPSpace * grp = spaces()->at((int)container->_space_id - 1);
+  CGRPSpace * grp = spaces()->at((int)container->_space_id);
   assert (grp != NULL, "The container must have been allocated in one of the groups");
   old_top = grp->allocate_new_segment(size, container); // reuse the variable
 
@@ -1332,7 +1361,7 @@ MutableBDASpace::allocate_plab (container_t& container)
   } while ((segment = segment->_next_segment) != NULL && (container = segment));
 
   // Which space was this container allocated?
-  CGRPSpace * grp = spaces()->at((int)container->_space_id - 1);
+  CGRPSpace * grp = spaces()->at((int)container->_space_id);
   assert (grp != NULL, "The container must have been allocated in one of the groups");
   old_top = grp->allocate_new_segment(BDAOldPLABSize, container); // reuse the variable
 
@@ -1582,8 +1611,7 @@ MutableBDASpace::print_spaces_fragmentation_stats() const
   gclog_or_tty->print_cr("--[BDA Spaces fragmentation stats:]");
   
   for (int i = 0; i < spaces()->length(); ++i ) {
-    double avg = 0.0;
-    
+
     CGRPSpace * grp = spaces()->at(i);
 
     // Test if it's worth continuing and warn for containers in space 0
@@ -1594,13 +1622,31 @@ MutableBDASpace::print_spaces_fragmentation_stats() const
     } else if ( grp->container_count() == 0 ) continue;
 
     // asserts
-    assert ( grp->container_count() > 0, "Shouldn't reach here without containers");
+    assert ( grp->container_count() > 0, "Shouldn't reach here without containers" );
 
     // Compute the average segment fragmentation and variance.
     // Both the average and the variance are calculated using the
     // incremental method in a similar fashion to what Donald Knuth presents of
     // B. P. Welford's method.
     grp->print_container_fragmentation_stats();
+  }
+}
+
+void
+MutableBDASpace::print_spaces_contents() const
+{
+  gclog_or_tty->print_cr("--[BDA Spaces Contents (WARNING: Very verbose):]");
+
+  for (int i = 0; i < spaces()->length(); ++i) {
+
+    CGRPSpace * grp = spaces()->at(i);
+
+    if ( grp->container_count() == 0 ) continue;
+
+    // asserts
+    assert ( grp->container_count() > 0, "Shouldn't reach here without containers" );
+
+    grp->print_container_contents (gclog_or_tty);
   }
 }
 

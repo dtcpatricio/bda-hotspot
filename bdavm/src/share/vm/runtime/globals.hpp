@@ -3979,20 +3979,28 @@ class CommandLineFlags {
   product(uintx, BDAOldPLABSize, 512,                                       \
                "The size of each BDA PLAB.")                                \
                                                                             \
-  develop (bool, PrintEnqueuedContainers, false,                            \
+  product(bool, TraceBDAClassAssociation, false,                            \
+               "Traces the association between bda-region value and "       \
+               "the class name.")                                           \
+                                                                            \
+  product(bool, PrintEnqueuedContainers, false,                             \
                 "Prints the reference and the space id of container "       \
                 "objects")                                                  \
                                                                             \
-  develop (intx, BDAllocationVerboseLevel, 0,                               \
+  product(intx, BDAllocationVerboseLevel, 0,                                \
                 "Defines the verbosity level during allocation of bda "     \
                 "containers.")                                              \
                                                                             \
-  product (bool, AlertContainersInOtherSpace, false,                        \
+  product(bool, AlertContainersInOtherSpace, false,                         \
                 "Prints an alert if there are container segments in the "   \
                 "other's space and illustrates it using the average "       \
                 "of allocated segments in the correct bda-spaces")          \
                                                                             \
-  product (bool, BDAContainerFragAtFullGC, false,                           \
+  product(bool, PrintBDAContentsAtFullGC, false,                            \
+                "Prints the contents of each segment on each bda-space. "   \
+                "The contents printed are the class name and the size.")    \
+                                                                            \
+  product(bool, BDAContainerFragAtFullGC, false,                            \
                 "Print, at each fullGC, statistical information about "     \
                 "container fragmentation")                                  \
                                                                             \

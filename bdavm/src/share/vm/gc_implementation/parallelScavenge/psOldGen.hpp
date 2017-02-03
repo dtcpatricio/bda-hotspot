@@ -32,9 +32,9 @@
 #include "gc_implementation/shared/spaceCounters.hpp"
 #include "bda/mutableBDASpace.hpp"
 #include "runtime/safepoint.hpp"
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
 # include "oops/klassRegionMap.hpp"
-#endif
+#endif // BDA || BDA_INTERPRETER
 
 class PSMarkSweepDecorator;
 
@@ -61,10 +61,10 @@ class PSOldGen : public CHeapObj<mtGC> {
   const size_t _min_gen_size;
   const size_t _max_gen_size;
 
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
   // Information about the placement of klasses in regions for the BDA Allocators
   KlassRegionMap*          _region_map;
-#endif
+#endif // BDA || BDA_INTERPRETER
 
   // Used when initializing the _name field.
   static inline const char* select_name();
@@ -148,9 +148,9 @@ class PSOldGen : public CHeapObj<mtGC> {
   PSMarkSweepDecorator* object_mark_sweep() const { return _object_mark_sweep; }
   ObjectStartArray*     start_array()             { return &_start_array; }
   PSVirtualSpace*       virtual_space() const     { return _virtual_space;}
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
   KlassRegionMap *      region_map() const        { return _region_map; }
-#endif
+#endif // BDA || BDA_INTERPRETER
 
   // Has the generation been successfully allocated?
   bool is_allocated();

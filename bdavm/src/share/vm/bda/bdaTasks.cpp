@@ -44,7 +44,7 @@ StealBDARefTask::do_it (GCTaskManager * manager, uint which)
         pm->process_popped_bdaref_depth<oop>(p);
       pm->drain_bda_stacks();
     } else {
-      if (PSPromotionManager::should_terminate_bda_steal()) {
+      if (terminator()->offer_termination()) {
         break;
       }
     }
@@ -79,7 +79,16 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
           c = bda_space->get_next_n_segment(c, _total_workers);
           continue;
         }
-        assert (c->_start < c->_saved_top, "container or segment is not empty allocated");
+#ifdef ASSERT
+        if (c->_scanned_flag == -1) {
+          c->_scanned_flag = (int)which;
+        } else if (c->_scanned_flag != (int)which) {
+          HeapWord * dummy = 0x0;
+        } else {
+          HeapWord * dummy = 0x0;
+        }
+#endif
+        assert (c->_start < c->_saved_top, "container or segment is empty allocated");
         card_table->scavenge_bda_contents_parallel(_old_gen->start_array(),
                                                    c,
                                                    c->_saved_top,

@@ -29,6 +29,12 @@ do
             CLASSPATH="$2"
             shift 2
             ;;
+        -jar)
+            JARFILE="$2"
+            prog="$3"
+            arguments="${@:4:$#}"
+            break
+            ;;
         -printgc)
             print="${print} -XX:+BDAPrintAfterGC"
             shift
@@ -60,7 +66,9 @@ done
 REL_MYDIR=`dirname $0`
 MYDIR=`cd $REL_MYDIR && pwd`
 
-if [ -z "$DACAPO_ARGS" ]; then
+if [ ! -z $JARFILE ] ; then
+    JAVA_ARGS="-jar $JARFILE $prog $arguments"
+elif [ -z "$DACAPO_ARGS" ]; then
     JAVA_ARGS="-classpath $CLASSPATH $prog $arguments"
 else
     JAVA_ARGS="-classpath $MYDIR $DACAPO_ARGS"

@@ -196,6 +196,7 @@ class MutableBDASpace : public MutableSpace
     
     // Statistics and printing
     void print_container_fragmentation_stats() const;
+    void print_container_contents(outputStream * st) const;
     void print_allocation(container_t c, bool large = false) const;
     void print_allocation_stats(outputStream * st) const;
     void print_used(outputStream * st) const;
@@ -379,6 +380,7 @@ class MutableBDASpace : public MutableSpace
   // Debugging non-virtual
   void print_object_space() const;
   void print_spaces_fragmentation_stats() const;
+  void print_spaces_contents() const;
   void print_allocation_stats() const;
 };
 

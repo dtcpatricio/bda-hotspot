@@ -77,6 +77,9 @@ endif
 ifeq ($(ENABLE_BDA),1)
   SYSDEFS += -DBDA
 endif
+ifeq ($(ENABLE_BDA_INTERPRETER_ONLY),1)
+  SYSDEFS += -DBDA_INTERPRETER
+endif
 
 # HOTSPOT_RELEASE_VERSION and HOTSPOT_BUILD_VERSION are defined
 # in $(GAMMADIR)/make/defs.make

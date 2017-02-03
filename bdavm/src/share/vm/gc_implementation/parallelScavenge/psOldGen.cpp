@@ -128,9 +128,9 @@ void PSOldGen::initialize_work(const char* perf_data_name, int level) {
   //
   // Klass Regions Map
   //
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
   _region_map = new KlassRegionMap();
-#endif
+#endif // BDA || BDA_INTERPRETER
 
   //
   // ObjectSpace stuff

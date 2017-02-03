@@ -37,9 +37,9 @@
 #include "runtime/synchronizer.hpp"
 #include "utilities/macros.hpp"
 
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
 # include "oops/klassRegionMap.hpp"
-#endif
+#endif // BDA || BDA_INTERPRETER
 
 #ifndef CC_INTERP
 
@@ -3375,7 +3375,7 @@ void TemplateTable::_new() {
 
     // initialize object header only.
     __ bind(initialize_header);
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
     // Test if it is a valid BDA value
     // Must be done here after having the object allocated but before rsi
     // is consumed when storing the klass field
@@ -3400,7 +3400,7 @@ void TemplateTable::_new() {
     __ pop (rax);
     __ pop (rdx);
     __ pop (rsi);
-#endif
+#endif // BDA || BDA_INTERPRETER
     if (UseBiasedLocking) {
       __ movptr(rscratch1, Address(rsi, Klass::prototype_header_offset()));
       __ movptr(Address(rax, oopDesc::mark_offset_in_bytes()), rscratch1);

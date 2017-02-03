@@ -1265,17 +1265,20 @@ bool PSParallelCompact::initialize() {
   }
 
 #ifdef BDA
-  _bda_space = (MutableBDASpace*)heap->old_gen()->object_space();
+  if (UseBDA)
+    _bda_space = (MutableBDASpace*)heap->old_gen()->object_space();
 #endif
   initialize_space_info();
   initialize_dead_wood_limiter();
 
 #ifdef BDA
-  if (!_summary_map.initialize(_bda_space)) {
-    vm_shutdown_during_initialization(
-      err_msg("Unable to initialize the required structures to have a successful "
-              "summary phase on a bda gc"));
-    return false;
+  if (UseBDA) {
+    if (!_summary_map.initialize(_bda_space)) {
+      vm_shutdown_during_initialization(
+        err_msg("Unable to initialize the required structures to have a successful "
+                "summary phase on a bda gc"));
+      return false;
+    }
   }
 #endif
 
@@ -1319,15 +1322,17 @@ void PSParallelCompact::initialize_space_info()
 #ifdef BDA
   // redefine old_space_id space --- could be done earlier but its pretty irrelevant
   // because it avoids crazy code
-  _space_info[old_space_id].set_space(_bda_space->spaces()->at(0)->space());
-  for(int idx = 1; idx <= nbda; ++idx) {
-    _space_info[to_space_id + idx].set_space(
-      _bda_space->spaces()->at(idx)->space());
-    _space_info[to_space_id + idx].set_start_array(heap->old_gen()->start_array());
+  if (UseBDA) {
+    _space_info[old_space_id].set_space(_bda_space->spaces()->at(0)->space());
+    for(int idx = 1; idx <= nbda; ++idx) {
+      _space_info[to_space_id + idx].set_space(
+        _bda_space->spaces()->at(idx)->space());
+      _space_info[to_space_id + idx].set_start_array(heap->old_gen()->start_array());
+    }
+    // A hacky way to avoid serious change of code on for loops since they rely on this
+    // value to stop
+    bda_last_space_id = (unsigned int)sz_spaceinfo;
   }
-  // A hacky way to avoid serious change of code on for loops since they rely on this
-  // value to stop
-  bda_last_space_id = (unsigned int)sz_spaceinfo;
 #endif
   _space_info[old_space_id].set_start_array(heap->old_gen()->start_array());
 }
@@ -2557,8 +2562,13 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
   }
 
 #ifdef BDA
-  if (BDAContainerFragAtFullGC) {
-    _bda_space->print_spaces_fragmentation_stats();
+  if (UseBDA) {
+    if (BDAContainerFragAtFullGC) {
+      _bda_space->print_spaces_fragmentation_stats();
+    }
+    if (PrintBDAContentsAtFullGC) {
+      _bda_space->print_spaces_contents();
+    }
   }
 #endif
 
@@ -3816,11 +3826,6 @@ void PSParallelCompact::fill_region(ParCompactionManager* cm, size_t region_idx)
     if (status == ParMarkBitMap::would_overflow) {
       // The last object did not fit.  Note that interior oop updates were
       // deferred, then copy enough of the object to fill the region.
-      if (src_space_id >= last_space_id &&
-          pointer_delta(region_ptr->container()->_hard_end,
-                        region_ptr->container()->_start) > MutableBDASpace::CGRPSpace::segment_sz) {
-        HeapWord * dummy = 0x0;
-      }
       region_ptr->set_deferred_obj_addr(closure.destination());
       status = closure.copy_until_full(); // copies from closure.source()
 

@@ -4240,11 +4240,11 @@ instanceKlassHandle ClassFileParser::parseClassFile(Symbol* name,
       }
     }
 
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
     // Check if this is one of our special klasses and, if so, set
     // the klass and region on the KlassRegionMap
     ((ParallelScavengeHeap*)Universe::heap())->old_gen()->region_map()->add_entry(this_klass());
-#endif
+#endif // BDA || BDA_INTERPRETER
 
     // preserve result across HandleMark
     preserve_this_klass = this_klass();

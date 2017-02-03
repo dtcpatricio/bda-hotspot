@@ -46,7 +46,7 @@ int CollectedHeap::_fire_out_of_memory_count = 0;
 
 size_t CollectedHeap::_filler_array_max_size = 0;
 
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
 RefQueue * CollectedHeap::_bda_refqueue = RefQueue::create();
 #endif
 
@@ -588,21 +588,19 @@ void CollectedHeap::post_full_gc_dump(GCTimer* timer) {
 }
 
 /////////////// BDA Support //////////////
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
 void
 CollectedHeap::enqueue_asm(JavaThread * java_thread, oop * obj, BDARegion * r)
 {
-#ifdef ASSERT
   assert (obj != NULL && r != NULL, "neither object and the space can be null");
+  _bda_refqueue->enqueue(*obj, r);
   if (PrintEnqueuedContainers) {
     gclog_or_tty->print_cr ("Container reference %16p enqueued for space " INT32_FORMAT,
-                   *obj,
-                   r->value());
+                            *obj,
+                            exact_log2((intptr_t)r->value()));
   }
-#endif
-  _bda_refqueue->enqueue(*obj, r);
 }
-#endif
+#endif // BDA || BDA_INTERPRETER
 
 
 /////////////// Unit tests ///////////////

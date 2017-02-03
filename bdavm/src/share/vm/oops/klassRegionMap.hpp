@@ -4,12 +4,14 @@
 #include "bda/bdaGlobals.hpp"
 #include "utilities/hashtable.hpp"
 #include "utilities/growableArray.hpp"
+#include "memory/resourceArea.hpp"
 
 /**
  * The Hashtable for the mapping between region identifiers and Klass objects.
  */
 
 class KlassRegionEntry;
+class ResourceMark;
 
 class KlassRegionHashtable : public Hashtable<BDARegion*, mtGC> {
 
@@ -123,11 +125,29 @@ class KlassRegionMap : public CHeapObj<mtGC> {
 inline void
 KlassRegionMap::add_other_entry(Klass* k) {
   _region_map->add_entry(k, region_start_ptr());
+  if (TraceBDAClassAssociation) {
+    {
+      ResourceMark rm;
+      gclog_or_tty->print_cr ("(Trace Class Association) added other entry: "
+                              INT32_FORMAT " <-> %s",
+                              region_start_ptr()->value(),
+                              k->external_name());
+    }
+  }
 }
 
 inline void
 KlassRegionMap::add_region_entry(Klass* k, BDARegion* r) {
   _region_map->add_entry(k, r);
+  if (TraceBDAClassAssociation) {
+    {
+      ResourceMark rm;
+      gclog_or_tty->print_cr ("(Trace Class Association) added bda entry: "
+                              INT32_FORMAT " <-> %s",
+                              r->value(),
+                              k->external_name());
+    }
+  }
 }
 
 #endif // SHARE_VM_OOPS_KLASSREGIONMAP_HPP

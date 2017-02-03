@@ -34,10 +34,10 @@
 #include "runtime/safepoint.hpp"
 #include "utilities/events.hpp"
 
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
 # include "bda/refqueue.hpp"
 # include "oops/klassRegionMap.hpp"
-#endif
+#endif // BDA || BDA_INTERPRETER
 
 // A "CollectedHeap" is an implementation of a java heap for HotSpot.  This
 // is an abstract class: there may be many different kinds of heaps.  This
@@ -99,9 +99,9 @@ class CollectedHeap : public CHeapObj<mtInternal> {
 
   GCHeapLog* _gc_heap_log;
 
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
   static RefQueue * _bda_refqueue;
-#endif
+#endif // BDA || BDA_INTERPRETER
 
   // Used in support of ReduceInitialCardMarks; only consulted if COMPILER2 is being used
   bool _defer_initial_card_mark;
@@ -204,14 +204,14 @@ class CollectedHeap : public CHeapObj<mtInternal> {
     return _filler_array_max_size;
   }
 
-#ifdef BDA
+#if defined(BDA) || defined(BDA_INTERPRETER)
   // This function is called by the TemplateInterpreter when r is a valid bda-space
   static void enqueue_asm(JavaThread * java_thread, oop * obj, BDARegion * r);
   // Getter for the instance of the bda refqueue, which although it is static
   // it needs to be created or it is just NULL
   RefQueue * bda_refqueue() { return _bda_refqueue; }
   bool     clear_refqueue() { bda_refqueue()->clear(); }
-#endif // BDA
+#endif // BDA || BDA_INTERPRETER
 
   virtual CollectedHeap::Name kind() const { return CollectedHeap::Abstract; }
   /**

@@ -361,18 +361,14 @@ MutableBDASpace::CGRPSpace::get_container_with_addr(HeapWord* addr) const
 inline void
 MutableBDASpace::CGRPSpace::save_top_ptrs()
 {
-  // int from = *i;
   if (container_count() > 0)
     for(GenQueueIterator<container_t, mtGC> iterator = _containers->iterator();
         *iterator != NULL;
         ++iterator) {
       container_t c = *iterator;
       c->_saved_top = c->_top;
-      // helper[from]._container = c;
-      // helper[from++]._top = c->_top;
+      debug_only(c->_scanned_flag = -1;)
     }
-
-  // *i = from;
 }
 
 inline size_t
