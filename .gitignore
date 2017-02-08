@@ -32,6 +32,7 @@ bdavm/run/scratch/
 ## ignore all logs file from possbile hs errors
 *.log
 *.txt
+*.out
 
 ## ignore all class files from possible javac compilations
 *.class
