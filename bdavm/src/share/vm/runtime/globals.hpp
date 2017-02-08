@@ -3952,7 +3952,7 @@ class CommandLineFlags {
   product(ccstrlist, BDAKlasses, "",                                        \
                "The list of BDA Classes")                                   \
                                                                             \
-  product(double, BDARatio, 5,                                              \
+  product(double, BDARatio, 5.0,                                            \
                "Ratio for the size of the BDSpaces on the heap, "           \
                "defaults to 5")                                             \
                                                                             \

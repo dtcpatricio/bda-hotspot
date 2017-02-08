@@ -49,6 +49,11 @@ do
             classes="-XX:BDAKlasses=$3"
             shift 3
             ;;
+        -b)
+           # Runs on the background
+           background=1
+           shift 1
+           ;;
         -*)
             add_args="${add_args} $1"
             shift
@@ -92,15 +97,15 @@ JVM_OPTS="$JVM_OPTS -XX:-UseCompressedOops"
 JVM_OPTS="$JVM_OPTS -XX:-UseCompressedClassPointers"
 
 ## Print Options (these can be commented out)
-JVM_OPTS="$JVM_OPTS -XX:+PrintGC"
-JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
-JVM_OPTS="$JVM_OPTS -XX:+PrintHeapAtGC"
-JVM_OPTS="$JVM_OPTS -Xloggc:/media/storage2/GCLogs/bda.sparkey.gc.log"
+#JVM_OPTS="$JVM_OPTS -XX:+PrintGC"
+#JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
+#JVM_OPTS="$JVM_OPTS -XX:+PrintHeapAtGC"
+#JVM_OPTS="$JVM_OPTS -Xloggc:/media/storage2/GCLogs/`date +%H-%M-%S`.${bench}.gclog"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
-JVM_OPTS="$JVM_OPTS -XX:+PrintEnqueuedContainers"
+#JVM_OPTS="$JVM_OPTS -XX:+PrintEnqueuedContainers"
 #JVM_OPTS="$JVM_OPTS -XX:BDAllocationVerboseLevel=2"
 #JVM_OPTS="$JVM_OPTS -XX:+BDAContainerFragAtFullGC"
-JVM_OPTS="$JVM_OPTS -XX:+PrintBDAContentsAtFullGC"
+#JVM_OPTS="$JVM_OPTS -XX:+PrintBDAContentsAtFullGC"
 
 # Override options
 JVM_OPTS="$JVM_OPTS ${add_args}"
@@ -111,15 +116,19 @@ echo "Using hotspot lib ${VM_SO_DIR}"
 ### JAVA OPTIONS
 if [ "${bench}" = "sparkey" ] ; then
     sparkey_props="$sparkey_props -jvm $LAUNCHER"
-    $LAUNCHER $VMPARMS $JVM_OPTS -jar ${jardir} ${sparkey_props} '-jvmArgs' "$VMPARMS $JVM_OPTS" ${test}
-    exit $?
+    if [ -z ${background} ] ; then
+        $LAUNCHER $VMPARMS $JVM_OPTS -jar ${jardir} ${sparkey_props} '-jvmArgs' "$VMPARMS $JVM_OPTS" ${test}
+    else
+        nohup $LAUNCHER $VMPARMS $JVM_OPTS -jar ${jardir} ${sparkey_props} '-jvmArgs' "$VMPARMS $JVM_OPTS" ${test} > ${bench}.out 2> ${bench}.err < /dev/null &
+        echo $! > ${bench}.pid
+    fi
 elif [ "${bench}" = "local" ] ; then
     JAVA_ARGS="-classpath ./Microbenchmark/ $@"
     echo "JAVA_ARGS to be used ${JAVA_ARGS}"
     $LAUNCHER $VMPARMS $JVM_OPTS $JAVA_ARGS
 fi
 
-
+exit $?
 
 
 
