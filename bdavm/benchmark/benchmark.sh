@@ -98,9 +98,10 @@ JVM_OPTS="$JVM_OPTS -XX:-UseCompressedClassPointers"
 
 ## Print Options (these can be commented out)
 #JVM_OPTS="$JVM_OPTS -XX:+PrintGC"
-#JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
+JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
+JVM_OPTS="$JVM_OPTS -XX:+PrintGCDateStamps"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintHeapAtGC"
-#JVM_OPTS="$JVM_OPTS -Xloggc:/media/storage2/GCLogs/`date +%H-%M-%S`.${bench}.gclog"
+JVM_OPTS="$JVM_OPTS -Xloggc:/media/storage2/GCLogs/`date +%H-%M-%S`.${bench}.gclog"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintEnqueuedContainers"
 #JVM_OPTS="$JVM_OPTS -XX:BDAllocationVerboseLevel=2"
