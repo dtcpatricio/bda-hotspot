@@ -90,9 +90,9 @@ public class Bootstrap {
       // create the data maps and the pairing permissions table
       for (int i = 0; i < m_numberMaps; i++) {
         MyHashMap<Long, Value> data = new MyHashMap<Long, Value>(m_sizeMaps, next_color++);
-        HashMap<Integer, Permission> permMap = new HashMap<Integer, Permission>();
+        HashMap<Integer, Object[]> permMap = new HashMap<Integer, Object[]>();
         fillHashMapWithRandom (data, permMap, userMap);
-        data.addPermTable(permMap);
+        systemMaps.add(permMap);
         dataMaps.add(data);
       }
     }
@@ -109,7 +109,7 @@ public class Bootstrap {
     }
 
   private void fillHashMapWithRandom(MyHashMap<Long, Value> map,
-                                     HashMap<Integer, Permission> perm,
+                                     HashMap<Integer, Object[]> perm,
                                      HashMap<Integer, Object[]> user)
     {
       if(map == null)
@@ -130,7 +130,7 @@ public class Bootstrap {
         // populate the permissions map
         if (i < userS.size() && userIt.hasNext()) {
           Integer kPerm = userIt.next();
-          perm.put(kPerm, Permission.READWRITE);
+          perm.put(kPerm, new Object[] { new String(Permission.READWRITE.toString()) });
         }
       
         map.put(key, value);

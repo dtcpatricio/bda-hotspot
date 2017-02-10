@@ -19,21 +19,20 @@ public class CassandraYCSBClone
             int idx = -1;
             while (++idx < args.length) {
                 try {
-                    if (args[idx++].equals("-p")) {
-                        if (args[idx].startsWith("recordcount")) {
+                    if (args[idx].equals("-p")) {
+                        if (args[++idx].startsWith("recordcount")) {
                             recordcount = Integer.parseInt(args[idx].split("=")[1]);
                         } else if (args[idx].startsWith("operationcount")) {
                             operationcount = Integer.parseInt(args[idx].split("=")[1]);
                         } else if (args[idx].startsWith("numberfields")) {
                             numberfields = Integer.parseInt(args[idx].split("=")[1]);
                         }
-                    } else if (args[idx++].equals("-t")) {
-                        if (args[idx].equals("random")) {
+                    } else if (args[idx].equals("-t")) {
+                        if (args[++idx].equals("random")) {
                             readtype = READTYPE.RANDOM;
                         }
-                        idx++;
-                    } else if (args[idx++].equals("-threads")) {
-                        nThreads = Integer.parseInt(args[idx]);
+                    } else if (args[idx].equals("-threads")) {
+                        nThreads = Integer.parseInt(args[++idx]);
                     } else if (args[idx].equals("-h") || args[idx].equals("--help")) {
                         printHelpExit(0);
                     } else {
@@ -49,10 +48,18 @@ public class CassandraYCSBClone
                 printHelpExit(-1);
             }
 
+            System.out.println("# YCSBClone and FakeCassandra test");
+            System.out.println("# Record Count: " + recordcount);
+            System.out.println("# Operation Count: " + operationcount);
+            System.out.println("# Field Count: " + numberfields);
+            System.out.println("# Threads: " + nThreads);
+
+            System.out.println("-- Loading FakeCassandra --");
             // Create the "Cassandra" Lite instance, filling it with data
             FakeCassandra<Long, Long, String> fc =
                 new FakeCassandra<Long, Long, String> (recordcount, numberfields);
 
+            System.out.println("-- Quering with YCSBClone --");
             // Start the YCSBClone and begin query/update the FakeCassandra KVS
             YCSBClone<Long, Long, String> ycsb =
                 new YCSBClone<Long, Long, String>(fc, operationcount,
