@@ -72,28 +72,27 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
     for (int spc_id = 0; spc_id < space->spaces()->length(); ++spc_id) {
       MutableBDASpace::CGRPSpace * bda_space = space->spaces()->at(spc_id);
       if (bda_space->container_count() == 0) continue;
-      container_t c = bda_space->get_next_n_segment(bda_space->first_container(), which);
+      container_t c = bda_space->get_previous_n_segment(bda_space->last_container(), which);
       HeapWord * c_top; int j = 0;
       while (c != NULL) {
         if (c->_saved_top == NULL || c->_start == c->_saved_top) {
-          c = bda_space->get_next_n_segment(c, _total_workers);
+          c = bda_space->get_previous_n_segment(c, _total_workers);
           continue;
         }
-#ifdef ASSERT
         if (c->_scanned_flag == -1) {
           c->_scanned_flag = (int)which;
-        } else if (c->_scanned_flag != (int)which) {
-          HeapWord * dummy = 0x0;
-        } else {
-          HeapWord * dummy = 0x0;
         }
-#endif
+        // else if (c->_scanned_flag == (int)which) { 
+        //    c = bda_space->get_next_n_segment(c, _total_workers);
+        //  }
+
+
         assert (c->_start < c->_saved_top, "container or segment is empty allocated");
         card_table->scavenge_bda_contents_parallel(_old_gen->start_array(),
                                                    c,
                                                    c->_saved_top,
                                                    pm);
-        c = bda_space->get_next_n_segment(c, _total_workers);
+        c = bda_space->get_previous_n_segment(c, _total_workers);
       }
       pm->drain_bda_stacks();
     }

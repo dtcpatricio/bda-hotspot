@@ -345,6 +345,17 @@ MutableBDASpace::CGRPSpace::get_next_n_segment(container_t c, int n) const
 }
 
 inline container_t
+MutableBDASpace::CGRPSpace::get_previous_n_segment(container_t c, int n) const
+{
+  assert (c != NULL, "container/segment cannot be null");
+  int i = 0; container_t ret = c;
+  while (i++ < n && ret != NULL) {
+    ret = ret->_previous;
+  }
+  return ret;
+}
+
+inline container_t
 MutableBDASpace::CGRPSpace::get_container_with_addr(HeapWord* addr) const
 {
   container_t c;

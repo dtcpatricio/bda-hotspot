@@ -1,5 +1,8 @@
 #!/bin/sh
 
+SCRIPT=$(readlink -f "$0")
+SCRIPTPATH=$(dirname "$SCRIPT")
+
 while :
 do
     case "$1" in
@@ -34,6 +37,14 @@ do
         -local)
             bench=local
             shift
+            ;;
+        -heapdump)
+            ## This option runs the benchmark/test in the background
+            ## and calls jmap periodically, according to the frequency
+            ## argument, over the test.
+            heapdump=1
+            frequency="$2"
+            shift 2
             ;;
         -vm)
             VM_SO_DIR="$2"
@@ -98,12 +109,12 @@ JVM_OPTS="$JVM_OPTS -XX:-UseCompressedClassPointers"
 
 ## Print Options (these can be commented out)
 #JVM_OPTS="$JVM_OPTS -XX:+PrintGC"
-JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
-JVM_OPTS="$JVM_OPTS -XX:+PrintGCDateStamps"
+#JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
+#JVM_OPTS="$JVM_OPTS -XX:+PrintGCDateStamps"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintHeapAtGC"
-JVM_OPTS="$JVM_OPTS -Xloggc:/media/storage2/GCLogs/`date +%H-%M-%S`.${bench}.gclog"
+#JVM_OPTS="$JVM_OPTS -Xloggc:/media/storage2/GCLogs/`date +%H-%M-%S`.${bench}.gclog"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
-#JVM_OPTS="$JVM_OPTS -XX:+PrintEnqueuedContainers"
+JVM_OPTS="$JVM_OPTS -XX:+PrintEnqueuedContainers"
 #JVM_OPTS="$JVM_OPTS -XX:BDAllocationVerboseLevel=2"
 #JVM_OPTS="$JVM_OPTS -XX:+BDAContainerFragAtFullGC"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintBDAContentsAtFullGC"
@@ -117,16 +128,34 @@ echo "Using hotspot lib ${VM_SO_DIR}"
 ### JAVA OPTIONS
 if [ "${bench}" = "sparkey" ] ; then
     sparkey_props="$sparkey_props -jvm $LAUNCHER"
-    if [ -z ${background} ] ; then
+    if [ -z ${background} ] && [ -z ${heapdump} ] ; then
         $LAUNCHER $VMPARMS $JVM_OPTS -jar ${jardir} ${sparkey_props} '-jvmArgs' "$VMPARMS $JVM_OPTS" ${test}
     else
         nohup $LAUNCHER $VMPARMS $JVM_OPTS -jar ${jardir} ${sparkey_props} '-jvmArgs' "$VMPARMS $JVM_OPTS" ${test} > ${bench}.out 2> ${bench}.err < /dev/null &
         echo $! > ${bench}.pid
     fi
 elif [ "${bench}" = "local" ] ; then
-    JAVA_ARGS="-classpath ./Microbenchmark/ $@"
-    echo "JAVA_ARGS to be used ${JAVA_ARGS}"
-    $LAUNCHER $VMPARMS $JVM_OPTS $JAVA_ARGS
+    if [ -z ${background} ] && [ -z ${heapdump} ] ; then
+        JAVA_ARGS="-classpath $SCRIPTPATH/Microbenchmark $@"
+        echo "JAVA_ARGS to be used ${JAVA_ARGS}"
+        $LAUNCHER $VMPARMS $JVM_OPTS $JAVA_ARGS
+    else
+        JAVA_ARGS="-classpath $SCRIPTPATH/Microbenchmark $@"
+        echo "JAVA_ARGS to be used ${JAVA_ARGS}"
+        nohup $LAUNCHER $VMPARMS $JVM_OPTS $JAVA_ARGS \
+              > ${bench}.out 2> ${bench}.err < /dev/null &
+        echo $! > ${bench}.pid
+    fi
+fi
+
+if [ ! -z ${heapdump} ] ; then
+    pid=`cat ${bench}.pid`
+    while kill -0 $pid 2> /dev/null ;
+    do
+        sleep ${frequency}
+        date=`(date +"%T")`
+        jmap -J-d64 -dump:live,file="./$date.readonly.hprof" $pid
+    done
 fi
 
 exit $?

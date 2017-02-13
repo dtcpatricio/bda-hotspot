@@ -31,6 +31,7 @@ class GenQueue : public CHeapObj<F> {
   inline void enqueue(E el);
   inline E    dequeue();
   inline E    peek()        const { return _remove_end; }
+  inline E    bot()         const { return _insert_end; }
   inline int  n_elements() const { return _n_elements; }
   inline void remove_element(E el);
   inline void remove_element_mt(E el);

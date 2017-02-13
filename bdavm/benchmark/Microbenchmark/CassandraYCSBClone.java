@@ -14,6 +14,7 @@ public class CassandraYCSBClone
             int operationcount = 1;
             int nThreads       = 1;
             int numberfields   = 1;
+            float readratio    = 1.0f;
             READTYPE readtype  = READTYPE.SEQUENTIAL;
         
             int idx = -1;
@@ -33,6 +34,8 @@ public class CassandraYCSBClone
                         }
                     } else if (args[idx].equals("-threads")) {
                         nThreads = Integer.parseInt(args[++idx]);
+                    } else if (args[idx].equals("-readratio")) {
+                      readratio = Float.parseFloat(args[++idx]);
                     } else if (args[idx].equals("-h") || args[idx].equals("--help")) {
                         printHelpExit(0);
                     } else {
@@ -43,7 +46,8 @@ public class CassandraYCSBClone
                 }
             }
 
-            if (recordcount <= 0 || operationcount <= 0) {
+            if (recordcount <= 0 || operationcount <= 0 ||
+                readratio > 1.0 || readratio < 0.0) {
                 System.out.println ("Error: No operationcount or recordcount");
                 printHelpExit(-1);
             }
@@ -51,6 +55,8 @@ public class CassandraYCSBClone
             System.out.println("# YCSBClone and FakeCassandra test");
             System.out.println("# Record Count: " + recordcount);
             System.out.println("# Operation Count: " + operationcount);
+            System.out.println("#   Reads: " + (int)(operationcount * readratio));
+            System.out.println("#   Updates: " + (operationcount - (int)(operationcount * readratio)));
             System.out.println("# Field Count: " + numberfields);
             System.out.println("# Threads: " + nThreads);
 
@@ -65,7 +71,7 @@ public class CassandraYCSBClone
                 new YCSBClone<Long, Long, String>(fc, operationcount,
                                                   Long.class, Long.class, String.class);
             ycsb.populateData();
-            ycsb.doWorkload(readtype);
+            ycsb.doWorkload(readtype, nThreads, readratio);
         }
 
     private static void errorExitStartup()

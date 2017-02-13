@@ -204,7 +204,7 @@ MutableBDASpace::CGRPSpace::setup_container(container_t& container, MemRegion mr
   container->_next_segment = NULL; container->_next = NULL; container->_prev_segment = NULL;
   container->_previous = NULL; container->_saved_top = NULL;
   container->_space_id = (char)(exact_log2((intptr_t) _type->value()));
-  debug_only(container->_scanned_flag = -1;)
+  container->_scanned_flag = -1;
 
   // Here, the container pointer is installed on the RegionData object that manages
   // the address range this container spans during OldGC. This is for fast access

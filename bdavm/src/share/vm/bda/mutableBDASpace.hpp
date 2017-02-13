@@ -175,8 +175,10 @@ class MutableBDASpace : public MutableSpace
     // GC support
     inline container_t cas_get_next_container();
     inline container_t get_next_n_segment(container_t c, int n) const;
+    inline container_t get_previous_n_segment(container_t c, int n) const;
     inline container_t get_container_with_addr(HeapWord * addr) const;
     inline container_t first_container() const { _containers->peek(); }
+    inline container_t last_container() const  { _containers->bot(); }
     inline void        save_top_ptrs();
     inline void        set_shared_gc_pointer() { _gc_current = _containers->peek(); }
 
