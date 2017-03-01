@@ -37,7 +37,14 @@ do
         -local)
             bench=local
             shift
+            break
             ;;
+        -external)
+            bench=external
+            shift
+            break
+            ;;
+          
         -heapdump)
             ## This option runs the benchmark/test in the background
             ## and calls jmap periodically, according to the frequency
@@ -112,9 +119,9 @@ JVM_OPTS="$JVM_OPTS -XX:-UseCompressedClassPointers"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintGCDateStamps"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintHeapAtGC"
-#JVM_OPTS="$JVM_OPTS -Xloggc:/media/storage2/GCLogs/`date +%H-%M-%S`.${bench}.gclog"
+#JVM_OPTS="$JVM_OPTS -Xloggc:/media/storage2/GCLogs/${bench}.gclog"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
-JVM_OPTS="$JVM_OPTS -XX:+PrintEnqueuedContainers"
+#JVM_OPTS="$JVM_OPTS -XX:+PrintEnqueuedContainers"
 #JVM_OPTS="$JVM_OPTS -XX:BDAllocationVerboseLevel=2"
 #JVM_OPTS="$JVM_OPTS -XX:+BDAContainerFragAtFullGC"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintBDAContentsAtFullGC"
@@ -129,19 +136,29 @@ echo "Using hotspot lib ${VM_SO_DIR}"
 if [ "${bench}" = "sparkey" ] ; then
     sparkey_props="$sparkey_props -jvm $LAUNCHER"
     if [ -z ${background} ] && [ -z ${heapdump} ] ; then
-        $LAUNCHER $VMPARMS $JVM_OPTS -jar ${jardir} ${sparkey_props} '-jvmArgs' "$VMPARMS $JVM_OPTS" ${test}
+        $LAUNCHER $VMPARMS $JVM_OPTS -jar ${jardir} ${sparkey_props} '-jvmArgs' \
+                  "$VMPARMS $JVM_OPTS" ${test}
     else
-        nohup $LAUNCHER $VMPARMS $JVM_OPTS -jar ${jardir} ${sparkey_props} '-jvmArgs' "$VMPARMS $JVM_OPTS" ${test} > ${bench}.out 2> ${bench}.err < /dev/null &
+        nohup $LAUNCHER $VMPARMS $JVM_OPTS -jar ${jardir} ${sparkey_props} '-jvmArgs' \
+              "$VMPARMS $JVM_OPTS" ${test} > ${bench}.out 2> ${bench}.err < /dev/null &
         echo $! > ${bench}.pid
     fi
 elif [ "${bench}" = "local" ] ; then
+    JAVA_ARGS="-classpath $SCRIPTPATH/Microbenchmark $@"
+    echo "JAVA_ARGS to be used ${JAVA_ARGS}"
     if [ -z ${background} ] && [ -z ${heapdump} ] ; then
-        JAVA_ARGS="-classpath $SCRIPTPATH/Microbenchmark $@"
-        echo "JAVA_ARGS to be used ${JAVA_ARGS}"
         $LAUNCHER $VMPARMS $JVM_OPTS $JAVA_ARGS
     else
-        JAVA_ARGS="-classpath $SCRIPTPATH/Microbenchmark $@"
-        echo "JAVA_ARGS to be used ${JAVA_ARGS}"
+        nohup $LAUNCHER $VMPARMS $JVM_OPTS $JAVA_ARGS \
+              > ${bench}.out 2> ${bench}.err < /dev/null &
+        echo $! > ${bench}.pid
+    fi
+elif [ "${bench}" = "external" ] ; then
+    JAVA_ARGS="$@"
+    echo "JAVA_ARGS to be used ${JAVA_ARGS}"
+    if [ -z ${background} ] && [ -z ${heapdump} ] ; then
+        $LAUNCHER $VMPARMS $JVM_OPTS $JAVA_ARGS
+    else
         nohup $LAUNCHER $VMPARMS $JVM_OPTS $JAVA_ARGS \
               > ${bench}.out 2> ${bench}.err < /dev/null &
         echo $! > ${bench}.pid
