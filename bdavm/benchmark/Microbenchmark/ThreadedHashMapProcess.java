@@ -1,7 +1,10 @@
 import java.util.List;
+import java.util.Hashtable;
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.lang.Thread;
+import java.lang.Runnable;
 
 public class ThreadedHashMapProcess {
 
@@ -44,7 +47,7 @@ public class ThreadedHashMapProcess {
         Logger bsLog = new Logger();
         Bootstrap bs = new Bootstrap(mapCount, mapSize, bsLog);
         bs.createUniverse();
-        List<Thread> threadPool = new ArrayList<Thread>(thrdCount);
+        Hashtable<Thread, Runnable> threadPool = new Hashtable<Thread, Runnable>(thrdCount);
         
         int numberOfMapsPerThread = (int) Math.round(mapCount / (float)thrdCount);
         System.out.println("Each thread shall run " + numberOfMapsPerThread + " maps.");
@@ -58,26 +61,33 @@ public class ThreadedHashMapProcess {
                 else
                     System.out.println("Overflowing with maps");
             }
-            ProcessThread thr = new ProcessThread(mapsList, i, readCount);
-            threadPool.add(thr);
+            Runnable thr = new ProcessThread(mapsList, i, readCount);
+            threadPool.put(new Thread(thr), thr);
         }
         // Read values on and on and report time taken
 
         System.out.println("---- Starting to read ----");
         long startTime = System.nanoTime();
 
-        for (int i = 0; i < thrdCount; ++i) {
-            threadPool.get(i).start();
+        for (Map.Entry<Thread, Runnable> e: threadPool.entrySet()) {
+          e.getKey().start();
         }
 
-        for (int i = 0; i < thrdCount; ++i) {
-            threadPool.get(i).join();
+        for (Map.Entry<Thread, Runnable> e: threadPool.entrySet()) {
+          e.getKey().join();
         }
 
         long elapsedTime = System.nanoTime() - startTime;
         double divisor = 1000000000.0;
         System.out.println("---- Finished reading in " + elapsedTime / divisor + " seconds. ----");
-    
+
+        // Get access time and write time
+        System.out.println("# Printing thread access and write/update time:");
+        for (Map.Entry<Thread, Runnable> e: threadPool.entrySet()) {
+          ProcessThread thr = (ProcessThread)e.getValue();
+          System.out.println("Thread " + thr.getThreadId() + " access time " +
+                             ((double)thr.getAvgAccessTime() / divisor) + " s");
+        }    
 
         System.out.println("--------------- BloatHashMapTest DONE ---------------");
     }

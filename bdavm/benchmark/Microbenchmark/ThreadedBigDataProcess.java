@@ -136,6 +136,14 @@ public class ThreadedBigDataProcess {
     }
     // Launch map phase
     launchPhase (mapThreadPool, PHASE.MAP);
+    // Get access time and write time
+    System.out.println("# Printing thread access and write/update time:");
+    for (Map.Entry<Thread, Runnable> e : mapThreadPool.entrySet()) {
+      MapThread thr = (MapThread)e.getValue();
+      System.out.println("Thread " + thr.getThreadId() + " access time " +
+                         (thr.getAvgAccessTime()/secDivisor) + " s -- write/update time " +
+                         (thr.getAvgWriteTime()/secDivisor) + " s");
+    }
 
 
     // Schedule reduce phase getting the mapped data from the previous step.
@@ -148,6 +156,14 @@ public class ThreadedBigDataProcess {
       reduceThreadPool.put(thr, run);
     }
     launchPhase (reduceThreadPool, PHASE.REDUCE);
+    // Get access time and write time
+    System.out.println("# Printing thread access and write/update time:");
+    for (Map.Entry<Thread, Runnable> e : reduceThreadPool.entrySet()) {
+      ReduceThread thr = (ReduceThread)e.getValue();
+      System.out.println("Thread " + thr.getThreadId() + " access time " +
+                         ((double)thr.getAvgAccessTime() / secDivisor) + " s -- write/update time " +
+                         ((double)thr.getAvgWriteTime() / secDivisor) + " s");
+    }
 
     // Print results
     if (printMaps) {
