@@ -1,17 +1,29 @@
 #!/bin/sh
 
-JAVA_HOME=/usr/lib/jvm/java-8-openjdk;
+JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64;
 
 BUILD_SCRIPT_DIR=`cd ../make && pwd`;
 BUILD_SCRIPT=$BUILD_SCRIPT_DIR/build.sh
 
-BUILD_DIR=../build/linux
+BUILD_DIR="$(dirname $0)/../build/linux"
 DEBUG_BIN=false
+
+# Print help and exit
+help () {
+    echo -e "Usage:"
+    exit !?
+}
 
 while :
 do
     case "$1" in
+        -h|--help)
+            help
+            ;;
         -buildir)
+            if [ ! -d "$2" ]; then
+                mkdir -p "$2"
+            fi
             BUILD_DIR=`cd $2 && pwd`
             shift 2
             ;;

@@ -2,38 +2,11 @@
 
 SCRIPT=$(readlink -f "$0")
 SCRIPTPATH=$(dirname "$SCRIPT")
+heapdump_dir="${LHOME}/HeapDumps/"
 
 while :
 do
     case "$1" in
-        -sparkey)
-            ## Parse sparkey options
-            bench=sparkey
-            shift
-            if [ ! -f "$1" ] ; then
-                echo "JAR File is invalid: $1"
-                exit -1
-            else
-                jardir="$1"
-                shift
-            fi
-
-            for prop in "$@"
-            do
-                case "$1" in
-                    -*)
-                        sparkey_props="$sparkey_props $1 $2"
-                        shift 2
-                        ;;
-                    *)
-                        ## TODO: Assert, here, that this is a test to call
-                        test="$1"
-                        shift
-                        break
-                        ;;
-                esac
-            done
-            ;;
         -local)
             bench=local
             shift
@@ -44,7 +17,6 @@ do
             shift
             break
             ;;
-          
         -heapdump)
             ## This option runs the benchmark/test in the background
             ## and calls jmap periodically, according to the frequency
@@ -115,11 +87,11 @@ JVM_OPTS="$JVM_OPTS -XX:-UseCompressedOops"
 JVM_OPTS="$JVM_OPTS -XX:-UseCompressedClassPointers"
 
 ## Print Options (these can be commented out)
-#JVM_OPTS="$JVM_OPTS -XX:+PrintGC"
+JVM_OPTS="$JVM_OPTS -XX:+PrintGC"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintGCDateStamps"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintHeapAtGC"
-#JVM_OPTS="$JVM_OPTS -Xloggc:/media/storage2/GCLogs/${bench}.gclog"
+JVM_OPTS="$JVM_OPTS -Xloggc:/media/storage2/GCLogs/${bench}.gclog"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
 #JVM_OPTS="$JVM_OPTS -XX:+PrintEnqueuedContainers"
 #JVM_OPTS="$JVM_OPTS -XX:BDAllocationVerboseLevel=2"
@@ -133,17 +105,7 @@ echo "JVM_OPTS to be used ${JVM_OPTS}"
 echo "Using hotspot lib ${VM_SO_DIR}"
 
 ### JAVA OPTIONS
-if [ "${bench}" = "sparkey" ] ; then
-    sparkey_props="$sparkey_props -jvm $LAUNCHER"
-    if [ -z ${background} ] && [ -z ${heapdump} ] ; then
-        $LAUNCHER $VMPARMS $JVM_OPTS -jar ${jardir} ${sparkey_props} '-jvmArgs' \
-                  "$VMPARMS $JVM_OPTS" ${test}
-    else
-        nohup $LAUNCHER $VMPARMS $JVM_OPTS -jar ${jardir} ${sparkey_props} '-jvmArgs' \
-              "$VMPARMS $JVM_OPTS" ${test} > ${bench}.out 2> ${bench}.err < /dev/null &
-        echo $! > ${bench}.pid
-    fi
-elif [ "${bench}" = "local" ] ; then
+if [ "${bench}" = "local" ] ; then
     JAVA_ARGS="-classpath $SCRIPTPATH/Microbenchmark $@"
     echo "JAVA_ARGS to be used ${JAVA_ARGS}"
     if [ -z ${background} ] && [ -z ${heapdump} ] ; then
@@ -171,7 +133,7 @@ if [ ! -z ${heapdump} ] ; then
     do
         sleep ${frequency}
         date=`(date +"%T")`
-        jmap -J-d64 -dump:live,file="./$date.readonly.hprof" $pid
+        jmap -J-d64 -dump:live,file="${heapdump_dir}/$date.readonly.hprof" $pid
     done
 fi
 
