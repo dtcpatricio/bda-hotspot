@@ -4,6 +4,7 @@
 # include "gc_implementation/parallelScavenge/psParallelCompact.hpp"
 # include "memory/resourceArea.hpp"
 # include "runtime/thread.hpp"
+# include "runtime/vmThread.hpp"
 # include "runtime/java.hpp"
 # include "oops/oop.inline.hpp"
 # include "oops/klassRegionMap.hpp"
@@ -111,46 +112,59 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
     return (container_t)ptr;
   }
 
-  // Get the container/segment in the RegionData that spans the addressable space
-  container = PSParallelCompact::get_container_at_addr(ptr);
-  last_seg  = PSParallelCompact::get_container_at_addr(ptr + reserved_sz);
-  first_seg = container;
+  if (container_type() != KlassRegionMap::region_start_ptr()) {
+    // Get the container/segment in the RegionData that spans the addressable space
+    container = PSParallelCompact::get_container_at_addr(ptr);
+    last_seg  = PSParallelCompact::get_container_at_addr(ptr + reserved_sz);
+    first_seg = container;
 
-  // If there is a container/segment, then use this one, setting the limits accordingly
-  if (container != NULL) {
-    // Remove from the pool by decreasing the num of elements.
-    _pool->phantom_remove();
+    // If there is a container/segment, then use this one, setting the limits accordingly
+    if (container != NULL) {
+      // Remove from the pool by decreasing the num of elements.
+      _pool->phantom_remove();
 
-    // Now set the limits.
-    if (container->_start != ptr) {
-      container_t temp;
-      temp = PSParallelCompact::get_container_at_addr(ptr + reserved_sz - 1);
-      if (temp != container)
-        container = temp;
-      else
-        container = allocate_container();
-    }
-  
-    // Free unused segments in between and only those that are not going to be touched
-    // by other threads.
-    for (HeapWord * p = ptr + segment_sz; p < ptr + reserved_sz; p += segment_sz) {
-      container_t temp;
-      temp = PSParallelCompact::get_container_at_addr(p);
-      if (temp != container && temp != first_seg && temp != last_seg) {
-        free_container(temp);
+      // Now set the limits.
+      if (container->_start != ptr) {
+        container_t temp;
+        temp = PSParallelCompact::get_container_at_addr(ptr + reserved_sz - 1);
+        if (temp != container)
+          container = temp;
+        else
+          container = allocate_container();
       }
-    }
+  
+      // Free unused segments in between and only those that are not going to be touched
+      // by other threads.
+      for (HeapWord * p = ptr + segment_sz; p < ptr + reserved_sz; p += segment_sz) {
+        container_t temp;
+        temp = PSParallelCompact::get_container_at_addr(p);
+        if (temp != container && temp != first_seg && temp != last_seg) {
+          // TODO: Is this really necessary? Aren't those containers/segments already
+          // in the pool, thus freed?
+          free_container(temp);
+        }
+      }
 
-    // Setup the container last
-    setup_container(container, MemRegion(ptr, reserved_sz), size);
+      // Setup the container last
+      setup_container(container, MemRegion(ptr, reserved_sz), size);
+    } else {
+      container = allocate_and_setup_container(ptr, reserved_sz, size);
+    }
   } else {
-    container = allocate_and_setup_container(ptr, reserved_sz, size);
+    container = _pool->dequeue();
+    if (container != NULL) {
+      setup_container(container, MemRegion(ptr, reserved_sz), size);
+    } else {
+      container = allocate_and_setup_container(ptr, reserved_sz, size);
+    }
   }
 
   // Add to the queue
   if (container != NULL) {
     assert (container->_next_segment == NULL, "should have been reset");
     assert (container->_prev_segment == NULL, "should have been reset");
+    assert (container->_next == NULL, "should have been reset");
+    assert (container->_previous == NULL, "should have been reset");
 #ifdef ASSERT
     _segments_since_last_gc++;
 #endif
@@ -167,27 +181,21 @@ MutableBDASpace::CGRPSpace::allocate_new_segment (size_t size, container_t& c)
 {
   container_t container = push_container(size);
   container_t next,last; 
-  // The non-bda-space cannot have linked segments because these are deallocated after
-  // FullGC, causing a load of invalid space from a parent allocated in a bda-space (which is
-  // not deallocated).
+  
   if (container != NULL) {
-    // only update links in bda-spaces
-    if (container_type() != KlassRegionMap::region_start_ptr()) {
-      last = c; next = last->_next_segment;
-      do {
-        if (next == NULL && Atomic::cmpxchg_ptr(container,
-                                                &(last->_next_segment),
-                                                next) == next) {
-          break;
-        }
-        last = last->_next_segment;
-        next = last->_next_segment;
-      } while (true);
-
-      container->_prev_segment = last;
-    }
-
-    // For the return val
+    last = c; next = last->_next_segment;
+    do {
+      if (next == NULL && Atomic::cmpxchg_ptr(container,
+                                              &(last->_next_segment),
+                                              next) == next) {
+        break;
+      }
+      last = last->_next_segment;
+      next = last->_next_segment;
+    } while (true);
+    
+    container->_prev_segment = last;
+    // For the return val of the callee
     c = container;
     return container->_start;
   } else {    
@@ -204,17 +212,18 @@ MutableBDASpace::CGRPSpace::setup_container(container_t& container, MemRegion mr
   container->_next_segment = NULL; container->_next = NULL; container->_prev_segment = NULL;
   container->_previous = NULL; container->_saved_top = NULL;
   container->_space_id = (char)(exact_log2((intptr_t) _type->value()));
+#ifdef ASSERT
   container->_scanned_flag = -1;
+#endif
 
   // Here, the container pointer is installed on the RegionData object that manages
   // the address range this container spans during OldGC. This is for fast access
   // during summarize and update of the containers top pointers.
   if (container != NULL) {
-    if (container_type() != KlassRegionMap::region_start_ptr()) {
-      PSParallelCompact::install_container_in_region(container);
-    } else {
+    if (container_type() == KlassRegionMap::region_start_ptr()) {
       _manager->mark_container(container);
     }
+    PSParallelCompact::install_container_in_region(container);
     _manager->allocate_block(container->_start);
     if (BDAllocationVerboseLevel > 1) {
       print_allocation(container);
@@ -337,51 +346,15 @@ MutableBDASpace::CGRPSpace::print_container_fragmentation_stats() const
     i++;
   }
 
+  var /= i - 1;
   dev = sqrt(var);
   
   // Print the statistical information
   gclog_or_tty->print_cr("Space " INT32_FORMAT, exact_log2((intptr_t)container_type()->value()));
-  gclog_or_tty->print_cr("  Average fragmentation = %f", avg * (float)100);
-  gclog_or_tty->print_cr("  Variance in fragmentation = %e", var);
+  gclog_or_tty->print_cr("  Average fragmentation = %f%%", avg * (float)100);
+  gclog_or_tty->print_cr("  Variance in fragmentation = %f", var);
   gclog_or_tty->print_cr("  Standard Deviation in fragmentation = %f", dev);
   gclog_or_tty->print_cr("  Number of segments in space = " INT32_FORMAT, container_count());
-}
-
-void
-MutableBDASpace::CGRPSpace::print_container_contents(outputStream * st) const
-{
-  assert ( container_count() > 0, "Shouldn't be possible" );
-  st->print_cr ("%-30s " INT32_FORMAT, "Containers Segments for Space",
-                exact_log2((intptr_t)container_type()->value()));
-  {
-    ResourceMark rm;
-    
-    for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
-         *it != NULL;
-         ++it )
-    {
-      container_t c = *it;
-      if (c->_prev_segment == NULL) {
-        int segment_n = 0;
-        st->print_cr ("  %s (" PTR_FORMAT ")", "Container", c);
-        while (c != NULL) {
-          st->print_cr ("   " INT32_FORMAT " %s [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT ")",
-                        segment_n, "segment", c->_start, c->_top, c->_end);
-          HeapWord *  const t = c->_top;
-          HeapWord *        p = c->_start;
-          while (p < t) {
-            oop obj = (oop)p;
-            st->print_cr("    %-35s size: " INT32_FORMAT " words (" INT32_FORMAT " bytes)",
-                         obj->klass()->external_name(),
-                         obj->size(), obj->size() << LogHeapWordSize);
-            p += obj->size();
-          }
-          c = c->_next_segment;
-          segment_n++;
-        }
-      }
-    }
-  }
 }
 
 void
@@ -438,18 +411,105 @@ MutableBDASpace::CGRPSpace::print_used(outputStream * st) const
 }
 
 void
+MutableBDASpace::CGRPSpace::print_container_list(bool verbose) const
+{
+  if ( container_count() == 0 ) return;
+
+  gclog_or_tty->print_cr ("[container list] remove_end = " INTPTR_FORMAT
+                          " ; insert_end = " INTPTR_FORMAT,
+                          first_container(),
+                          last_container());
+  if (verbose) {
+    for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
+         *it != NULL;
+         ++it) {
+      gclog_or_tty->print(INTPTR_FORMAT " -> ", (intptr_t)*it);
+    }
+    gclog_or_tty->print_cr(" ");
+  }
+  
+
+}
+
+void
 MutableBDASpace::CGRPSpace::reset_stats()
 {
   _segments_since_last_gc = 0;
-  _gc_current = NULL;
 }
+
+#ifdef ASSERT
+void
+MutableBDASpace::CGRPSpace::print_container_contents(outputStream * st) const
+{
+  assert ( container_count() > 0, "Shouldn't be possible" );
+  st->print_cr ("%-30s " INT32_FORMAT, "Containers Segments for Space",
+                exact_log2((intptr_t)container_type()->value()));
+  {
+    ResourceMark rm;
+    
+    for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
+         *it != NULL;
+         ++it )
+    {
+      container_t c = *it;
+      if (c->_prev_segment == NULL) {
+        int segment_n = 0;
+        st->print_cr ("  %s (" PTR_FORMAT ")", "Container", c);
+        while (c != NULL) {
+          st->print_cr ("   " INT32_FORMAT " %s [" PTR_FORMAT ", " PTR_FORMAT ", " PTR_FORMAT ")",
+                        segment_n, "segment", c->_start, c->_top, c->_end);
+          HeapWord *  const t = c->_top;
+          HeapWord *        p = c->_start;
+          while (p < t) {
+            oop obj = (oop)p;
+            st->print_cr("    %-35s size: " INT32_FORMAT " words (" INT32_FORMAT " bytes)",
+                         obj->klass()->external_name(),
+                         obj->size(), obj->size() << LogHeapWordSize);
+            p += obj->size();
+          }
+          c = c->_next_segment;
+          segment_n++;
+        }
+      }
+    }
+  }
+}
+
+void
+MutableBDASpace::CGRPSpace::verbose_print_all_containers (outputStream * st) const
+{
+  assert ( container_count() > 0, "Should not be possible." );
+  st->print_cr ("%-30s " INT32_FORMAT, "Segment chain for Space",
+                exact_log2((intptr_t)container_type()->value()));
+
+  for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
+       *it != NULL;
+       ++it) {
+    container_t c = *it;
+    if (c->_prev_segment == NULL) {
+      st->print("C ");
+    }
+    st->print ("(" PTR_FORMAT ")", c);
+
+    // Now iterate the following segments
+    container_t next_s = c;
+    while ((next_s = next_s->_next_segment) != NULL) {
+      st->print (" -> (" PTR_FORMAT ")", next_s);
+    }
+    
+    st->print_cr (" ::");
+    st->print_cr ("%-8s", "\\|/");
+  }
+}
+#endif // ASSERT
+
 
 ////////////////// /////////////// //////////////////
 ////////////////// MutableBDASpace //////////////////
 ////////////////// /////////////// //////////////////
 MutableBDASpace::MutableBDASpace(size_t alignment, ObjectStartArray * start_array)
   : MutableSpace(alignment) {
-  int n_regions = KlassRegionMap::number_bdaregions();
+  int n_regions = KlassRegionMap::number_bdaregions() + 1;
   _spaces = new (ResourceObj::C_HEAP, mtGC) GrowableArray<CGRPSpace*>(n_regions, true);
   _page_size = os::vm_page_size();
   _start_array = start_array;
@@ -469,7 +529,7 @@ MutableBDASpace::MutableBDASpace(size_t alignment, ObjectStartArray * start_arra
   // the BDAKlasses string.
   BDARegion* region = KlassRegionMap::region_start_ptr();
   spaces()->append(new CGRPSpace(alignment, region, this)); ++region;
-  for(int i = 0; i < n_regions; i++)  {
+  for(int i = 1; i < n_regions; i++)  {
     spaces()->append(new CGRPSpace(alignment, region, this));
     region += 2;
   }
@@ -815,12 +875,13 @@ MutableBDASpace::initialize_regions(size_t space_size,
   
   size_t bda_space    = (size_t)align_size_down((intptr_t)(space_size / BDARatio),
                                                 (intptr_t)alignment);
-  size_t bda_region_sz = (size_t)align_size_down((intptr_t)(bda_space / bda_nregions),
-                                                 (intptr_t)alignment);
+  size_t bda_region_sz = bda_nregions > 0 ?
+    (size_t)align_size_down((intptr_t)(bda_space / bda_nregions),
+                            (intptr_t)alignment) : 0;
 
   // just in case some one abuses of the ratio
   int k = 1;
-  while(bda_region_sz < alignment) {
+  while(bda_region_sz > 0 && bda_region_sz < alignment) {
     bda_space = (size_t)align_size_down((intptr_t)(space_size / BDARatio - k),
                                         (intptr_t)alignment);
     bda_region_sz = (size_t)align_size_down((intptr_t)(bda_space / bda_nregions),
@@ -1204,6 +1265,17 @@ MutableBDASpace::free_in_words() const {
 }
 
 size_t
+MutableBDASpace::free_in_bytes() const
+{
+  int i = 0; size_t ret = 0;
+  while (i < spaces()->length()) {
+    ret += spaces()->at(i)->fast_free_in_bytes();
+    i++;
+  }
+  return ret;
+}
+
+size_t
 MutableBDASpace::free_in_words(int grp) const {
   assert(grp < spaces()->length(), "Sanity");
   return spaces()->at(grp)->free_in_words();
@@ -1309,9 +1381,7 @@ MutableBDASpace::allocate_container(size_t size, BDARegion* r)
 }
 
 //
-// This is lock and atomic-construct free because container_t structs are handled
-// by each GC thread separately. If StealTasks are implemented and some kind of
-// synchronization is required, then implement the bumping pointer with a CAS.
+// 
 HeapWord*
 MutableBDASpace::allocate_element(size_t size, container_t& container)
 {
@@ -1320,7 +1390,7 @@ MutableBDASpace::allocate_element(size_t size, container_t& container)
   
   // Jump to the last segment first and update the arg in the meanwhile.
   do {
-    // and try to allocate the plab
+    // and try to allocate the element
     while ((old_top = segment->_top) + size < segment->_end) {
       HeapWord * new_top = old_top + size;
       if ((HeapWord*)Atomic::cmpxchg_ptr(new_top, &(segment->_top), old_top) == old_top) {
@@ -1381,6 +1451,9 @@ void
 MutableBDASpace::clear_delete_containers_in_space(uint space_id)
 {
   assert (space_id == 0, "should not be called to clear the segments of bda spaces.");
+  assert (SafepointSynchronize::is_at_safepoint(), "must be at the safepoint.");
+  assert (Thread::current() == (Thread*)VMThread::vm_thread(), "must be called by the VM thread");
+  assert (UseBDA, "must be using the bda extensions");
   
   // Free all container segments allocated
   CGRPSpace * grp = spaces()->at(space_id);
@@ -1449,6 +1522,14 @@ MutableBDASpace::print_on(outputStream* st) const {
     st->print ("   %s " INT32_FORMAT " [", "Space ID =", i);
     spaces()->at(i)->space()->print_on(st);
   }
+#ifdef ASSERT
+  if (BDAPrintAllContainers && Verbose) {
+    verbose_print_all_containers();
+  }
+#endif // ASSERT
+      
+      
+
 }
 
 void
@@ -1632,6 +1713,24 @@ MutableBDASpace::print_spaces_fragmentation_stats() const
   }
 }
 
+
+void
+MutableBDASpace::print_allocation_stats() const
+{
+  assert (BDAllocationVerboseLevel > 0, "Shouldn't reach here with 0 verbosity level");
+
+  // if (BDAllocationVerboseLevel > 1) {
+  
+  // } else
+  if (BDAllocationVerboseLevel > 0) {
+    for (int i = 0; i < spaces()->length(); ++i) {
+      CGRPSpace * grp = spaces()->at(i);
+      grp->print_allocation_stats(gclog_or_tty);
+    }
+  }
+}
+
+#ifdef ASSERT
 void
 MutableBDASpace::print_spaces_contents() const
 {
@@ -1651,20 +1750,23 @@ MutableBDASpace::print_spaces_contents() const
 }
 
 void
-MutableBDASpace::print_allocation_stats() const
+MutableBDASpace::verbose_print_all_containers() const
 {
-  assert (BDAllocationVerboseLevel > 0, "Shouldn't reach here with 0 verbosity level");
+  // Verbose flag must be turned on.
+  assert (Verbose, "Verbose flag should be turned on");
 
-  // if (BDAllocationVerboseLevel > 1) {
-  
-  // } else
-  if (BDAllocationVerboseLevel > 0) {
-    for (int i = 0; i < spaces()->length(); ++i) {
-      CGRPSpace * grp = spaces()->at(i);
-      grp->print_allocation_stats(gclog_or_tty);
-    }
+  for (int i = 0; i < spaces()->length(); ++i) {
+
+    CGRPSpace * grp = spaces()->at(i);
+    
+    if ( grp->container_count() == 0 ) continue;
+
+    assert ( grp->container_count() > 0, "Shouldn't reach here without containers");
+
+    grp->verbose_print_all_containers (gclog_or_tty);
   }
 }
+#endif // ASSERT
 
 void
 MutableBDASpace::verify() {

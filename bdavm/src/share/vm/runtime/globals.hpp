@@ -4000,8 +4000,17 @@ class CommandLineFlags {
                 "Prints the contents of each segment on each bda-space. "   \
                 "The contents printed are the class name and the size.")    \
                                                                             \
-  product(bool, BDAContainerFragAtFullGC, false,                            \
+  product(bool, PrintBDAContentsAtGC, false,                                \
+                "Prints the contents of each segment on each bda-space "    \
+                "after each minor gc. The contents printed are the class "  \
+                "name and the size.")                                       \
+                                                                            \
+  product(bool, ContainerFragmentationAtFullGC, false,                      \
                 "Print, at each fullGC, statistical information about "     \
+                "container fragmentation")                                  \
+                                                                            \
+  product(bool, ContainerFragmentationAtGC, false,                          \
+                "Print, at every GC, statistical information about "        \
                 "container fragmentation")                                  \
                                                                             \
   product(bool, BDAPrintAfterGC, false,                                     \
@@ -4015,6 +4024,16 @@ class CommandLineFlags {
                                                                             \
   product(bool, BDAPrintOnlyCollections, false,                             \
                "Print big-data aware space, but only collections")          \
+                                                                            \
+  develop(bool, BDAPrintAllContainers, false,                               \
+               "Prints a very verbose list of the containers in the "       \
+               "bda-spaces. It structures the list as the segments saved "  \
+               "by the order they were allocated in a vertical view and "   \
+               "the linked segments in a horizontal view. Parent segments " \
+               "of the container are marked with a \"C\"")                  \
+                                                                            \
+  develop(bool, BDAPrintOldToYoungTasks, false,                             \
+               "Prints scanning status of old-to-young-bda-root-tasks")     \
 
 /*
  *  Macros for factoring of globals

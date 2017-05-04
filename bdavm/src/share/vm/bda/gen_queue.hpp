@@ -29,9 +29,12 @@ class GenQueue : public CHeapObj<F> {
   static void       destroy(GenQueue<E, F> * queue);
 
   inline void enqueue(E el);
+  inline void enqueue_no_mt(E el);
   inline E    dequeue();
   inline E    peek()        const { return _remove_end; }
   inline E    bot()         const { return _insert_end; }
+  inline E*   peek_addr()   { return &_remove_end; }
+  inline E*   bot_addr()    { return &_insert_end; }
   inline int  n_elements() const { return _n_elements; }
   inline void remove_element(E el);
   inline void remove_element_mt(E el);
@@ -65,6 +68,18 @@ GenQueue<E, F>::enqueue(E el)
   if (el->_previous == NULL && remove_end() == NULL) set_remove_end(el);
   Atomic::inc(&_n_elements);
   assert (temp == NULL || temp->_next == el, "just checking if assign was valid");
+}
+
+/* Enqueues an element el with no atomic operations */
+template<class E, MEMFLAGS F>
+inline void
+GenQueue<E, F>::enqueue_no_mt(E el)
+{
+  E old_end = insert_end();
+  set_insert_end(el);
+  el->_previous = old_end;
+  old_end->_next = el;
+  _n_elements++;
 }
 
 template <class E, MEMFLAGS F>

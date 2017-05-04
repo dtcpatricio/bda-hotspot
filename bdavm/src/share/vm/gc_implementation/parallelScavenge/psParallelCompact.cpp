@@ -422,14 +422,12 @@ bool ParallelCompactData::initialize(MemRegion covered_region)
   assert((region_size & RegionSizeOffsetMask) == 0,
          "region size not a multiple of RegionSize");
 
-  bool result = initialize_region_data(region_size) && initialize_block_data()
+  bool result = initialize_region_data(region_size) && initialize_block_data();
 #ifdef BDA
-    && initialize_empty_region_data()
+  if (UseBDA) {
+    result &= initialize_empty_region_data();
+  }
 #endif
-    ;
-// #ifdef HEADER_MARK
-//     && initialize_counter_data()
-// #endif
   return result;
 }
 
@@ -1010,8 +1008,10 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     while (container_seg != NULL) {
       
       // Jump segments allocated in a different space (usually, in the non-bda-space)
-      if (PSParallelCompact::bda_space()->non_bda_space()->contains(container_seg->_start))
+      if (PSParallelCompact::bda_space()->non_bda_space()->contains(container_seg->_start)) {
+        container_seg = container_seg->_next_segment;
         continue;
+      }
       
       // Iterate through the segment regions to find the amount of live data
       size_t segment_live = 0;
@@ -1265,8 +1265,7 @@ bool PSParallelCompact::initialize() {
   }
 
 #ifdef BDA
-  if (UseBDA)
-    _bda_space = (MutableBDASpace*)heap->old_gen()->object_space();
+  _bda_space = (MutableBDASpace*)heap->old_gen()->object_space();  
 #endif
   initialize_space_info();
   initialize_dead_wood_limiter();
@@ -1320,19 +1319,16 @@ void PSParallelCompact::initialize_space_info()
   _space_info[to_space_id].set_space(young_gen->to_space());
 
 #ifdef BDA
-  // redefine old_space_id space --- could be done earlier but its pretty irrelevant
-  // because it avoids crazy code
-  if (UseBDA) {
-    _space_info[old_space_id].set_space(_bda_space->spaces()->at(0)->space());
-    for(int idx = 1; idx <= nbda; ++idx) {
-      _space_info[to_space_id + idx].set_space(
-        _bda_space->spaces()->at(idx)->space());
-      _space_info[to_space_id + idx].set_start_array(heap->old_gen()->start_array());
-    }
-    // A hacky way to avoid serious change of code on for loops since they rely on this
-    // value to stop
-    bda_last_space_id = (unsigned int)sz_spaceinfo;
+  // redefine old_space_id space
+  _space_info[old_space_id].set_space(_bda_space->spaces()->at(0)->space());
+  for(int idx = 1; idx <= nbda; ++idx) {
+    _space_info[to_space_id + idx].set_space(
+      _bda_space->spaces()->at(idx)->space());
+    _space_info[to_space_id + idx].set_start_array(heap->old_gen()->start_array());
   }
+  // A hacky way to avoid serious change of code on for loops since they rely on this
+  // value to stop
+  bda_last_space_id = (unsigned int)sz_spaceinfo;
 #endif
   _space_info[old_space_id].set_start_array(heap->old_gen()->start_array());
 }
@@ -1393,21 +1389,22 @@ PSParallelCompact::clear_data_covering_space(SpaceId id)
   const size_t end_region =
     _summary_data.addr_to_region_idx(_summary_data.region_align_up(max_top));
 #ifdef BDA
-  if (id >= last_space_id) {
-    // This specialized version also returns empty containers to the pool
-    MutableBDASpace::CGRPSpace * space_manager =
-      _bda_space->spaces()->at((uint)(id -last_space_id) + 1);
-    _summary_data.clear_bda_range(beg_region, end_region, space_manager);
-    _summary_data.clear_empty_region_range();
-    // Save new top pointers
-    space_manager->save_top_ptrs();
-  } else if (id == old_space_id) {
-    _bda_space->clear_delete_containers_in_space((uint)old_space_id);
-    _summary_data.clear_range(beg_region, end_region);
+  if (UseBDA) {
+    if (id >= last_space_id) {
+      // This specialized version also returns empty containers to the pool
+      MutableBDASpace::CGRPSpace * space_manager =
+        _bda_space->spaces()->at((uint)(id -last_space_id) + 1);
+      _summary_data.clear_bda_range(beg_region, end_region, space_manager);
+      _summary_data.clear_empty_region_range();
+      // Save new top pointers
+      space_manager->save_top_ptrs();
+    } else if (id == old_space_id) {
+      _bda_space->clear_delete_containers_in_space((uint)old_space_id);
+      _summary_data.clear_range(beg_region, end_region);
+    }
   } else
 #endif
     _summary_data.clear_range(beg_region, end_region);
-
 
   // Clear the data used to 'split' regions.
   SplitInfo& split_info = _space_info[id].split_info();
@@ -2562,15 +2559,15 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
   }
 
 #ifdef BDA
-  if (UseBDA) {
-    if (BDAContainerFragAtFullGC) {
-      _bda_space->print_spaces_fragmentation_stats();
-    }
-    if (PrintBDAContentsAtFullGC) {
-      _bda_space->print_spaces_contents();
-    }
+  if (ContainerFragmentationAtFullGC || ContainerFragmentationAtGC) {
+    _bda_space->print_spaces_fragmentation_stats();
   }
-#endif
+#ifdef ASSERT
+  if (PrintBDAContentsAtFullGC && Verbose) {
+    _bda_space->print_spaces_contents();
+  }
+#endif // ASSERT
+#endif // BDA
 
   heap->pre_full_gc_dump(&_gc_timer);
 

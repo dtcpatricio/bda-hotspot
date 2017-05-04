@@ -71,6 +71,8 @@ KlassRegionHashtable::get_region(Klass* k)
 KlassRegionMap::KlassRegionMap()
 {
   _next_region = BDARegion::region_start;
+  // TODO: This should change to a normal array. Why a growableArray if it is not to grow
+  // (unless it is...)?
   _bda_class_names = new (ResourceObj::C_HEAP, mtGC)GrowableArray<KlassRegionEl*>(0,true);
   parse_from_string(BDAKlasses, KlassRegionMap::parse_from_line);
 
@@ -127,7 +129,7 @@ void
 KlassRegionMap::parse_from_line(char* line)
 {
   // Accept dots '.' and slashes '/' but not mixed.
-  // Method names are to be accepted in the future
+  // TODO: Method names are to be accepted in the future
   char delimiter;
   char buffer[64];
   char* str;
@@ -146,13 +148,16 @@ KlassRegionMap::parse_from_line(char* line)
     else
       buffer[i++] = *c;
   }
-  buffer[i] = '\0';
-  str = NEW_C_HEAP_ARRAY(char, i + 1, mtGC);
-  strcpy(str, buffer);
 
-  // construct the object and push while shifting the _next_region value
-  KlassRegionEl* el = new KlassRegionEl(str, _next_region <<= BDARegion::region_shift);
-  _bda_class_names->push(el);
+  // This saves the hassle of dealing with empty class names
+  if (i != 0) {
+    buffer[i] = '\0';
+    str = NEW_C_HEAP_ARRAY(char, i + 1, mtGC);
+    strcpy(str, buffer);
+    // construct the object and push while shifting the _next_region value
+    KlassRegionEl* el = new KlassRegionEl(str, _next_region <<= BDARegion::region_shift);
+    _bda_class_names->push(el);
+  }
 }
 
 BDARegion*

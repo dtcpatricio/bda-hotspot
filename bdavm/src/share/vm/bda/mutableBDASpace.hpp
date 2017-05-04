@@ -65,7 +65,7 @@ class MutableBDASpace : public MutableSpace
     // Pool of large containers already allocated and ready to be assign to a space.
     GenQueue<container_t, mtGC> * _large_pool;
     // GC support
-    container_t                  _gc_current;
+    container_t          _last_segment;
     // A pointer to the parent
     MutableBDASpace *              _manager;
 
@@ -173,20 +173,22 @@ class MutableBDASpace : public MutableSpace
     inline void remove_from_pool(container_t c);
     
     // GC support
-    inline container_t cas_get_next_container();
     inline container_t get_next_n_segment(container_t c, int n) const;
     inline container_t get_previous_n_segment(container_t c, int n) const;
     inline container_t get_container_with_addr(HeapWord * addr) const;
-    inline container_t first_container() const { _containers->peek(); }
-    inline container_t last_container() const  { _containers->bot(); }
+    inline container_t first_container() const { return _containers->peek(); }
+    container_t last_container() const  { return _containers->bot(); }
+    container_t * last_container_addr() { return _containers->bot_addr(); }
+    inline container_t last_before_gc() const  { return _last_segment; }
     inline void        save_top_ptrs();
-    inline void        set_shared_gc_pointer() { _gc_current = _containers->peek(); }
 
     // Size computations (in heapwords and bytes)
     inline size_t used_in_words() const;
     inline size_t free_in_words() const;
     inline size_t used_in_bytes() const;
     inline size_t free_in_bytes() const;
+    inline size_t fast_free_in_words() const;
+    inline size_t fast_free_in_bytes() const;
     
     // Iteration support
     void object_iterate_containers(ObjectClosure * cl);
@@ -198,11 +200,12 @@ class MutableBDASpace : public MutableSpace
     
     // Statistics and printing
     void print_container_fragmentation_stats() const;
-    void print_container_contents(outputStream * st) const;
+    void print_container_list(bool verbose = false) const;
     void print_allocation(container_t c, bool large = false) const;
     void print_allocation_stats(outputStream * st) const;
     void print_used(outputStream * st) const;
-
+    debug_only (void print_container_contents(outputStream * st) const;)
+    debug_only (void verbose_print_all_containers(outputStream * st) const;)
     // Reset stats fields
     void reset_stats();
   };
@@ -268,7 +271,6 @@ class MutableBDASpace : public MutableSpace
 
   container_t container_for_addr(HeapWord * addr);
   void          add_to_pool(container_t c, uint id);
-  inline void   set_shared_gc_pointers();
   inline void   save_tops_for_scavenge();
 
   // Statistics functions
@@ -330,6 +332,8 @@ class MutableBDASpace : public MutableSpace
   virtual size_t free_in_words(int grp) const;
   virtual size_t free_in_bytes(int grp) const;
 
+  size_t free_in_bytes() const;
+
   // Size computations for tlabs
   using MutableSpace::capacity_in_words;
   virtual size_t capacity_in_words(Thread *thr) const;
@@ -382,8 +386,9 @@ class MutableBDASpace : public MutableSpace
   // Debugging non-virtual
   void print_object_space() const;
   void print_spaces_fragmentation_stats() const;
-  void print_spaces_contents() const;
   void print_allocation_stats() const;
+  debug_only(void verbose_print_all_containers() const;)
+  debug_only(void print_spaces_contents() const;)
 };
 
 #endif // SHARE_VM_BDA_MUTABLEBDASPACE_HPP

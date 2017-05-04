@@ -159,7 +159,8 @@ MutableBDASpace::CGRPSpace::free_container(container_t container)
   // Assert that the container references no other.
   assert (container->_prev_segment == NULL && container->_next_segment == NULL,
           "segment associated with parent container");
-  FreeHeap ((void*)container, mtGC);
+  memset(container, 0, sizeof(struct container));
+  _pool->enqueue(container);
 }
 
 inline size_t
@@ -238,23 +239,42 @@ MutableBDASpace::CGRPSpace::install_container_in_space(size_t reserved_sz, size_
 inline bool
 MutableBDASpace::CGRPSpace::clear_delete_containers()
 {
-  // Not needed to destroy the pool since no container segment should have been
-  // enqueued there.
-  container_t c = _containers->peek();
-  int const count = _containers->n_elements();
-  int           i = 0;
-  while (i++ < count) {
-    container_t n = c->_next;
-    FreeHeap((void*)c, mtGC);
-    c = n;
+  if (container_count() > 0) {
+    container_t c = _containers->peek();
+    int const count = _containers->n_elements();
+    int           i = 0;
+    while (i++ < count) {
+      if (c->_prev_segment != NULL) {
+#ifdef BDA_PARANOID
+        // the value 0 is hard-coded since it means it refers to the other-space
+        int spaceid = c->_prev_segment->_space_id;
+        if (spaceid != 0) {
+          gclog_or_tty->print_cr("(PARANOID) Segment " INTPTR_FORMAT " is extension of "
+                                 INTPTR_FORMAT " from space " INT32_FORMAT,
+                                 (intptr_t)c, (intptr_t)c->_prev_segment, spaceid);
+        }
+#endif // BDA_PARANOID
+        c->_prev_segment->_next_segment = c->_next_segment;
+      }
+      if (c->_next_segment != NULL) {
+#ifdef BDA_PARANOID
+        // the value 0 is hard-coded since it means it refers to the other-space
+        int spaceid = c->_next_segment->_space_id;
+        if (spaceid != 0) {
+          gclog_or_tty->print_cr("(PARANOID) Segment " INTPTR_FORMAT " extends of " INTPTR_FORMAT
+                                 " from space " INT32_FORMAT,
+                                 (intptr_t)c, (intptr_t)c->_prev_segment, spaceid);
+        }
+#endif // BDA_PARANOID
+        c->_next_segment->_prev_segment = c->_prev_segment;
+      }
+      // do this first, before enqueuing (it sets _next and _previous).
+      memset(c, 0, sizeof(struct container));
+      _pool->enqueue_no_mt(c);
+      c = c->_next;
+    }
+    GenQueue<container_t, mtGC>::destroy(_containers);
   }
-
-  GenQueue<container_t, mtGC>::destroy(_containers);
-  GenQueue<container_t, mtGC>::destroy(_pool);
-  GenQueue<container_t, mtGC>::destroy(_large_pool);
-  
-  assert (_large_pool->n_elements() == 0, "pool shouldn't have containers.");
-  assert (_pool->n_elements() == 0, "pool shouldn't have containers.");
   assert (_containers->n_elements() == 0, "list shouldn't have containers.");
 }
 
@@ -288,6 +308,9 @@ MutableBDASpace::CGRPSpace::add_to_pool(container_t c)
     assert (c->_top == c->_start, "container is not empty");
     c->_next_segment = NULL; c->_prev_segment = NULL;
     c->_saved_top = c->_top;
+#ifdef ASSERT
+    c->_scanned_flag = -1;
+#endif // ASSERT
     if (pointer_delta(c->_end, c->_start) > segment_sz)
       _large_pool->enqueue(c);
     else
@@ -309,28 +332,6 @@ MutableBDASpace::CGRPSpace::power_function(int base, int exp)
   acc += base << exp;
   for (int i = exp - 1; i > 0; i--) acc += exp * (base << i);
   acc += base;
-}
-
-// The point of this code is to keep traversing the queue while checking if gc_current
-// is a container, i.e., it must have prev_segment equal to NULL.
-// This is such, because GC threads will follow all segments of a container on their own, without
-// interference.
-// Another way is changing the way segments are linked by using the next_segment ptr only, and
-// keeping the next ptr only for parent containers. This may have drawbacks in the scanning of all
-// segments (for example, during OldGC post compact phase).
-inline container_t
-MutableBDASpace::CGRPSpace::cas_get_next_container()
-{
-  container_t c = NULL;
-  while (_gc_current != NULL) {
-    c = _gc_current;
-    if (c == NULL)
-      break;
-    else if ((Atomic::cmpxchg_ptr(c->_next, &_gc_current, c) == c) &&
-             c->_prev_segment == NULL)
-      break;
-  }
-  return c;
 }
 
 inline container_t
@@ -372,14 +373,18 @@ MutableBDASpace::CGRPSpace::get_container_with_addr(HeapWord* addr) const
 inline void
 MutableBDASpace::CGRPSpace::save_top_ptrs()
 {
-  if (container_count() > 0)
+  if (container_count() > 0) {
+    _last_segment = last_container();
     for(GenQueueIterator<container_t, mtGC> iterator = _containers->iterator();
         *iterator != NULL;
         ++iterator) {
       container_t c = *iterator;
       c->_saved_top = c->_top;
-      debug_only(c->_scanned_flag = -1;)
+#ifdef ASSERT
+      c->_scanned_flag = -1;
+#endif 
     }
+  }
 }
 
 inline size_t
@@ -407,23 +412,32 @@ MutableBDASpace::CGRPSpace::free_in_words() const
   size_t s = 0;
   // If this is the other's space, we account from top to end
   if (container_type() != KlassRegionMap::region_start_ptr() && container_count() > 0) {
-      for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
-           *it != NULL;
-           ++it)
-      {
-        container_t c = *it;
-        s += pointer_delta(c->_end, c->_top);
-      }
+    for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
+         *it != NULL;
+         ++it)
+    {
+      container_t c = *it;
+      s += pointer_delta(c->_end, c->_top);
+    }
   } else {
     return space()->free_in_words();
   }
   return s;
 }
-
+inline size_t
+MutableBDASpace::CGRPSpace::fast_free_in_words() const
+{
+  return space()->free_in_words();
+}
 inline size_t
 MutableBDASpace::CGRPSpace::free_in_bytes() const
 {
   return free_in_words() * HeapWordSize;
+}
+inline size_t
+MutableBDASpace::CGRPSpace::fast_free_in_bytes() const
+{
+  return fast_free_in_words() * HeapWordSize;
 }
 inline size_t
 MutableBDASpace::CGRPSpace::used_in_bytes() const
@@ -441,14 +455,6 @@ MutableBDASpace::container_count()
     acc += _spaces->at(i)->container_count();
   }
   return acc;
-}
-
-inline void
-MutableBDASpace::set_shared_gc_pointers()
-{
-  for (int i = 0; i < spaces()->length(); ++i) {
-    spaces()->at(i)->set_shared_gc_pointer();
-  }
 }
 
 inline void

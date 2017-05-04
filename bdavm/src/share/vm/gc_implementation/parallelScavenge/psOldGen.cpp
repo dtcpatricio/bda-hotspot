@@ -136,11 +136,10 @@ void PSOldGen::initialize_work(const char* perf_data_name, int level) {
   // ObjectSpace stuff
   //
 #ifdef BDA
-  if(UseBDA) {
     _object_space = new MutableBDASpace(virtual_space()->alignment(), start_array());
-  } else
-#endif
+#else
     _object_space = new MutableSpace(virtual_space()->alignment());
+#endif
 
   if (_object_space == NULL)
     vm_exit_during_initialization("Could not allocate an old gen space");

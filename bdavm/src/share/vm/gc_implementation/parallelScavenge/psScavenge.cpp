@@ -385,7 +385,7 @@ bool PSScavenge::invoke_no_policy() {
     // straying into the promotion labs.
     HeapWord* old_top = NULL;
 #ifdef BDA
-    MutableBDASpace * bda_manager = (MutableBDASpace*)old_gen->object_space();
+    MutableBDASpace * bda_manager = old_gen->bda_space();
     old_top = bda_manager->non_bda_space()->top();
 #else
     old_top = old_gen->object_space()->top();
@@ -412,74 +412,69 @@ bool PSScavenge::invoke_no_policy() {
 
       GCTaskQueue* q = GCTaskQueue::create();
 
-#ifdef BDA
-      if (!bda_manager->is_bdaspace_empty()) {
-        // The saved_tops saves the containers tops in an array, while the old_top
-        // only saves the top ptr of the non_bda_space. We could reuse the declaration of
-        // old_top since non_bda_space() is a virtual that in a normal scenario (vanilla),
-        // it returns the actual object_space(), while in bdavm it returns the segment of the
-        // non-bda space.
-        // saved_tops = new BDACardTableHelper(bda_manager);
-        bda_manager->save_tops_for_scavenge();
-          
-        for (uint i = 0; i < active_workers; i++) {
-          q->enqueue(new OldToYoungBDARootsTask(old_gen, active_workers));
-        }
-      }
-      
-      RefQueue * refqueue = Universe::heap()->bda_refqueue();
-      if (!refqueue->is_empty()) {
-        for (uint j = 0; j < active_workers; j++) {
-          q->enqueue(new BDARefRootsTask(refqueue, old_gen));
-        }
-      }
-      // Now push the steal tasks to prevent a racing thread to steal
-      // bda refs from the threads' stacks.
-      ParallelTaskTerminator bda_phase_terminator(
-        active_workers,
-        (TaskQueueSetSuper*) promotion_manager->bda_stack_array());
-      if (active_workers > 1) {
-        for (uint j = 0; j < active_workers; j++) {
-          q->enqueue(new StealBDARefTask(&bda_phase_terminator));
-        }
-      }
-#endif
-
       uint stripe_total = active_workers;
-#ifndef BDA
-      if (!old_gen->object_space()->is_empty())
-#else
-        if (UseBDA) {
-          if(!bda_manager->non_bda_space()->is_empty()) {
-            
-            if(bda_manager->non_bda_grp()->container_count() > 0) {
-          
-              if(AlertContainersInOtherSpace) {
-                float avg_nsegments = bda_manager->avg_nsegments_in_bda();
-                gclog_or_tty->print("AlertContainersInOtherSpace: :: \n"
-                                    "The other's object space has " INT32_FORMAT
-                                    " container segments compared with an average of %F "
-                                    "on other spaces. Consider enlarging the BDAHeap.",
-                                    bda_manager->non_bda_grp()->container_count(),
-                                    avg_nsegments);
-              }
 
-              for (uint i = 0; i < stripe_total; i++) {
-                q->enqueue(new OldToYoungNonBDARootsTask(old_gen, old_top, i, stripe_total));
-              }
-            } else
-#endif
-            {
-              // There are only old-to-young pointers if there are objects
-              // in the old gen.
-              for(uint i=0; i < stripe_total; i++) {
-                q->enqueue(new OldToYoungRootsTask(old_gen, old_top, i, stripe_total));
-              }
-            }
 #ifdef BDA
+      // Enqueue bda scavenge tasks
+      if (UseBDA) {
+        // Are the bda-spaces not empty? Queue tasks to scan old-to-young refs
+        if (!bda_manager->is_bdaspace_empty()) {
+          bda_manager->save_tops_for_scavenge();
+          
+          for (uint i = 0; i < active_workers; i++) {
+            q->enqueue(new OldToYoungBDARootsTask(old_gen, i, active_workers));
           }
         }
-#endif
+
+        // Scan the refqueue to search for new bda roots
+        RefQueue * refqueue = Universe::heap()->bda_refqueue();
+        if (!refqueue->is_empty()) {
+          for (uint j = 0; j < active_workers; j++) {
+            q->enqueue(new BDARefRootsTask(refqueue, old_gen));
+          }
+        }
+
+        // Now push the steal tasks to prevent a racing thread to steal
+        // bda refs from the threads' stacks.
+        ParallelTaskTerminator bda_phase_terminator(
+          active_workers,
+          (TaskQueueSetSuper*) promotion_manager->bda_stack_array());
+        if (active_workers > 1) {
+          for (uint j = 0; j < active_workers; j++) {
+            q->enqueue(new StealBDARefTask(&bda_phase_terminator));
+          }
+        }
+        
+        // There are only old-to-young pointers if there are objects
+        // in the other-gen.
+        if(!bda_manager->non_bda_space()->is_empty()) {
+          
+          if(bda_manager->non_bda_grp()->container_count() > 0) {
+            if(AlertContainersInOtherSpace) {
+              gclog_or_tty->print("\n");
+              gclog_or_tty->print_cr("(WARN) AlertContainersInOtherSpace:");
+              gclog_or_tty->print_cr("The general object space has " INT32_FORMAT
+                                     " container segments. Consider enlarging the BDAHeap.",
+                                     bda_manager->non_bda_grp()->container_count());
+            }
+            for (uint i = 0; i < stripe_total; i++) {
+              q->enqueue(new OldToYoungNonBDARootsTask(old_gen, old_top, i, stripe_total));
+            }
+            
+          } else {
+
+            for(uint i=0; i < stripe_total; i++) {
+              q->enqueue(new OldToYoungRootsTask(old_gen, old_top, i, stripe_total));
+            }
+          }
+        }
+      } else
+#endif // BDA
+        if (!old_gen->object_space()->is_empty()) {
+          for(uint i=0; i < stripe_total; i++) {
+            q->enqueue(new OldToYoungRootsTask(old_gen, old_top, i, stripe_total));
+          }
+        }
 
       q->enqueue(new ScavengeRootsTask(ScavengeRootsTask::universe));
       q->enqueue(new ScavengeRootsTask(ScavengeRootsTask::jni_handles));
@@ -749,6 +744,9 @@ bool PSScavenge::invoke_no_policy() {
 #ifdef ASSERT
       if (BDAllocationVerboseLevel > 0) {
         bda_manager->print_allocation_stats();
+      }
+      if (PrintBDAContentsAtGC) {
+        bda_manager->print_spaces_contents();
       }
       bda_manager->reset_grp_stats();
 #endif // ASSERT

@@ -436,26 +436,5 @@ PSPromotionManager::bda_oop_promotion_failed(oop obj, markOop obj_mark)
   }
 
   return obj;
-
-}
-
-// TODO: Not in use now ... leaving it here just in case
-void
-PSPromotionManager::fill_last_segment()
-{
-  if (_filling_segment != NULL) {
-    container_t const segment = _filling_segment;  
-    assert (segment->_end + MutableBDASpace::_filler_header_size == segment->_hard_end,
-            "should not overflow");
-    HeapWord * const segment_end = segment->_end + MutableBDASpace::_filler_header_size;
-    typeArrayOop filler_oop = (typeArrayOop) segment->_top;
-    filler_oop->set_mark(markOopDesc::prototype());
-    filler_oop->set_klass(Universe::intArrayKlassObj());
-    const size_t filler_array_length =
-      pointer_delta(segment_end, (HeapWord*)filler_oop) - typeArrayOopDesc::header_size(T_INT);
-    assert((filler_array_length * (HeapWordSize/sizeof(jint))) < (size_t)max_jint,
-           "array too big");
-    filler_oop->set_length((int)(filler_array_length * (HeapWordSize / sizeof(jint))));
-  }
 }
 #endif // BDA

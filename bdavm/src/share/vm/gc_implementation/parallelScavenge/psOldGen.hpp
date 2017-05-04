@@ -149,7 +149,8 @@ class PSOldGen : public CHeapObj<mtGC> {
   ObjectStartArray*     start_array()             { return &_start_array; }
   PSVirtualSpace*       virtual_space() const     { return _virtual_space;}
 #if defined(BDA) || defined(BDA_INTERPRETER)
-  KlassRegionMap *      region_map() const        { return _region_map; }
+  KlassRegionMap *      region_map()        const { return _region_map; }
+  MutableBDASpace *     bda_space()         const { return (MutableBDASpace*)_object_space; }
 #endif // BDA || BDA_INTERPRETER
 
   // Has the generation been successfully allocated?
@@ -163,7 +164,14 @@ class PSOldGen : public CHeapObj<mtGC> {
   // Size info
   size_t capacity_in_bytes() const        { return object_space()->capacity_in_bytes(); }
   size_t used_in_bytes() const            { return object_space()->used_in_bytes(); }
-  size_t free_in_bytes() const            { return object_space()->free_in_bytes(); }
+  size_t free_in_bytes() const            {
+    if (UseBDA) {
+      return ((MutableBDASpace*)object_space())->free_in_bytes();
+    } else {
+      return object_space()->free_in_bytes();
+    }
+  }
+  
 
   size_t capacity_in_words() const        { return object_space()->capacity_in_words(); }
   size_t used_in_words() const            { return object_space()->used_in_words(); }

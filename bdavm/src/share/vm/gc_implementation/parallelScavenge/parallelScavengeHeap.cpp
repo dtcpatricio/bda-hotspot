@@ -448,6 +448,15 @@ HeapWord* ParallelScavengeHeap::failed_mem_allocate(size_t size) {
 
   // We assume that allocation in eden will fail unless we collect.
 
+  // <dpatricio> Here it is printed statistical info for debugging and for the user about
+  // the usage of the space. Another use is on the FullGC itself. The output can be repeated in
+  // a row but it will not be the same.
+#ifdef BDA
+  if (UseBDA && ContainerFragmentationAtGC) {
+    old_gen()->bda_space()->print_spaces_fragmentation_stats();
+  }
+#endif // BDA
+  
   // First level allocation failure, scavenge and allocate in young gen.
   GCCauseSetter gccs(this, GCCause::_allocation_failure);
   const bool invoked_full_gc = PSScavenge::invoke();
