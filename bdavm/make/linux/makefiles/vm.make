@@ -74,12 +74,22 @@ else
   endif
 endif
 
+## This assignment is repeated two times, one for command-line argument passing
+## and another for use with a non-configured automake script. This means that
+## the automake scripts still do not pass these options to the hotspot makefiles.
+## Therefore, be careful in order to keep consistency with both ways, i.e.,
+## comment all assignments below if you want to use the ifeq chain.
 ifeq ($(ENABLE_BDA),1)
   SYSDEFS += -DBDA
 endif
 ifeq ($(ENABLE_BDA_INTERPRETER_ONLY),1)
   SYSDEFS += -DBDA_INTERPRETER
 endif
+# Static assignments
+SYSDEFS += -DBDA
+# SYSDEFS += -DBDA_INTERPRETER
+SYSDEFS += -DBDA_PARANOID
+
 
 # HOTSPOT_RELEASE_VERSION and HOTSPOT_BUILD_VERSION are defined
 # in $(GAMMADIR)/make/defs.make
