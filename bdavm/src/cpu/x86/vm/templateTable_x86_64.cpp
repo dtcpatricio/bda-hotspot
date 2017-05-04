@@ -3249,7 +3249,6 @@ void TemplateTable::invokedynamic(int byte_no) {
 
 //-----------------------------------------------------------------------------
 // Allocation
-// static int counter = 0;
 void TemplateTable::_new() {
   transition(vtos, atos);
   __ get_unsigned_2_byte_index_at_bcp(rdx, 1);
