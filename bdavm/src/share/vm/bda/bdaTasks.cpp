@@ -60,6 +60,7 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
 {
   assert (((MutableBDASpace*)_old_gen->object_space())->used_in_words() > 0, "Should not be called if there is no work.");
   assert (_old_gen->object_space() != NULL, "Sanity");
+  assert (_order_number < ParallelGCThreads, "Sanity");
 
   {
     PSPromotionManager * pm = PSPromotionManager::gc_thread_promotion_manager(which);
@@ -72,27 +73,42 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
     for (int spc_id = 0; spc_id < space->spaces()->length(); ++spc_id) {
       MutableBDASpace::CGRPSpace * bda_space = space->spaces()->at(spc_id);
       if (bda_space->container_count() == 0) continue;
-      container_t c = bda_space->get_previous_n_segment(bda_space->last_container(), which);
+      container_t c = bda_space->get_previous_n_segment(bda_space->last_before_gc(), _order_number);
       HeapWord * c_top; int j = 0;
       while (c != NULL) {
+#ifdef ASSERT
+        if (BDAPrintOldToYoungTasks && Verbose) {
+          gclog_or_tty->print_cr ("[%s] thread " INT32_FORMAT " scanning container "
+                                  PTR_FORMAT " with contents [" PTR_FORMAT ", " PTR_FORMAT ", "
+                                  PTR_FORMAT ") saved top " PTR_FORMAT " scanned by " INT32_FORMAT,
+                                  name(), which, (intptr_t)c,
+                                  (intptr_t)c->_start, (intptr_t)c->_top,
+                                  (intptr_t)c->_end, (intptr_t)c->_saved_top,
+                                  c->_scanned_flag);
+        }
+#endif // ASSERT
         if (c->_saved_top == NULL || c->_start == c->_saved_top) {
-          c = bda_space->get_previous_n_segment(c, _total_workers);
+#ifdef ASSERT
+          if (BDAPrintOldToYoungTasks && Verbose) {
+            gclog_or_tty->print_cr ("[%s] thread " INT32_FORMAT " skipped container "
+                                    PTR_FORMAT,
+                                    name(), which, (intptr_t)c);
+          }
+#endif // ASSERT
+          c = bda_space->get_previous_n_segment(c, _batch_width);
           continue;
         }
-        if (c->_scanned_flag == -1) {
-          c->_scanned_flag = (int)which;
-        }
-        // else if (c->_scanned_flag == (int)which) { 
-        //    c = bda_space->get_next_n_segment(c, _total_workers);
-        //  }
 
-
+#ifdef ASSERT
+        assert (c->_scanned_flag == -1, "this segment was already scanned.");
+        c->_scanned_flag = (int)_order_number;
+#endif // ASSERT
         assert (c->_start < c->_saved_top, "container or segment is empty allocated");
         card_table->scavenge_bda_contents_parallel(_old_gen->start_array(),
                                                    c,
                                                    c->_saved_top,
                                                    pm);
-        c = bda_space->get_previous_n_segment(c, _total_workers);
+        c = bda_space->get_previous_n_segment(c, _batch_width);
       }
       pm->drain_bda_stacks();
     }

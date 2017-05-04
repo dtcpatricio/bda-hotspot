@@ -14,7 +14,9 @@ typedef struct container {
   HeapWord * _hard_end; // This is the end of the segment without minus filler-header
   HeapWord * _saved_top; // For scavenge from old to young;
   char       _space_id;
+#ifdef ASSERT
   int8_t     _scanned_flag;
+#endif
   struct container * _next_segment; // For partition of containers into small segments.
   struct container * _prev_segment; // Ease the iteration and removal of segments
   struct container * _next; // For iteration of containers in mutableSpaces

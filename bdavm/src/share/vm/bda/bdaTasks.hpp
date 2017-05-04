@@ -44,7 +44,7 @@ class StealBDARefTask : public GCTask
   StealBDARefTask (ParallelTaskTerminator * t) :
     _terminator(t) { }
 
-  char * name () { return (char*)"steal big-data ref task"; }
+  char * name () { return (char*)"big-data steal ref task"; }
 
   ParallelTaskTerminator * terminator () { return _terminator; }
   
@@ -62,11 +62,12 @@ class OldToYoungBDARootsTask : public GCTask
 
  private:
   PSOldGen * _old_gen;
-  uint       _total_workers;
+  uint       _batch_width;
+  uint       _order_number;
 
  public:
-  OldToYoungBDARootsTask(PSOldGen * old_gen, uint total_workers) :
-    _old_gen(old_gen), _total_workers (total_workers) { }
+  OldToYoungBDARootsTask(PSOldGen * old_gen, uint order_number, uint batch_width) :
+    _old_gen(old_gen), _order_number (order_number), _batch_width (batch_width) { }
 
   char * name() { return (char*)"big-data old to young roots task"; }
 
