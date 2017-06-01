@@ -166,6 +166,7 @@ class PSOldGen : public CHeapObj<mtGC> {
   size_t used_in_bytes() const            { return object_space()->used_in_bytes(); }
   size_t free_in_bytes() const            {
     if (UseBDA) {
+      // <dpatricio>
       return ((MutableBDASpace*)object_space())->free_in_bytes();
     } else {
       return object_space()->free_in_bytes();

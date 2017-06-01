@@ -105,7 +105,7 @@ ParallelCompactData::RegionData::dc_completed = 0xcU << dc_shift;
 SpaceInfo* PSParallelCompact::_space_info = NULL;
 bool       PSParallelCompact::_print_phases = false;
 
-#ifdef BDA
+// <dpatricio>
 const uint16_t
 ParallelCompactData::RegionData::scanned_bit = 0x1;
 
@@ -115,10 +115,10 @@ ParallelCompactData::RegionData::unscanned_bit = ~scanned_bit;
 unsigned int      PSParallelCompact::bda_last_space_id = 0;
 BDASummaryMap     PSParallelCompact::_summary_map;
 MutableBDASpace * PSParallelCompact::_bda_space = NULL;
-#endif
 
 ReferenceProcessor* PSParallelCompact::_ref_processor = NULL;
 Klass*              PSParallelCompact::_updated_int_array_klass_obj = NULL;
+// </dpatricio>
 
 double PSParallelCompact::_dwl_mean;
 double PSParallelCompact::_dwl_std_dev;
@@ -974,10 +974,6 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
     // Accumulate how much of the container is live and set the region's destination.
     size_t source_live = 0;
     for (int i = 0; i < source_regions; ++i) {
-      if (source_regions > (int)(MutableBDASpace::CGRPSpace::segment_sz >> Log2RegionSize)) {
-        HeapWord * dummy = 0x0;
-      }
-      
       RegionData * const cntr_region = &_region_data[cur_region + i];
       cntr_region->set_destination(dest_addr);
 
@@ -1059,6 +1055,9 @@ ParallelCompactData::summarize_bda_regions(SplitInfo& split_info,
           // be returned to the container pool in the last stage (cleanup).
           // TODO: This is kind of bulky!
           container_seg->_top = container_seg->_start;
+          if ((int)container_seg->_next_segment->_space_id == 0) {
+            HeapWord * dummy = NULL;
+          }
           container_t seg_to_free = container_seg;
           container_seg = container_seg->_next_segment;
           assert (seg_to_free->_prev_segment != NULL, "should have jumped a segment to reach here");
@@ -1396,6 +1395,9 @@ PSParallelCompact::clear_data_covering_space(SpaceId id)
         _bda_space->spaces()->at((uint)(id -last_space_id) + 1);
       _summary_data.clear_bda_range(beg_region, end_region, space_manager);
       _summary_data.clear_empty_region_range();
+      gclog_or_tty->print_cr("Verifying other gen refs from bda space with old gen id = "
+                             INT32_FORMAT, id);
+      _bda_space->verify_segments_in_othergen();
       // Save new top pointers
       space_manager->save_top_ptrs();
     } else if (id == old_space_id) {
@@ -2562,6 +2564,9 @@ bool PSParallelCompact::invoke_no_policy(bool maximum_heap_compaction) {
   if (ContainerFragmentationAtFullGC || ContainerFragmentationAtGC) {
     _bda_space->print_spaces_fragmentation_stats();
   }
+#ifdef BDA_PARANOID
+  bda_space()->verify_segments_in_othergen();
+#endif
 #ifdef ASSERT
   if (PrintBDAContentsAtFullGC && Verbose) {
     _bda_space->print_spaces_contents();

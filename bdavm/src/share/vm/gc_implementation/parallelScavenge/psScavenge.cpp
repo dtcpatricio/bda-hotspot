@@ -415,6 +415,17 @@ bool PSScavenge::invoke_no_policy() {
       uint stripe_total = active_workers;
 
 #ifdef BDA
+      // The terminator must be declared here, because it is a StackObj and its address
+      // must not mix with the terminator below. TODO: find a way of dealing with this.
+      ParallelTaskTerminator bda_phase_terminator(
+        active_workers,
+        (TaskQueueSetSuper*) promotion_manager->bda_stack_array());
+      if (active_workers > 1) {
+        for (uint j = 0; j < active_workers; j++) {
+          q->enqueue(new StealBDARefTask(&bda_phase_terminator));
+        }
+      }
+      
       // Enqueue bda scavenge tasks
       if (UseBDA) {
         // Are the bda-spaces not empty? Queue tasks to scan old-to-young refs
@@ -434,17 +445,6 @@ bool PSScavenge::invoke_no_policy() {
           }
         }
 
-        // Now push the steal tasks to prevent a racing thread to steal
-        // bda refs from the threads' stacks.
-        ParallelTaskTerminator bda_phase_terminator(
-          active_workers,
-          (TaskQueueSetSuper*) promotion_manager->bda_stack_array());
-        if (active_workers > 1) {
-          for (uint j = 0; j < active_workers; j++) {
-            q->enqueue(new StealBDARefTask(&bda_phase_terminator));
-          }
-        }
-        
         // There are only old-to-young pointers if there are objects
         // in the other-gen.
         if(!bda_manager->non_bda_space()->is_empty()) {

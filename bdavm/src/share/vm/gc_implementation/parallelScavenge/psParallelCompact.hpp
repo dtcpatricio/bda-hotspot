@@ -34,9 +34,7 @@
 #include "memory/sharedHeap.hpp"
 #include "oops/oop.hpp"
 
-#ifdef BDA
 #include "bda/bdaParallelCompact.hpp"
-#endif
 
 class ParallelScavengeHeap;
 class PSAdaptiveSizePolicy;
@@ -250,13 +248,14 @@ public:
     // The first region containing data destined for this region.
     size_t source_region() const { return _source_region; }
 
-#ifdef BDA
+    // <dpatricio>
     // The container that manages the address range this region is set for
     container_t container() const { return _container; }
 
     // Returns true if region was already scanned during summary.
     bool          scanned()   const { return (_scanned & scanned_bit) != 0; }
-#endif
+    // </dpatricio>
+
     // The object (if any) starting in this region and ending in a different
     // region that could not be updated during the main (parallel) compaction
     // phase.  This is different from _partial_obj_addr, which is an object that
@@ -330,12 +329,14 @@ public:
     void set_partial_obj_size(size_t words)    {
       _partial_obj_size = (region_sz_t) words;
     }
-#ifdef BDA
+
+    // <dpatricio>
     void set_container_ptr(container_t container) { _container = container; }
     // Sets the bit of the region to indicate it has been processed during summary.
     // No need to MT, but if summary becomes MT then this must be atomic.
     void set_scanned() { _scanned = scanned_bit; }
-#endif
+    // </dpatricio>
+
     inline void set_blocks_filled();
 
     inline void set_destination_count(uint count);
@@ -370,7 +371,8 @@ public:
     region_sz_t          _partial_obj_size;
     region_sz_t volatile _dc_and_los;
     bool                 _blocks_filled;
-#ifdef BDA
+
+    // <dpatricio>
     // A pointer to the container that spans this Region address range. Used for fast access
     // to the container.
     container_t          _container;
@@ -378,7 +380,7 @@ public:
     // These bits indicate if the region has been scanned during summary
     static const uint16_t scanned_bit;
     static const uint16_t unscanned_bit;
-#endif
+    // </dpatricio>
 
 #ifdef ASSERT
     size_t               _blocks_filled_count;   // Number of block table fills.
@@ -466,7 +468,7 @@ public:
                  HeapWord* target_beg, HeapWord* target_end,
                  HeapWord** target_next);
 
-#ifdef BDA
+  // <dpatricio>
   bool summarize_bda_regions(SplitInfo& split_info,
                              HeapWord* source_beg, HeapWord* source_end,
                              HeapWord** source_next);
@@ -477,7 +479,7 @@ public:
   }
   void clear_empty_region_range();
   inline void install_bda_container(container_t container);
-#endif
+  // </dpatricio>
   
   void clear();
   void clear_range(size_t beg_region, size_t end_region);
@@ -863,7 +865,7 @@ ParallelCompactData::is_block_aligned(HeapWord* addr) const
   return block_offset(addr) == 0;
 }
 
-#ifdef BDA
+// <dpatricio>
 inline void
 ParallelCompactData::install_bda_container(container_t container)
 {
@@ -875,7 +877,7 @@ ParallelCompactData::install_bda_container(container_t container)
     ++first_region_idx;
   }
 }
-#endif
+// </dpatricio>
 
 // Abstract closure for use with ParMarkBitMap::iterate(), which will invoke the
 // do_addr() method.
@@ -1126,12 +1128,13 @@ class PSParallelCompact : AllStatic {
   static AdjustPointerClosure _adjust_pointer_closure;
   static AdjustKlassClosure   _adjust_klass_closure;
 
-#ifdef BDA
+  // <dpatricio>
   // Map to hold some data during summary of the bda spaces
   static BDASummaryMap        _summary_map;
   // Convenient accessor
   static MutableBDASpace *    _bda_space;
-#endif
+  // </dpatricio>
+
   // Reference processing (used in ...follow_contents)
   static ReferenceProcessor*  _ref_processor;
 
@@ -1150,11 +1153,12 @@ class PSParallelCompact : AllStatic {
 
  public:
   static ParallelOldTracer* gc_tracer() { return &_gc_tracer; }
-#ifdef BDA
+
+  // <dpatricio>
   // This is analogous to the last_space_id, but it compensates such that it adds
   // the number of bda_regions (which is the number of regions in old gen minus 1
   static unsigned int         bda_last_space_id;
-#endif
+  // </dpatricio>
   
  private:
 
@@ -1426,7 +1430,7 @@ class PSParallelCompact : AllStatic {
     fill_region(cm, region);
   }
 
-#ifdef BDA
+  // <dpatricio>
   // Install the container_t ptr in the RegionData that manages the container address range
   // Call the ParallelCompactData for the effect.
   inline static void install_container_in_region(container_t container);
@@ -1439,7 +1443,6 @@ class PSParallelCompact : AllStatic {
   inline static bool is_same_container(size_t src_region_idx, size_t region_idx);
   // Getter for the convenience bda_space ptr
   static MutableBDASpace* bda_space() { return _bda_space; }
-#endif
   
   // Fill in the block table for the specified region.
   static void fill_blocks(size_t region_idx);
@@ -1626,7 +1629,7 @@ inline ObjectStartArray* PSParallelCompact::start_array(SpaceId id) {
   return _space_info[id].start_array();
 }
 
-#ifdef BDA
+// <dpatricio>
 inline void
 PSParallelCompact::install_container_in_region(container_t container)
 {
@@ -1653,7 +1656,6 @@ PSParallelCompact::is_same_container(size_t src_region_idx, size_t region_idx)
   container_t c2 = summary_data().region(region_idx)->container();
   return  c1 == c2;
 }
-#endif // BDA
 
 #ifdef ASSERT
 inline void
