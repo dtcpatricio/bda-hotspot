@@ -78,7 +78,8 @@ GenQueue<E, F>::enqueue_no_mt(E el)
   E old_end = insert_end();
   set_insert_end(el);
   el->_previous = old_end;
-  old_end->_next = el;
+  if (old_end != NULL) old_end->_next = el;
+  if (el->_previous == NULL && remove_end() == NULL) set_remove_end(el);
   _n_elements++;
 }
 
@@ -138,9 +139,7 @@ GenQueue<E, F>::remove_element(E el)
     if (el->_next_segment != NULL)
       el->_next_segment->_prev_segment = el->_prev_segment;
   }
-
-  // A removed element should not have its fields pointing anywhere else
-  el->_next = NULL; el->_previous = NULL;
+  
   Atomic::dec(&_n_elements);
 }
 

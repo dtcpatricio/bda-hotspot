@@ -243,6 +243,9 @@ MutableBDASpace::CGRPSpace::clear_delete_containers()
     container_t c = _containers->peek();
     int const count = _containers->n_elements();
     int           i = 0;
+#ifdef BDA_PARANOID
+    _manager->verify_segments_in_othergen();
+#endif
     while (i++ < count) {
       if (c->_prev_segment != NULL) {
 #ifdef BDA_PARANOID
@@ -269,11 +272,17 @@ MutableBDASpace::CGRPSpace::clear_delete_containers()
         c->_next_segment->_prev_segment = c->_prev_segment;
       }
       // do this first, before enqueuing (it sets _next and _previous).
+      container_t n = c->_next;
       memset(c, 0, sizeof(struct container));
       _pool->enqueue_no_mt(c);
-      c = c->_next;
+      c = n;
     }
     GenQueue<container_t, mtGC>::destroy(_containers);
+    // TODO: This mess should change, such as the PARANOID stuff, the place it is called and
+    // the strings it prints.
+#ifdef BDA_PARANOID
+    _manager->verify_segments_in_othergen();
+#endif
   }
   assert (_containers->n_elements() == 0, "list shouldn't have containers.");
 }
@@ -293,7 +302,7 @@ MutableBDASpace::CGRPSpace::unmask_container(container_t& c)
 }
  
 inline bool
-MutableBDASpace::CGRPSpace::not_in_pool(container_t c)
+MutableBDASpace::CGRPSpace::not_in_pool(container_t c) const
 {
   return (((uintptr_t)c->_end & CONTAINER_IN_POOL_MASK) == 0);
 }
@@ -303,18 +312,12 @@ MutableBDASpace::CGRPSpace::add_to_pool(container_t c)
 {
   if (not_in_pool(c)) {
     _containers->remove_element(c);
-    mask_container(c);
     // Reset some fields (previous doesn't need to be reset because it will be set)
     assert (c->_top == c->_start, "container is not empty");
-    c->_next_segment = NULL; c->_prev_segment = NULL;
-    c->_saved_top = c->_top;
-#ifdef ASSERT
-    c->_scanned_flag = -1;
-#endif // ASSERT
-    if (pointer_delta(c->_end, c->_start) > segment_sz)
-      _large_pool->enqueue(c);
-    else
-      _pool->enqueue(c);
+    memset(c, 0, sizeof(struct container));
+    mask_container(c);
+    c->_space_id = (char)(exact_log2((intptr_t) _type->value()));
+    _pool->enqueue(c);
   }
 }
 
@@ -384,6 +387,8 @@ MutableBDASpace::CGRPSpace::save_top_ptrs()
       c->_scanned_flag = -1;
 #endif 
     }
+  } else {
+    _last_segment = NULL;
   }
 }
 

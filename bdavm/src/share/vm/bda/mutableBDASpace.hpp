@@ -8,7 +8,6 @@
 # include "gc_implementation/parallelScavenge/parMarkBitMap.hpp"
 # include "runtime/prefetch.inline.hpp"
 
-
 // Implementation of an allocation space for big-data collection placement
 
 
@@ -167,7 +166,7 @@ class MutableBDASpace : public MutableSpace
     
     // This is called during the final stage of OldGC when free segments are returned to the pool
     inline void add_to_pool(container_t c);
-    inline bool not_in_pool(container_t c);
+    inline bool not_in_pool(container_t c) const;
     // This is called when a large segment requires that smaller segments in the pool
     // need to be cleared away to make room for the new one.
     inline void remove_from_pool(container_t c);
@@ -197,6 +196,9 @@ class MutableBDASpace : public MutableSpace
 
     // To verify oops
     void verify();
+#ifdef BDA_PARANOID
+    void verify_segments_othergen() const;
+#endif
     
     // Statistics and printing
     void print_container_fragmentation_stats() const;
@@ -389,6 +391,9 @@ class MutableBDASpace : public MutableSpace
   void print_allocation_stats() const;
   debug_only(void verbose_print_all_containers() const;)
   debug_only(void print_spaces_contents() const;)
+#ifdef BDA_PARANOID
+  void verify_segments_in_othergen() const;
+#endif
 };
 
 #endif // SHARE_VM_BDA_MUTABLEBDASPACE_HPP

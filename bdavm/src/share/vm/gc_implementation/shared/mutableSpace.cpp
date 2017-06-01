@@ -211,6 +211,34 @@ HeapWord* MutableSpace::cas_allocate(size_t size) {
   } while (true);
 }
 
+// <dpatricio>
+HeapWord* MutableSpace::cas_allocate_aligned(size_t size) {
+  size_t alignment = 1 << 9; // 512 bytes/ 64 words for match with card sizes
+  size_t filler_min_sz = MutableBDASpace::_filler_header_size;
+  do {
+    HeapWord* obj = top();
+    if (pointer_delta(end(), obj) >= size) {
+      HeapWord* new_top = (HeapWord*)align_size_up_((intptr_t)(obj + size), alignment);
+      HeapWord* result = (HeapWord*)Atomic::cmpxchg_ptr(new_top, top_addr(), obj);
+      if (result != obj) {
+        continue;
+      }
+      assert(is_object_aligned((intptr_t)obj) && is_object_aligned((intptr_t)new_top),
+             "checking alignment");
+      result = (HeapWord*)align_size_up_((intptr_t)obj, alignment);
+      // TODO: put _filler_header_size on the universe or on the mutableSpace.hpp
+      if (pointer_delta((HeapWord*)align_size_up_((intptr_t)obj, alignment), obj) >= filler_min_sz)
+      {
+        // Install the filler
+        CollectedHeap::fill_with_object(obj, pointer_delta((HeapWord*)align_size_up_((intptr_t)obj, alignment), obj));
+      }
+      return result;
+    } else {
+      return NULL;
+    }
+  } while (true);
+}
+
 // Try to deallocate previous allocation. Returns true upon success.
 bool MutableSpace::cas_deallocate(HeapWord *obj, size_t size) {
   HeapWord* expected_top = obj + size;

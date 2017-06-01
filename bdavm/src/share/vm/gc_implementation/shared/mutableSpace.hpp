@@ -132,6 +132,9 @@ class MutableSpace: public ImmutableSpace {
   // Allocation (return NULL if full)
   virtual HeapWord* allocate(size_t word_size);
   virtual HeapWord* cas_allocate(size_t word_size);
+  // <dpatricio>
+  virtual HeapWord* cas_allocate_aligned(size_t word_size);
+
   // Optional deallocation. Used in NUMA-allocator.
   bool cas_deallocate(HeapWord *obj, size_t size);
 

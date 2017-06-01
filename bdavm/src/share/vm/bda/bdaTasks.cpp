@@ -72,7 +72,8 @@ OldToYoungBDARootsTask::do_it(GCTaskManager * manager, uint which)
     // on the array of spaces.
     for (int spc_id = 0; spc_id < space->spaces()->length(); ++spc_id) {
       MutableBDASpace::CGRPSpace * bda_space = space->spaces()->at(spc_id);
-      if (bda_space->container_count() == 0) continue;
+      // This value is preferable to container_count > 0, because containers may have been alloc'd.
+      if (bda_space->last_before_gc() == NULL) continue;
       container_t c = bda_space->get_previous_n_segment(bda_space->last_before_gc(), _order_number);
       HeapWord * c_top; int j = 0;
       while (c != NULL) {

@@ -42,8 +42,6 @@ size_t MutableBDASpace::_filler_header_size = 0;
 // For offset allocation on the start array
 ObjectStartArray * MutableBDASpace::_start_array = NULL;
 
-#ifdef BDA
-
 //////////// ////////////////////////// //////////
 //////////// MutableBDASpace::CGRPSpace //////////
 //////////// ////////////////////////// //////////
@@ -101,18 +99,18 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
     reserved_sz = calculate_large_reserved_sz(size);
   }
 
-  // Now the amount of space is reserved with a CAS and the resulting ptr
-  // will be returned as the start of the collection struct.
-  ptr = space()->cas_allocate(reserved_sz);
-
-  // If there's no space left to allocate a new container, then
-  // return NULL so that MutableBDASpace can handle the allocation
-  // of a new container to "other" space.
-  if (ptr == NULL) {
-    return (container_t)ptr;
-  }
-
   if (container_type() != KlassRegionMap::region_start_ptr()) {
+    // Now the amount of space is reserved with a CAS and the resulting ptr
+    // will be returned as the start of the collection struct.
+    ptr = space()->cas_allocate(reserved_sz);
+    
+    // If there's no space left to allocate a new container, then
+    // return NULL so that MutableBDASpace can handle the allocation
+    // of a new container to the other_gen.
+    if (ptr == NULL) {
+      return (container_t)ptr;
+    }
+  
     // Get the container/segment in the RegionData that spans the addressable space
     container = PSParallelCompact::get_container_at_addr(ptr);
     last_seg  = PSParallelCompact::get_container_at_addr(ptr + reserved_sz);
@@ -123,7 +121,11 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
       // Remove from the pool by decreasing the num of elements.
       _pool->phantom_remove();
 
-      // Now set the limits.
+      // This block follows these sequence of rules:
+      //   a) if the thread grabbed a segment whose start is below ptr then it tries to grab
+      //      the adjacent segment, still owned by the reserved space of the thread;
+      //   b) if this condition is not satisfied it means that the thread may be grabbing
+      //      a segment belonging to a different thread. Therefore, allocates a new one.
       if (container->_start != ptr) {
         container_t temp;
         temp = PSParallelCompact::get_container_at_addr(ptr + reserved_sz - 1);
@@ -151,6 +153,17 @@ MutableBDASpace::CGRPSpace::push_container(size_t size)
       container = allocate_and_setup_container(ptr, reserved_sz, size);
     }
   } else {
+    // The amount of space is reserved with a CAS, but it must be aligned with the 512 byte blocks
+    // on the card table.
+    ptr = space()->cas_allocate_aligned(reserved_sz);
+    
+    // If there's no space left to allocate a new container, then
+    // return NULL to trigger a FullGC.
+    if (ptr == NULL) {
+      return (container_t)ptr;
+    }
+
+    // Get a queued container from the pool or allocate a new one
     container = _pool->dequeue();
     if (container != NULL) {
       setup_container(container, MemRegion(ptr, reserved_sz), size);
@@ -309,6 +322,23 @@ MutableBDASpace::CGRPSpace::verify()
     }
   }
 }
+
+#ifdef BDA_PARANOID
+void
+MutableBDASpace::CGRPSpace::verify_segments_othergen() const
+{
+  for (GenQueueIterator<container_t, mtGC> it = _containers->iterator();
+       *it != NULL; ++it ) {
+    container_t const c = *it;
+    if (c->_next_segment != NULL && c->_next_segment->_space_id == 0) {
+      gclog_or_tty->print_cr("(PARANOID) Segment " INTPTR_FORMAT " in space " INT32_FORMAT
+                             " still contains a reference to " INTPTR_FORMAT
+                             " in space 0",
+                             (intptr_t)c, (int)c->_space_id, (intptr_t)c->_next_segment);
+    }
+  }
+}
+#endif
 
 void
 MutableBDASpace::CGRPSpace::print_container_fragmentation_stats() const
@@ -1402,7 +1432,8 @@ MutableBDASpace::allocate_element(size_t size, container_t& container)
   
   // Which space was this container allocated?
   CGRPSpace * grp = spaces()->at((int)container->_space_id);
-  assert (grp != NULL, "The container must have been allocated in one of the groups");
+  assert (grp != NULL, "container must have been allocated in one of the groups");
+  assert (container != NULL, "container cannot be null during allocation");
   old_top = grp->allocate_new_segment(size, container); // reuse the variable
 
   // Force allocate in the general object space if it wasn't possible on the bda-space
@@ -1776,6 +1807,15 @@ MutableBDASpace::verify() {
   }
 }
 
+#ifdef BDA_PARANOID
+void
+MutableBDASpace::verify_segments_in_othergen() const
+{
+  for (int i = 1; i < spaces()->length(); i++) {
+    spaces()->at(i)->verify_segments_othergen();
+  }
+}
+#endif
 /**
  * STATISTICS FUNCTIONS
  */
@@ -1791,5 +1831,3 @@ MutableBDASpace::avg_nsegments_in_bda()
   }
   return acc / (float)(spaces()->length() - 1);
 }
-
-#endif // BDA
